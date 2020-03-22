@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="top2vec",
     packages=["top2vec"],
-    version="1.0.0",
+    version="1.0.1",
     author="Dimo Angelov",
     author_email="dimo.angelov@gmail.com",
     description="Topic2Vector learns jointly embedded topic, document and word vectors.",
