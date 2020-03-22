@@ -5,6 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="top2vec",
+    packages=["top2vec"],
     version="1.0.0",
     author="Dimo Angelov",
     author_email="dimo.angelov@gmail.com",
@@ -12,7 +13,6 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ddangelov/Top2Vec",
-    packages=setuptools.find_packages(),
     keywords="topic modeling",
     classifiers=[
         "Development Status :: 3 - Alpha",
