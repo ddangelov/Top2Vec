@@ -35,13 +35,17 @@ attracted the documents to the dense area are the topic words.
 **1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html).**
 >Documents will be placed to other similar documents and close to most distinguishing words. 
 ![Joint Document and Word Embedding](images/doc_word_embedding.svg)
+
 **2. Create lower dimensional embedding of document vectors using [UMAP](https://github.com/lmcinnes/umap).**
 >Document vectors in high dimensional space are very sparse, dimension reduction allows the discovery of dense areas. 
 ![UMAP dimension reduced Documents](images/umap_docs.png)
+
 **3. Find dense areas of documents using [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan).**
 >The colored areas are the dense areas of documents. Red points are outliers that do not belong to a specific topic.
 ![HDBSCAN Document Clusters](images/hdbscan_docs.png)
+
 **4. For each dense area calculate centroid of document vectors in original dimension. (centroid = topic vector)**
+
 **5. Find n-closest word vectors to the resulting topic vector**
 
 
