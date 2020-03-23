@@ -40,12 +40,12 @@ attracted the documents to the dense area are the topic words.
 **2. Create lower dimensional embedding of document vectors using [UMAP](https://github.com/lmcinnes/umap).**
 >Document vectors in high dimensional space are very sparse, dimension reduction helps for finding dense areas. Each point is a document vector.
 
-![UMAP dimension reduced Documents](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/umap_docs.png?sanitize=true)
+![UMAP dimension reduced Documents](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/umap_docs.png)
 
 **3. Find dense areas of documents using [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan).**
 >The colored areas are the dense areas of documents. Red points are outliers that do not belong to a specific cluster.
 
-![HDBSCAN Document Clusters](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/hdbscan_docs.png?sanitize=true)
+![HDBSCAN Document Clusters](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/hdbscan_docs.png)
 
 **4. For each dense area calculate the centroid of document vectors in original dimension, this is the topic vector.**
 >The red points are outlier documents and do not get used for calculating the topic vector. The purple points are the document vectors that belong to a dense area, from which the topic vector is calculated. 
