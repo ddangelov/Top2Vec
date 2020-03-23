@@ -1,7 +1,7 @@
 Top2Vec
 =======
 
-Topic2Vector is a an algorithm for topic modeling. It automatically detects topics present in text
+Topic2Vector is an algorithm for topic modeling. It automatically detects topics present in text
 and generates jointly embedded topic, document and word vectors. Once you train the Top2Vec model 
 you can:
 * Get number of detected topics.
@@ -23,7 +23,7 @@ Benefits
 How does it work?
 -----------------
 
-The assumption under the algorithm is that many documents that are semantically similar 
+The assumption the algorithm makes is that many semantically similar documents
 are indicative of an underlying topic. The first step is to create a joint embedding of 
 document and word vectors. Once documents and words are embedded in a vector 
 space the goal of the algorithm is to find dense clusters of documents, then identify which 
@@ -33,12 +33,12 @@ attracted the documents to the dense area are the topic words.
 ### The Algorithm:
 
 **1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html).**
->Documents will be placed to other similar documents and close to most distinguishing words.
+>Documents will be placed close to other similar documents and close to the most distinguishing words.
 
 ![Joint Document and Word Embedding](images/doc_word_embedding.svg)
 
 **2. Create lower dimensional embedding of document vectors using [UMAP](https://github.com/lmcinnes/umap).**
->Document vectors in high dimensional space are very sparse, dimension reduction allows the discovery of dense areas.
+>Document vectors in high dimensional space are very sparse, dimension reduction helps for finding dense areas.
 
 ![UMAP dimension reduced Documents](images/umap_docs.png)
 
