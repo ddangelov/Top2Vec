@@ -43,7 +43,7 @@ attracted the documents to the dense area are the topic words.
 ![UMAP dimension reduced Documents](images/umap_docs.png)
 
 **3. Find dense areas of documents using [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan).**
->The colored areas are the dense areas of documents. Red points are outliers that do not belong to a specific topic.
+>The colored areas are the dense areas of documents. Red points are outliers that do not belong to a specific cluster.
 
 ![HDBSCAN Document Clusters](images/hdbscan_docs.png)
 
