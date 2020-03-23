@@ -66,5 +66,5 @@ Parameters:
     time to train. The 'deep-learn' option will learn the best quality vectors but 
     will take significant time to train.  
     
-  * ``workers:``: The amount of worker threads to be used in training the model. Larger
+  * ``workers``: The amount of worker threads to be used in training the model. Larger
     amount will lead to faster training.
