@@ -53,7 +53,9 @@ attracted the documents to the dense area are the topic words.
 ![Topic Vector](images/topic_vector.svg)
 
 **5. Find n-closest word vectors to the resulting topic vector**
+>The closest word vectors in order of proximity become the topic words. 
 
+![Topic Words](images/topic_words.svg)
 
 Installation
 ------------
