@@ -47,8 +47,8 @@ attracted the documents to the dense area are the topic words.
 
 ![HDBSCAN Document Clusters](images/hdbscan_docs.png)
 
-**4. For each dense area calculate centroid of document vectors in original dimension. (centroid = topic vector)**
->The red points are outliers and do not get used for calculating the topic vector. The purple points are the documents vectors identified as being part of a dense area are used to calculate the topic vector.
+**4. For each dense area calculate centroid of document vectors in original dimension, this is the topic vector.**
+>The red points are outlier documents and do not get used for calculating the topic vector. The purple points are the document vectors that belong to a dense area, from which the topic vector is calculated. 
 
 ![Topic Vector](images/topic_vector.svg)
 
