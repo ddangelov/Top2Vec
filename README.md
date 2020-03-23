@@ -57,7 +57,7 @@ from top2vec import Top2Vec
 model = Top2Vec(documents)
 ```
 Parameters:
-```
+
   -``documents``: Input corpus, should be a list of strings.
   
   -``speed``: This parameter will determine how fast the model takes to train. 
@@ -68,4 +68,3 @@ Parameters:
     
   -``workers:``: The amount of worker threads to be used in training the model. Larger
     amount will lead to faster training.
-```
