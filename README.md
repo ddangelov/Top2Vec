@@ -11,13 +11,14 @@ The easy way to install Top2Vec is:
 
     pip install top2vec
 
-Usage
------
 
-    ```python
+---
+# Usage
 
-    from top2vec import Top2Vec
+```python
 
-    model = Top2Vec(documents)
-    ```    
+from top2vec import Top2Vec
 
+model = Top2Vec(documents)
+```    
+---
