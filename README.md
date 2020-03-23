@@ -40,7 +40,7 @@ attracted the documents to the dense area are the topic words.
 **2. Create lower dimensional embedding of document vectors using [UMAP](https://github.com/lmcinnes/umap).**
 >Document vectors in high dimensional space are very sparse, dimension reduction helps for finding dense areas. Each point is a document vector.
 
-![UMAP dimension reduced Documents](images/umap_docs.png)
+![UMAP dimension reduced Documents](https://github.com/ddangelov/Top2Vec/blob/master/images/umap_docs.png)
 
 **3. Find dense areas of documents using [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan).**
 >The colored areas are the dense areas of documents. Red points are outliers that do not belong to a specific cluster.
