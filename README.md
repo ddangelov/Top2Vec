@@ -30,7 +30,7 @@ space the goal of the algorithm is to find dense clusters of documents, then ide
 words attracted those documents together. Each dense area is a topic and the words that
 attracted the documents to the dense area are the topic words.
 
-# The Algorithm:
+### The Algorithm:
 
 **1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html).**
 >Documents will be placed to other similar documents and close to most distinguishing words. 
