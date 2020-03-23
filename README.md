@@ -11,6 +11,15 @@ you can:
 * find similar words
 * find similar documents
 
+Benefits
+--------
+1. Automatically finds number of topics.
+2. No stop words required.
+3. No need for stemming/lemmatizing.
+4. Works on short text.
+5. Creates jointly embedded topic, document, and word vectors. 
+6. Has search functions built in.
+
 How does it work?
 -----------------
 
