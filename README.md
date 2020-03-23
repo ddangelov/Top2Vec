@@ -35,7 +35,7 @@ attracted the documents to the dense area are the topic words.
 **1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html).**
 >Documents will be placed close to other similar documents and close to the most distinguishing words.
 
-![Joint Document and Word Embedding](images/doc_word_embedding.svg)
+![Joint Document and Word Embedding](https://github.com/ddangelov/Top2Vec/blob/master/images/doc_word_embedding.svg)
 
 **2. Create lower dimensional embedding of document vectors using [UMAP](https://github.com/lmcinnes/umap).**
 >Document vectors in high dimensional space are very sparse, dimension reduction helps for finding dense areas. Each point is a document vector.
