@@ -32,7 +32,8 @@ attracted the documents to the dense area are the topic words.
 
 **The Algorithm:**
 
-1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html). 
+1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html).
+![Joint Document and Word Embedding](images/doc_word_embedding.svg)
 2. Create lower dimensional embedding of document vectors using [UMAP](https://github.com/lmcinnes/umap)
 3. Find dense areas of documents using [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan)
 4. For each dense area calculate centroid of document vectors in original dimension. (centroid = topic vector)
