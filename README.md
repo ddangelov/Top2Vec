@@ -58,13 +58,13 @@ model = Top2Vec(documents)
 ```
 Parameters:
 
-  *``documents``: Input corpus, should be a list of strings.
+  * ``documents``: Input corpus, should be a list of strings.
   
-  *``speed``: This parameter will determine how fast the model takes to train. 
+  * ``speed``: This parameter will determine how fast the model takes to train. 
     The 'fast-learn' option is the fastest and will generate the lowest quality
     vectors. The 'learn' option will learn better quality vectors but take a longer
     time to train. The 'deep-learn' option will learn the best quality vectors but 
     will take significant time to train.  
     
-  *``workers:``: The amount of worker threads to be used in training the model. Larger
+  * ``workers:``: The amount of worker threads to be used in training the model. Larger
     amount will lead to faster training.
