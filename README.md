@@ -132,6 +132,7 @@ Returns:
   * ``topic_nums``: The unique index of every topic will be returned.
   
 ### Search Topics
+We are going to search for topics most similar to **medicine**. 
 ```python
 
 topic_words, word_scores, topic_scores, topic_nums = top2vec.search_topics(keywords=["medicine"], num_topics=5)
@@ -160,8 +161,9 @@ topic_scores
 
 ### Generate Word Clouds
 
-Using a topic number you can generate a word cloud. We are going to genenarte word clouds for the top 5 most similar topics to our "medicine" topic search from above.  
+Using a topic number you can generate a word cloud. We are going to genenarate word clouds for the top 5 most similar topics to our **medicine** topic search from above.  
 ```python
+# generate word cloud for topic_nums from "medicine" keyword search on topics
 for topic in topic_nums:
     model.generate_topic_wordcloud(topic)
 ```
