@@ -203,3 +203,53 @@ for index in range(0,len(document_nums)):
     yeast is considered a quack diagnosis by mainstream medicine.  There
     is a book "The Yeast Connection" which talks about this "illness".
     -----------
+    
+    Document: 16185, Score: 0.6347
+    -----------
+    Need Diet for Diverticular Disease
+    and ideas for gastrointestinal distress
+    -----------
+    
+    Document: 11782, Score: 0.6182
+    -----------
+    Could someone give me some information on the cause, pathophysiology and 
+    clinical manifestations and treatment of this type of cancer.
+    -----------
+    
+    Document: 2953, Score: 0.6103
+    -----------
+    Unfortunately, Hep B infection can eventuate in chronic hepatitis and
+    subsequent cirrhosis.  Although not many patients with Hep B go on to
+    chronic hepatitis, it does still occur in a good number (20%?) and is
+    something to keep in mind.  Hepatitis C (was: non-A, non-B Hep) much
+    more frequently leads to chronic hep and cirrhosis.  There is also an
+    autimmune chronic hepatitis that affects mostly younger women which
+    also leads to cirrhosis.  
+
+    Of course, cirrhosis is a most unkind disease.  The most dangerous
+    effects relate to portal hypertension and loss of liver function. 
+    Patients develop life-threatening variceal bleeds and hepatic comas,
+    among many other problems, as a result of disturbances in hepatic
+    circulation.  Less ominously, they can exhibit the effects of
+    hyperestrogenemia which often characterize patients with cirrhosis. 
+    These effects include telangiactasias (small red skin lesions) and, in
+    men, gynecomastia (breast development).  The only real treatment for
+    cirrhosis is liver transplant.
+
+    Keep in mind that cirrhosis is not expected, at least statistically, in
+    your friend's case.  Nevertheless you might want to bring up the
+    subject of chronic disease and cirrhosis with the doctor.  Hopefully he
+    or she can then carefully explain these sequelae of Hep B infection to
+    you, and offer you support.
+    -----------
+    
+    Document: 4466, Score: 0.6091
+    -----------
+    A woman once told me her doctor told her that I
+    could catch, asymptomatically, her yeast infection
+    from her, then give it back to her, causing
+    a relapse.
+
+    Probably bogus, but if not, it's another reason to use
+    latex...
+    -----------
