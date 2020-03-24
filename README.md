@@ -1,5 +1,5 @@
 ![](https://img.shields.io/pypi/v/top2vec.svg)
-![](https://img.shields.io/pypi/l/top2vec.svg)
+[![](https://img.shields.io/pypi/l/top2vec.svg)](https://img.shields.io/pypi/l/top2vec.svg)
 [![](https://readthedocs.org/projects/top2vec/badge/?version=latest&token=0c691c6cc79b4906e35e8b7ede01e815baa05041d048945fa18e26810a3517d7)](https://top2vec.readthedocs.io/en/latest/?badge=latest)
 
 Top2Vec
