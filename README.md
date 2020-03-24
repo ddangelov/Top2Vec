@@ -160,10 +160,13 @@ topic_scores
 
 ### Generate Word Clouds
 
-Using a topic number you can generate a word cloud. Lets see what Topic 21 is about. 
+Using a topic number you can generate a word cloud. We are going to genenarte word clouds for the top 5 most similar topics to our "medicine" topic search from above.  
 ```python
-
-model.generate_topic_wordcloud(21)
-
+for topic in topic_nums:
+    model.generate_topic_wordcloud(topic)
 ```
-  
+![Topic 21](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic21.png)
+![Topic 29](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic29.png)
+![Topic 9](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic9.png)
+![Topic 61](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic61.png)
+![Topic 48](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic48.png)
