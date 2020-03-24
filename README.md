@@ -192,8 +192,8 @@ for index in range(0,len(document_nums)):
     print("-----------")
     print(documents[index])
     print("-----------")
-    
->>> "Document: 11239, Score: 0.6546
+```
+    Document: 11239, Score: 0.6546
     -----------
     Candida albicans can cause severe life-threatening infections, usually
     in people who are otherwise quite ill.  This is not, however, the sort
@@ -201,7 +201,5 @@ for index in range(0,len(document_nums)):
 
     "Systemic yeast syndrome" where the body is allergic to
     yeast is considered a quack diagnosis by mainstream medicine.  There
-    is a book "The Yeast Connection" which talks about this "illness"."
+    is a book "The Yeast Connection" which talks about this "illness".
     -----------
-
-```
