@@ -135,7 +135,7 @@ Returns:
 We are going to search for topics most similar to **medicine**. 
 ```python
 
-topic_words, word_scores, topic_scores, topic_nums = top2vec.search_topics(keywords=["medicine"], num_topics=5)
+topic_words, word_scores, topic_scores, topic_nums = model.search_topics(keywords=["medicine"], num_topics=5)
 ```
 Returns:
   * ``topic_words``: For each topic the top 50 words are returned, in order
@@ -162,7 +162,7 @@ topic_scores
 
 Using a topic number you can generate a word cloud. We are going to genenarate word clouds for the top 5 most similar topics to our **medicine** topic search from above.  
 ```python
-# generate word cloud for topic_nums from "medicine" keyword search on topics
+topic_words, word_scores, topic_scores, topic_nums = model.search_topics(keywords=["medicine"], num_topics=5)
 for topic in topic_nums:
     model.generate_topic_wordcloud(topic)
 ```
@@ -174,9 +174,9 @@ for topic in topic_nums:
 
 ### Search Documents by Topic
 
-We are going to search by topic 48, a topic that appears to be about science.
+We are going to search by topic 48, a topic that appears to be about **science**.
 ```python
-documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=48, num_docs=5)
+documents, document_scores, document_nums = model.search_documents_by_topic(topic_num=48, num_docs=5)
 ```
 Returns:
   * ``documents``: The documents in a list, the most similar are first.  
@@ -188,12 +188,13 @@ Returns:
   
 For each of the returned documents we are going to print its content, score and document number.
 ```python
-documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=48, num_docs=5)
+documents, document_scores, document_nums = model.search_documents_by_topic(topic_num=48, num_docs=5)
 for index in range(0,len(document_nums)):
     print(f"Document: {document_nums[index]}, Score: {document_scores[index]}")
     print("-----------")
     print(documents[index])
     print("-----------")
+    print()
 ```
 
 
@@ -243,3 +244,35 @@ for index in range(0,len(document_nums)):
     
     ...
 
+### Semantic Search Documents by Keywords
+
+Search documents for content semantically similar to **cryptography** and **privacy**.
+```python
+documents, document_scores, document_nums = top2vec.search_documents_by_keyword(keywords=["cryptography", "privacy"], num_docs=5)
+for index in range(0,len(document_nums)):    
+    print(f"Document: {document_nums[index]}, Score: {document_scores[index]}")
+    print("-----------")
+    print(documents[index])
+    print("-----------")
+    print()
+``` 
+    Document: 16837, Score: 0.6112
+    -----------
+    ...
+    Email and account privacy, anonymity, file encryption,  academic 
+    computer policies, relevant legislation and references, EFF, and 
+    other privacy and rights issues associated with use of the Internet
+    and global networks in general.
+    ...
+    
+    Document: 16254, Score: 0.5722
+    -----------
+    ...
+    The President today announced a new initiative that will bring
+    the Federal Government together with industry in a voluntary
+    program to improve the security and privacy of telephone
+    communications while meeting the legitimate needs of law
+    enforcement.
+    ...
+    -----------
+    ...
