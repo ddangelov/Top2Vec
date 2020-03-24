@@ -176,7 +176,7 @@ for topic in topic_nums:
 
 We are going to search by topic 48, a topic that appears to be about science.
 ```python
-documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=21, num_docs=5)
+documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=48, num_docs=5)
 ```
 Returns:
   * ``documents``: The documents in a list, the most similar are first.  
@@ -186,6 +186,7 @@ Returns:
   
   * ``doc_nums``: Indexes of documents in the input corpus of documents.
   
+For each of the returned documents we are going to print its content, score and document number.
 ```python
 documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=48, num_docs=5)
 for index in range(0,len(document_nums)):
