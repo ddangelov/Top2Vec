@@ -10,7 +10,8 @@ Welcome to Top2Vec's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   source/README.md
+   test
+   README
 
 
 Indices and tables
