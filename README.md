@@ -95,7 +95,7 @@ Example
 -------
 
 ### Train Model
-
+Train a Top2Vec model on the 20newsgroups dataset.
 ```python
 
 from top2vec import Top2Vec
