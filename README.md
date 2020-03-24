@@ -1,3 +1,9 @@
+![pypi](https://img.shields.io/pypi/v/top2vec.svg)
+
+![license](https://img.shields.io/pypi/l/top2vec.svg)
+
+![docs](https://readthedocs.org/projects/top2vec/badge/?version=latest)
+
 Top2Vec
 =======
 
