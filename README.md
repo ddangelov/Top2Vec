@@ -91,6 +91,13 @@ Parameters:
   * ``workers``: The amount of worker threads to be used in training the model. Larger
     amount will lead to faster training.
     
+> Trained models can be saved and loaded.    
+```python
+
+model.save("filename")
+model.load("filename")
+```
+    
 Example
 -------
 
