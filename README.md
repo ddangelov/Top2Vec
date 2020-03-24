@@ -276,3 +276,32 @@ for index in range(0,len(document_nums)):
     ...
     -----------
     ...
+
+### Similar Keywords
+
+Search for similar words to **space**.
+```python
+words, word_scores = top2vec.similar_words(keywords=["space"], keywords_neg=[], num_words=20)
+for i in range(0,len(words)):
+    print(f"{words[i]} {word_scores[i]}")
+``` 
+    space 1.0
+    nasa 0.6589
+    shuttle 0.5976
+    exploration 0.5448
+    planetary 0.5391
+    missions 0.5069
+    launch 0.4941
+    telescope 0.4821
+    astro 0.4696
+    jsc 0.4549
+    ames 0.4515
+    satellite 0.446
+    station 0.4445
+    orbital 0.4438
+    solar 0.4386
+    astronomy 0.4378
+    observatory 0.4355
+    facility 0.4325
+    propulsion 0.4251
+    aerospace 0.4226
