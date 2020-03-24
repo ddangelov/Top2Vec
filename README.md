@@ -174,6 +174,7 @@ for topic in topic_nums:
 
 ### Search Documents by Topic
 
+We are going to search by topic 48, a topic that appears to be about science.
 ```python
 documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=21, num_docs=5)
 ```
@@ -186,70 +187,102 @@ Returns:
   * ``doc_nums``: Indexes of documents in the input corpus of documents.
   
 ```python
-documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=21, num_docs=5)
+documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=48, num_docs=5)
 for index in range(0,len(document_nums)):
     print(f"Document: {document_nums[index]}, Score: {document_scores[index]}")
     print("-----------")
     print(documents[index])
     print("-----------")
 ```
-    Document: 11239, Score: 0.6546
-    -----------
-    Candida albicans can cause severe life-threatening infections, usually
-    in people who are otherwise quite ill.  This is not, however, the sort
-    of illness that you are probably discussing.
 
-    "Systemic yeast syndrome" where the body is allergic to
-    yeast is considered a quack diagnosis by mainstream medicine.  There
-    is a book "The Yeast Connection" which talks about this "illness".
+
+    Document: 15227, Score: 0.6322
+    -----------
+      Evolution is both fact and theory.  The THEORY of evolution represents the
+    scientific attempt to explain the FACT of evolution.  The theory of evolution
+    does not provide facts; it explains facts.  It can be safely assumed that ALL
+    scientific theories neither provide nor become facts but rather EXPLAIN facts.
+    I recommend that you do some appropriate reading in general science.  A good
+    starting point with regard to evolution for the layman would be "Evolution as
+    Fact and Theory" in "Hen's Teeth and Horse's Toes" [pp 253-262] by Stephen Jay
+    Gould.  There is a great deal of other useful information in this publication.
+    -----------
+
+    Document: 14515, Score: 0.6186
+    -----------
+    Just what are these "scientific facts"?  I have never heard of such a thing.
+    Science never proves or disproves any theory - history does.
+
+    -Tim
     -----------
     
-    Document: 16185, Score: 0.6347
+    Document: 9433, Score: 0.5997
     -----------
-    Need Diet for Diverticular Disease
-    and ideas for gastrointestinal distress
+    The same way that any theory is proven false.  You examine the predicitions
+    that the theory makes, and try to observe them.  If you don't, or if you
+    observe things that the theory predicts wouldn't happen, then you have some 
+    evidence against the theory.  If the theory can't be modified to 
+    incorporate the new observations, then you say that it is false.
+
+    For example, people used to believe that the earth had been created
+    10,000 years ago.  But, as evidence showed that predictions from this 
+    theory were not true, it was abandoned.
     -----------
     
-    Document: 11782, Score: 0.6182
+    Document: 11917, Score: 0.5845
     -----------
-    Could someone give me some information on the cause, pathophysiology and 
-    clinical manifestations and treatment of this type of cancer.
+    The point about its being real or not is that one does not waste time with
+    what reality might be when one wants predictions. The questions if the
+    atoms are there or if something else is there making measurements indicate
+    atoms is not necessary in such a system.
+
+    And one does not have to write a new theory of existence everytime new
+    models are used in Physics.
     -----------
     
-    Document: 2953, Score: 0.6103
+    Document: 18057, Score: 0.5679
     -----------
-    Unfortunately, Hep B infection can eventuate in chronic hepatitis and
-    subsequent cirrhosis.  Although not many patients with Hep B go on to
-    chronic hepatitis, it does still occur in a good number (20%?) and is
-    something to keep in mind.  Hepatitis C (was: non-A, non-B Hep) much
-    more frequently leads to chronic hep and cirrhosis.  There is also an
-    autimmune chronic hepatitis that affects mostly younger women which
-    also leads to cirrhosis.  
 
-    Of course, cirrhosis is a most unkind disease.  The most dangerous
-    effects relate to portal hypertension and loss of liver function. 
-    Patients develop life-threatening variceal bleeds and hepatic comas,
-    among many other problems, as a result of disturbances in hepatic
-    circulation.  Less ominously, they can exhibit the effects of
-    hyperestrogenemia which often characterize patients with cirrhosis. 
-    These effects include telangiactasias (small red skin lesions) and, in
-    men, gynecomastia (breast development).  The only real treatment for
-    cirrhosis is liver transplant.
+    You are making precisely one of the points I wanted to make.
+    I fully agree with you that there is a big distinction between the
+    *process* of science and the end result.  
 
-    Keep in mind that cirrhosis is not expected, at least statistically, in
-    your friend's case.  Nevertheless you might want to bring up the
-    subject of chronic disease and cirrhosis with the doctor.  Hopefully he
-    or she can then carefully explain these sequelae of Hep B infection to
-    you, and offer you support.
-    -----------
-    
-    Document: 4466, Score: 0.6091
-    -----------
-    A woman once told me her doctor told her that I
-    could catch, asymptomatically, her yeast infection
-    from her, then give it back to her, causing
-    a relapse.
+    As an end result of science, one wants to get results that are
+    objectively verifiable.  But there is nothing objective about the
+    *process* of science.  
 
-    Probably bogus, but if not, it's another reason to use
-    latex...
+    If good empirical research were done and showed that there is some merit
+    to homeopathic remedies, this would certainly be valuable information.
+    But it would still not mean that homeopathy qualifies as a science.  This
+    is where you and I disagree with Turpin.  In order to have science, one
+    must have a theoretical structure that makes sense, not a mere
+    collection of empirically validated random hypotheses.
+
+    Experiment and empirical studies are an important part of science, but
+    they are merely the culmination of scientific research.  The most
+    important part of true scientific methodology is SCIENTIFIC THINKING.  
+    Without this, one does not have any hypotheses worth testing.  (No,
+    hypotheses do not just leap out at you after you look at enough data.
+    Nor do they simply come to you in a flash one day while you're shaving or
+    looking out the window.  At least not unless you've done a lot of really
+    good thinking beforehand.)  
+
+    The difference between a Nobel Prize level scientist and a mediocre
+    scientist does not lie in the quality of their empirical methodology.  
+    It depends on the quality of their THINKING.  
+
+    It really bothers me that so many graduate students seem to believe that
+    they are doing science merely because they are conducting empirical
+    studies.  And it bothers me even more that there are many fields, such as
+    certain parts of psychology, where there seems to be no thinking at all, 
+    but mere studies testing ad hoc hypotheses.  
+
+    And I'm especially offended by Russell Turpin's repeated assertion that
+    science amounts to nothing more than avoiding mistakes.  Simply avoiding
+    mistakes doesn't get you anywhere.  
+
+    --
+    In the arguments between behaviorists and cognitivists, psychology seems 
+    less like a science than a collection of competing religious sects.   
     -----------
+
