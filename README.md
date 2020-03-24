@@ -90,3 +90,80 @@ Parameters:
     
   * ``workers``: The amount of worker threads to be used in training the model. Larger
     amount will lead to faster training.
+    
+Example
+-------
+
+### Train Model
+
+```python
+
+from top2vec import Top2Vec
+from sklearn.datasets import fetch_20newsgroups
+
+newsgroups = fetch_20newsgroups(subset='all', remove=('headers', 'footers', 'quotes'))
+
+model = Top2Vec(documents=newsgroups.data, speed="learn", workers=8)
+
+```
+### Get Number of Topics
+This will return the number of topics that top2vec has found in the data.
+```python
+
+model.get_num_topics()
+>>> 77
+
+```
+
+### Get Topics 
+This will return the topics.
+```python
+topic_words, word_scores, topic_nums = model.get_topics(77)
+
+```
+Returns:
+
+  * ``topic_words``: For each topic the top 50 words are returned, in order
+    of semantic similarity to topic.
+  
+  * ``word_scores``: For each topic the cosine similarity scores of the
+    top 50 words to the topic are returned.  
+    
+  * ``topic_nums``: The unique index of every topic will be returned.
+  
+### Search Topics
+```python
+
+topic_words, word_scores, topic_scores, topic_nums = top2vec.search_topics(keywords=["medicine"], num_topics=5)
+```
+Returns:
+
+  * ``topic_words``: For each topic the top 50 words are returned, in order
+    of semantic similarity to topic.
+  
+  * ``word_scores``: For each topic the cosine similarity scores of the
+    top 50 words to the topic are returned.  
+    
+  * ``topic_scores``: For each topic the cosine similarity to the search keywords will be returned.
+  
+  * ``topic_nums``: The unique index of every topic will be returned.
+
+```python
+
+topic_nums
+>>> [21, 29, 9, 61, 48]
+
+topic_scores
+>>> [0.4468, 0.381, 0.2779, 0.2566, 0.2515]
+```
+> Topic 21 was the most similar topic to "medicine" with a cosine similarity of 0.4468. (Values can be from least similar 0, to most similar 1)
+
+### Generate Word Clouds
+
+Using a topic number you can generate a word cloud. Lets see what Topic 21 is about. 
+```python
+
+model.generate_topic_wordcloud(21)
+
+```
+  
