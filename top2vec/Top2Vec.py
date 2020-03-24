@@ -9,6 +9,9 @@ import umap
 import hdbscan
 from operator import itemgetter
 from sklearn.metrics.pairwise import cosine_similarity
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from joblib import dump, load
 
 
 class Top2Vec:
@@ -135,27 +138,67 @@ class Top2Vec:
             self.topic_words.append([word[0] for word in sim_words])
             self.topic_word_scores.append([round(word[1], 4) for word in sim_words])
 
+    def save(self, file):
+        """
+        Saves the current model to the specified file.
+
+        Parameters
+        ----------
+        file: str
+            File where model will be saved.
+        """
+        dump(self, file)
+
+    @classmethod
+    def load(cls, file):
+        """
+
+        Load a pre-trained model from the specified file.
+
+        Parameters
+        ----------
+        file: str
+            File where model will be loaded from.
+        """
+        return load(file)
+
+    @staticmethod
+    def _less_than_zero(num, var_name):
+        if num < 0:
+            raise ValueError(f"{var_name} cannot be less than 0.")
+
     def _validate_num_docs(self, num_docs):
+        self._less_than_zero(num_docs, "num_docs")
         document_count = len(self.documents)
         if num_docs > document_count:
             raise ValueError(f"num_docs cannot exceed the number of topics: {document_count}")
 
     def _validate_num_topics(self, num_topics):
+        self._less_than_zero(num_topics, "num_topics")
         topic_count = len(self.topic_vectors)
         if num_topics > topic_count:
             raise ValueError(f"num_topics cannot exceed the number of topics: {topic_count}")
 
     def _validate_topic_num(self, topic_num):
+        self._less_than_zero(topic_num, "topic_num")
         topic_count = len(self.topic_vectors)-1
         if topic_num > topic_count:
             raise ValueError(f"Invalid topic number: valid topics numbers are 0 to {topic_count}")
 
     def _validate_doc_num(self, doc_num):
+        self._less_than_zero(doc_num, "doc_num")
         document_count = len(self.documents)-1
         if doc_num > document_count:
             raise ValueError(f"Invalid topic number: valid topic numbers are 0 to {document_count}")
 
     def _validate_keywords(self, keywords, keywords_neg):
+
+        if not isinstance(keywords, list):
+            raise ValueError("keywords must be a list of strings")
+
+        if not isinstance(keywords_neg, list):
+            raise ValueError("keywords_neg must be a list of strings")
+
         for word in keywords+keywords_neg:
             if word not in self.model.wv.vocab:
                 raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched")
@@ -454,3 +497,37 @@ class Top2Vec:
         documents = list(itemgetter(*doc_nums)(self.documents))
 
         return documents, doc_scores, doc_nums
+
+    def generate_topic_wordcloud(self, topic_num, background_color="white"):
+        """
+        Create a word cloud for a topic.
+
+        A word cloud will be generated and displayed. The most semantically similar
+        words to the topic will have the largest size, less similar words will be
+        smaller. The size is determined using the cosine distance of the word vectors
+        from the topic vector.
+
+        Parameters
+        ----------
+        topic_num: int
+            The topic number to search.
+
+        background_color : str (Optional, default='white')
+            Background color for the word cloud image. Suggested options are:
+                * white
+                * black
+
+        Returns
+        -------
+        A matplotlib plot of the word cloud with the topic number will be displayed.
+
+        """
+        self._validate_topic_num(topic_num)
+
+        word_score_dict = dict(zip(self.topic_words[topic_num], self.topic_word_scores[topic_num]))
+        plt.figure(figsize=(16, 4), dpi=200)
+        plt.axis("off")
+        plt.imshow(
+            WordCloud(width=1600, height=400, background_color=background_color).generate_from_frequencies(word_score_dict));
+        plt.title("Topic " + str(topic_num), loc='left', fontsize=25, pad=20)
+
