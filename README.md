@@ -107,7 +107,7 @@ model = Top2Vec(documents=newsgroups.data, speed="learn", workers=8)
 
 ```
 ### Get Number of Topics
-This will return the number of topics that top2vec has found in the data.
+This will return the number of topics that Top2Vec has found in the data.
 ```python
 
 model.get_num_topics()
@@ -138,7 +138,6 @@ We are going to search for topics most similar to **medicine**.
 topic_words, word_scores, topic_scores, topic_nums = top2vec.search_topics(keywords=["medicine"], num_topics=5)
 ```
 Returns:
-
   * ``topic_words``: For each topic the top 50 words are returned, in order
     of semantic similarity to topic.
   
@@ -172,3 +171,37 @@ for topic in topic_nums:
 ![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic9.png)
 ![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic61.png)
 ![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic48.png)
+
+### Search Documents by Topic
+
+```python
+documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=21, num_docs=5)
+```
+Returns:
+  * ``documents``: The documents in a list, the most similar are first.  
+    
+  * ``doc_scores``: Semantic similarity of document to topic. The cosine similarity of the
+    document and topic vector.
+  
+  * ``doc_nums``: Indexes of documents in the input corpus of documents.
+  
+```python
+documents, document_scores, document_nums = top2vec.search_documents_by_topic(topic_num=21, num_docs=5)
+for index in range(0,len(document_nums)):
+    print(f"Document: {document_nums[index]}, Score: {document_scores[index]}")
+    print("-----------")
+    print(documents[index])
+    print("-----------")
+    
+>>> Document: 11239, Score: 0.6546
+    -----------
+    Candida albicans can cause severe life-threatening infections, usually
+    in people who are otherwise quite ill.  This is not, however, the sort
+    of illness that you are probably discussing.
+
+    "Systemic yeast syndrome" where the body is allergic to
+    yeast is considered a quack diagnosis by mainstream medicine.  There
+    is a book "The Yeast Connection" which talks about this "illness".
+    -----------
+
+```
