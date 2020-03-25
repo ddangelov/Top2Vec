@@ -40,3 +40,4 @@ smart-open==1.10.0
 umap-learn==0.3.10
 urllib3==1.25.8
 wordcloud==1.6.0
+sphinx_rtd_theme
