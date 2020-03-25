@@ -95,7 +95,7 @@ Parameters:
 ```python
 
 model.save("filename")
-model.load("filename")
+model = Top2Vec.load("filename")
 ```
     
 Example
