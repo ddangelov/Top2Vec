@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.utils import simple_preprocess
+from gensim.parsing.preprocessing import strip_tags
 import umap
 import hdbscan
 from operator import itemgetter
@@ -93,16 +94,17 @@ class Top2Vec:
         self.documents = documents
 
         # preprocess documents for training - tokenize and remove too long/short words
-        train_corpus = [TaggedDocument(simple_preprocess(doc), [i]) for i, doc in enumerate(documents)]
+        train_corpus = [TaggedDocument(simple_preprocess(strip_tags(doc), deacc=True), [i])
+                        for i, doc in enumerate(documents)]
 
         # create documents and word embeddings with doc2vec
         if workers is None:
             self.model = Doc2Vec(documents=train_corpus, vector_size=300, min_count=50, window=15,
-                                 sample=10e-5, negative=negative, hs=hs, epochs=epochs, dm=0,
+                                 sample=1e-5, negative=negative, hs=hs, epochs=epochs, dm=0,
                                  dbow_words=1)
         else:
             self.model = Doc2Vec(documents=train_corpus, vector_size=300, min_count=50, window=15,
-                                 sample=10e-5, negative=negative, hs=hs, workers=workers, epochs=epochs, dm=0,
+                                 sample=1e-5, negative=negative, hs=hs, workers=workers, epochs=epochs, dm=0,
                                  dbow_words=1)
 
         # create 5D embeddings of documents
