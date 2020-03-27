@@ -259,7 +259,7 @@ documents, document_scores, document_nums = top2vec.search_documents_by_keyword(
 for doc, score, doc_num in zip(documents, document_scores, document_nums):
     print(f"Document: {doc_num}, Score: {score}")
     print("-----------")
-    print(doc_num)
+    print(doc)
     print("-----------")
     print()
 ``` 
