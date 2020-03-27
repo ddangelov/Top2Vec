@@ -117,8 +117,8 @@ model = Top2Vec(documents=newsgroups.data, speed="learn", workers=8)
 This will return the number of topics that Top2Vec has found in the data.
 ```python
 
-model.get_num_topics()
->>> 77
+>>> model.get_num_topics()
+77
 
 ```
 
@@ -157,11 +157,11 @@ Returns:
 
 ```python
 
-topic_nums
->>> [21, 29, 9, 61, 48]
+>>> topic_nums
+[21, 29, 9, 61, 48]
 
-topic_scores
->>> [0.4468, 0.381, 0.2779, 0.2566, 0.2515]
+>>> topic_scores
+[0.4468, 0.381, 0.2779, 0.2566, 0.2515]
 ```
 > Topic 21 was the most similar topic to "medicine" with a cosine similarity of 0.4468. (Values can be from least similar 0, to most similar 1)
 
