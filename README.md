@@ -117,8 +117,8 @@ model = Top2Vec(documents=newsgroups.data, speed="learn", workers=8)
 This will return the number of topics that Top2Vec has found in the data.
 ```python
 
-model.get_num_topics()
->>> 77
+>>> model.get_num_topics()
+77
 
 ```
 
@@ -157,11 +157,11 @@ Returns:
 
 ```python
 
-topic_nums
->>> [21, 29, 9, 61, 48]
+>>> topic_nums
+[21, 29, 9, 61, 48]
 
-topic_scores
->>> [0.4468, 0.381, 0.2779, 0.2566, 0.2515]
+>>> topic_scores
+[0.4468, 0.381, 0.2779, 0.2566, 0.2515]
 ```
 > Topic 21 was the most similar topic to "medicine" with a cosine similarity of 0.4468. (Values can be from least similar 0, to most similar 1)
 
@@ -196,10 +196,10 @@ Returns:
 For each of the returned documents we are going to print its content, score and document number.
 ```python
 documents, document_scores, document_nums = model.search_documents_by_topic(topic_num=48, num_docs=5)
-for index in range(0,len(document_nums)):
-    print(f"Document: {document_nums[index]}, Score: {document_scores[index]}")
+for doc, score, doc_num in zip(documents, document_scores, document_nums):
+    print(f"Document: {doc_num}, Score: {score}")
     print("-----------")
-    print(documents[index])
+    print(doc)
     print("-----------")
     print()
 ```
@@ -256,10 +256,10 @@ for index in range(0,len(document_nums)):
 Search documents for content semantically similar to **cryptography** and **privacy**.
 ```python
 documents, document_scores, document_nums = top2vec.search_documents_by_keyword(keywords=["cryptography", "privacy"], num_docs=5)
-for index in range(0,len(document_nums)):    
-    print(f"Document: {document_nums[index]}, Score: {document_scores[index]}")
+for doc, score, doc_num in zip(documents, document_scores, document_nums):
+    print(f"Document: {doc_num}, Score: {score}")
     print("-----------")
-    print(documents[index])
+    print(doc)
     print("-----------")
     print()
 ``` 
@@ -289,8 +289,8 @@ for index in range(0,len(document_nums)):
 Search for similar words to **space**.
 ```python
 words, word_scores = top2vec.similar_words(keywords=["space"], keywords_neg=[], num_words=20)
-for i in range(0,len(words)):
-    print(f"{words[i]} {word_scores[i]}")
+for word, score in zip(words, word_scores):
+    print(f"{word} {score}")
 ``` 
     space 1.0
     nasa 0.6589
