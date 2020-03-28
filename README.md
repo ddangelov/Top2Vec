@@ -255,7 +255,7 @@ for doc, score, doc_num in zip(documents, document_scores, document_nums):
 
 Search documents for content semantically similar to **cryptography** and **privacy**.
 ```python
-documents, document_scores, document_nums = top2vec.search_documents_by_keyword(keywords=["cryptography", "privacy"], num_docs=5)
+documents, document_scores, document_nums = model.search_documents_by_keyword(keywords=["cryptography", "privacy"], num_docs=5)
 for doc, score, doc_num in zip(documents, document_scores, document_nums):
     print(f"Document: {doc_num}, Score: {score}")
     print("-----------")
@@ -288,7 +288,7 @@ for doc, score, doc_num in zip(documents, document_scores, document_nums):
 
 Search for similar words to **space**.
 ```python
-words, word_scores = top2vec.similar_words(keywords=["space"], keywords_neg=[], num_words=20)
+words, word_scores = model.similar_words(keywords=["space"], keywords_neg=[], num_words=20)
 for word, score in zip(words, word_scores):
     print(f"{word} {score}")
 ``` 
