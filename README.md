@@ -12,6 +12,7 @@ you can:
 * Get topics.
 * Search topics by keywords.
 * Search documents by topic.
+* Search documents by keywords.
 * Find similar words.
 * Find similar documents.
 
