@@ -5,7 +5,7 @@
 Top2Vec
 =======
 
-Topic2Vector is an algorithm for topic modeling and semantic search. It automatically detects topics present in text
+Topic2Vector is an algorithm for **topic modeling** and **semantic search**. It automatically detects topics present in text
 and generates jointly embedded topic, document and word vectors. Once you train the Top2Vec model 
 you can:
 * Get number of detected topics.
