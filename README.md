@@ -182,7 +182,7 @@ for topic in topic_nums:
 
 ### Search Documents by Topic
 
-We are going to search by topic 48, a topic that appears to be about **science**.
+We are going to search by **topic 48**, a topic that appears to be about **science**.
 ```python
 documents, document_scores, document_nums = model.search_documents_by_topic(topic_num=48, num_docs=5)
 ```
