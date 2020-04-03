@@ -175,9 +175,6 @@ class Top2Vec:
                         .mean(axis=0)])
 
             self.topic_vectors = unique_topics
-            self.topic_words = []
-            self.topic_word_scores = []
-            np.apply_along_axis(self._generate_topic_words_scores, axis=1, arr=self.topic_vectors)
 
     def _generate_topic_words_scores(self, topic_vector):
         sim_words = self.model.most_similar(positive=[topic_vector], topn=50)
