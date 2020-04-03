@@ -13,6 +13,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from joblib import dump, load
+from sklearn.cluster import dbscan
 
 
 class Top2Vec:
@@ -99,46 +100,89 @@ class Top2Vec:
 
         # create documents and word embeddings with doc2vec
         if workers is None:
-            self.model = Doc2Vec(documents=train_corpus, vector_size=300, min_count=50, window=15,
-                                 sample=1e-5, negative=negative, hs=hs, epochs=epochs, dm=0,
+            self.model = Doc2Vec(documents=train_corpus,
+                                 vector_size=300,
+                                 min_count=50, window=15,
+                                 sample=1e-5,
+                                 negative=negative,
+                                 hs=hs,
+                                 epochs=epochs,
+                                 dm=0,
                                  dbow_words=1)
         else:
-            self.model = Doc2Vec(documents=train_corpus, vector_size=300, min_count=50, window=15,
-                                 sample=1e-5, negative=negative, hs=hs, workers=workers, epochs=epochs, dm=0,
+            self.model = Doc2Vec(documents=train_corpus,
+                                 vector_size=300,
+                                 min_count=50,
+                                 window=15,
+                                 sample=1e-5,
+                                 negative=negative,
+                                 hs=hs,
+                                 workers=workers,
+                                 epochs=epochs,
+                                 dm=0,
                                  dbow_words=1)
 
         # create 5D embeddings of documents
-        docvecs = np.vstack([self.model.docvecs[i] for i in range(self.model.docvecs.count)])
-        umap_model = umap.UMAP(n_neighbors=15, n_components=5, metric='cosine').fit(docvecs)
+        umap_model = umap.UMAP(n_neighbors=15,
+                               n_components=5,
+                               metric='cosine').fit(self.model.docvecs.vectors_docs)
 
         # find dense areas of document vectors
-        cluster = hdbscan.HDBSCAN(min_cluster_size=15, metric='euclidean', cluster_selection_method='eom').fit(
-            umap_model.embedding_)
+        cluster = hdbscan.HDBSCAN(min_cluster_size=15,
+                                  metric='euclidean',
+                                  cluster_selection_method='eom').fit(umap_model.embedding_)
 
-        cluster_labels = pd.Series(cluster.labels_)
-
-        # generate topic vectors from dense areas of documents
-        self.topic_vectors = []
+        self.topic_vectors = np.empty([0, 300])
         self.topic_words = []
         self.topic_word_scores = []
 
+        # calculate topic vectors from dense areas of documents
+        self._create_topic_vectors(cluster.labels_)
+
+        # deduplicate topics
+        self._deduplicate_topics()
+
+        # find topic words and scores
+        np.apply_along_axis(self._generate_topic_words_scores, axis=1, arr=self.topic_vectors)
+
+    def _create_topic_vectors(self, cluster_labels):
+
+        cluster_labels = pd.Series(cluster_labels)
         unique_labels = list(set(cluster_labels))
-        unique_labels.remove(-1)
+        if -1 in unique_labels:
+            unique_labels.remove(-1)
+        self.topic_vectors = np.vstack([self.model.docvecs.vectors_docs[cluster_labels[cluster_labels == label].index]
+                                       .mean(axis=0) for label in unique_labels])
 
-        for label in unique_labels:
+    def _deduplicate_topics(self):
+        core_samples, labels = dbscan(X=self.topic_vectors,
+                                      eps=0.1,
+                                      min_samples=2,
+                                      metric="cosine")
+        duplicate_labels = pd.Series(labels)
+        duplicate_clusters = set(labels)
 
-            # find centroid of dense document cluster
-            topic_vector = [0] * 300
-            cluster_vec_indices = cluster_labels[cluster_labels == label].index.tolist()
-            for vec_index in cluster_vec_indices:
-                topic_vector = topic_vector + self.model.docvecs[vec_index]
-            topic_vector = topic_vector / len(cluster_vec_indices)
-            self.topic_vectors.append(topic_vector)
+        if len(duplicate_clusters) > 1 or -1 not in duplicate_clusters:
+            duplicate_clusters.remove(-1)
 
-            # find closest word vectors to topic vector
-            sim_words = self.model.most_similar(positive=[topic_vector], topn=50)
-            self.topic_words.append([word[0] for word in sim_words])
-            self.topic_word_scores.append([round(word[1], 4) for word in sim_words])
+            # unique topics
+            unique_topics = self.topic_vectors[duplicate_labels[duplicate_labels == -1].index]
+
+            # merge duplicate topics
+            for unique_label in duplicate_clusters:
+                unique_topics = np.vstack(
+                    [unique_topics, self.topic_vectors[duplicate_labels[duplicate_labels == unique_label].index]
+                        .mean(axis=0)])
+
+            self.topic_vectors = unique_topics
+            self.topic_words = []
+            self.topic_word_scores = []
+            np.apply_along_axis(self._generate_topic_words_scores, axis=1, arr=self.topic_vectors)
+
+    def _generate_topic_words_scores(self, topic_vector):
+        sim_words = self.model.most_similar(positive=[topic_vector], topn=50)
+        self.topic_words.append([word[0] for word in sim_words])
+        self.topic_word_scores.append([round(word[1], 4) for word in sim_words])
 
     def save(self, file):
         """
@@ -183,13 +227,13 @@ class Top2Vec:
 
     def _validate_topic_num(self, topic_num):
         self._less_than_zero(topic_num, "topic_num")
-        topic_count = len(self.topic_vectors)-1
+        topic_count = len(self.topic_vectors) - 1
         if topic_num > topic_count:
             raise ValueError(f"Invalid topic number: valid topics numbers are 0 to {topic_count}")
 
     def _validate_doc_num(self, doc_num):
         self._less_than_zero(doc_num, "doc_num")
-        document_count = len(self.documents)-1
+        document_count = len(self.documents) - 1
         if doc_num > document_count:
             raise ValueError(f"Invalid topic number: valid topic numbers are 0 to {document_count}")
 
@@ -201,7 +245,7 @@ class Top2Vec:
         if not isinstance(keywords_neg, list):
             raise ValueError("keywords_neg must be a list of strings")
 
-        for word in keywords+keywords_neg:
+        for word in keywords + keywords_neg:
             if word not in self.model.wv.vocab:
                 raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched")
 
@@ -289,7 +333,8 @@ class Top2Vec:
         self._validate_num_docs(num_docs)
         self._validate_topic_num(topic_num)
 
-        sim_docs = self.model.docvecs.most_similar(positive=[self.topic_vectors[topic_num]], topn=num_docs)
+        sim_docs = self.model.docvecs.most_similar(positive=[self.topic_vectors[topic_num]],
+                                                   topn=num_docs)
         doc_nums = [doc[0] for doc in sim_docs]
         doc_scores = [round(doc[1], 4) for doc in sim_docs]
         documents = list(itemgetter(*doc_nums)(self.documents))
@@ -337,7 +382,9 @@ class Top2Vec:
 
         word_vecs = [self.model[word] for word in keywords]
         neg_word_vecs = [self.model[word] for word in keywords_neg]
-        sim_docs = self.model.docvecs.most_similar(positive=word_vecs, negative=neg_word_vecs, topn=num_docs)
+        sim_docs = self.model.docvecs.most_similar(positive=word_vecs,
+                                                   negative=neg_word_vecs,
+                                                   topn=num_docs)
         doc_nums = [doc[0] for doc in sim_docs]
         doc_scores = [round(doc[1], 4) for doc in sim_docs]
         documents = list(itemgetter(*doc_nums)(self.documents))
@@ -382,9 +429,11 @@ class Top2Vec:
 
         word_vecs = [self.model[word] for word in keywords]
         neg_word_vecs = [self.model[word] for word in keywords_neg]
-        sim_words = self.model.most_similar(positive=word_vecs, negative=neg_word_vecs, topn=num_words)
+        sim_words = self.model.most_similar(positive=word_vecs,
+                                            negative=neg_word_vecs,
+                                            topn=num_words)
         words = [word[0] for word in sim_words]
-        word_scores = [round(word[1],4) for word in sim_words]
+        word_scores = [round(word[1], 4) for word in sim_words]
 
         return words, word_scores
 
@@ -493,14 +542,15 @@ class Top2Vec:
         self._validate_doc_num(doc_num)
 
         message_vec = self.model.docvecs[doc_num]
-        sim_docs = self.model.docvecs.most_similar(positive=[message_vec], topn=num_docs)
+        sim_docs = self.model.docvecs.most_similar(positive=[message_vec],
+                                                   topn=num_docs)
         doc_nums = [doc[0] for doc in sim_docs]
         doc_scores = [round(doc[1], 4) for doc in sim_docs]
         documents = list(itemgetter(*doc_nums)(self.documents))
 
         return documents, doc_scores, doc_nums
 
-    def generate_topic_wordcloud(self, topic_num, background_color="white"):
+    def generate_topic_wordcloud(self, topic_num, background_color="black"):
         """
         Create a word cloud for a topic.
 
@@ -527,9 +577,11 @@ class Top2Vec:
         self._validate_topic_num(topic_num)
 
         word_score_dict = dict(zip(self.topic_words[topic_num], self.topic_word_scores[topic_num]))
-        plt.figure(figsize=(16, 4), dpi=200)
+        plt.figure(figsize=(16, 4),
+                   dpi=200)
         plt.axis("off")
         plt.imshow(
-            WordCloud(width=1600, height=400, background_color=background_color).generate_from_frequencies(word_score_dict));
+            WordCloud(width=1600,
+                      height=400,
+                      background_color=background_color).generate_from_frequencies(word_score_dict))
         plt.title("Topic " + str(topic_num), loc='left', fontsize=25, pad=20)
-
