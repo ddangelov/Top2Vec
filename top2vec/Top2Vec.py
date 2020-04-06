@@ -92,7 +92,7 @@ class Top2Vec:
         else:
             raise ValueError("workers needs to be an int")
 
-        self.documents = documents
+        self.documents = list(documents)
 
         # preprocess documents for training - tokenize and remove too long/short words
         train_corpus = [TaggedDocument(simple_preprocess(strip_tags(doc), deacc=True), [i])
@@ -135,12 +135,16 @@ class Top2Vec:
         self.topic_vectors = np.empty([0, 300])
         self.topic_words = []
         self.topic_word_scores = []
+        self.topic_sizes = pd.Series()
 
         # calculate topic vectors from dense areas of documents
         self._create_topic_vectors(cluster.labels_)
 
         # deduplicate topics
         self._deduplicate_topics()
+
+        # calculate topic sizes and index nearest topic for each document
+        self._calculate_topic_sizes()
 
         # find topic words and scores
         np.apply_along_axis(self._generate_topic_words_scores, axis=1, arr=self.topic_vectors)
@@ -176,8 +180,22 @@ class Top2Vec:
 
             self.topic_vectors = unique_topics
 
+    def _calculate_topic_sizes(self):
+        # calculate topic size
+        doc_top_sim = cosine_similarity(self.model.docvecs.vectors_docs, self.topic_vectors)
+        self.topic_sizes = pd.Series(np.argmax(doc_top_sim, axis=1)).value_counts()
+
+        # re-order topic vectors by size
+        self.topic_vectors = self.topic_vectors[self.topic_sizes.index]
+        doc_top_sim = doc_top_sim[:, self.topic_sizes.index]
+        self.topic_sizes.reset_index(drop=True, inplace=True)
+
+        # find nearest topic for each document and distance to topic
+        self.doc_dist = np.max(doc_top_sim, axis=1)
+        self.doc_top = np.argmax(doc_top_sim, axis=1)
+
     def _generate_topic_words_scores(self, topic_vector):
-        sim_words = self.model.most_similar(positive=[topic_vector], topn=50)
+        sim_words = self.model.wv.most_similar(positive=[topic_vector], topn=50)
         self.topic_words.append([word[0] for word in sim_words])
         self.topic_word_scores.append([round(word[1], 4) for word in sim_words])
 
@@ -214,7 +232,7 @@ class Top2Vec:
         self._less_than_zero(num_docs, "num_docs")
         document_count = len(self.documents)
         if num_docs > document_count:
-            raise ValueError(f"num_docs cannot exceed the number of topics: {document_count}")
+            raise ValueError(f"num_docs cannot exceed the number of documents: {document_count}")
 
     def _validate_num_topics(self, num_topics):
         self._less_than_zero(num_topics, "num_topics")
@@ -228,11 +246,16 @@ class Top2Vec:
         if topic_num > topic_count:
             raise ValueError(f"Invalid topic number: valid topics numbers are 0 to {topic_count}")
 
+    def _validate_topic_search(self, topic_num, doc_num):
+        if doc_num > self.topic_sizes[topic_num]:
+            raise ValueError(f"Invalid number of documents: topic {topic_num}"
+                             f" only has {self.topic_sizes[topic_num]} documents")
+
     def _validate_doc_num(self, doc_num):
         self._less_than_zero(doc_num, "doc_num")
         document_count = len(self.documents) - 1
         if doc_num > document_count:
-            raise ValueError(f"Invalid topic number: valid topic numbers are 0 to {document_count}")
+            raise ValueError(f"Invalid document number: valid document numbers are 0 to {document_count}")
 
     def _validate_keywords(self, keywords, keywords_neg):
 
@@ -257,6 +280,22 @@ class Top2Vec:
         num_topics: int
         """
         return len(self.topic_vectors)
+
+    def get_topic_sizes(self):
+        """
+        Get topic sizes.
+
+        The number of documents most similar to each topic. Topics are
+        in increasing order of size.
+
+        Returns
+        -------
+        topic_sizes: list
+            The number of documents most similar to the topic.
+        topic_nums:
+            The unique index of every topic will be returned.
+        """
+        return list(self.topic_sizes.values), self.topic_sizes.index.tolist()
 
     def get_topics(self, num_topics):
         """
@@ -329,11 +368,13 @@ class Top2Vec:
 
         self._validate_num_docs(num_docs)
         self._validate_topic_num(topic_num)
+        self._validate_topic_search(topic_num, num_docs)
 
-        sim_docs = self.model.docvecs.most_similar(positive=[self.topic_vectors[topic_num]],
-                                                   topn=num_docs)
-        doc_nums = [doc[0] for doc in sim_docs]
-        doc_scores = [round(doc[1], 4) for doc in sim_docs]
+        topic_document_indexes = np.where(self.doc_top == topic_num)[0]
+        topic_document_indexes_ordered = np.flip(np.argsort(self.doc_dist[topic_document_indexes]))
+        doc_nums = topic_document_indexes[topic_document_indexes_ordered][0:num_docs]
+        doc_scores = self.doc_dist[doc_nums]
+
         documents = list(itemgetter(*doc_nums)(self.documents))
 
         return documents, doc_scores, doc_nums
@@ -426,9 +467,9 @@ class Top2Vec:
 
         word_vecs = [self.model[word] for word in keywords]
         neg_word_vecs = [self.model[word] for word in keywords_neg]
-        sim_words = self.model.most_similar(positive=word_vecs,
-                                            negative=neg_word_vecs,
-                                            topn=num_words)
+        sim_words = self.model.wv.most_similar(positive=word_vecs,
+                                               negative=neg_word_vecs,
+                                               topn=num_words)
         words = [word[0] for word in sim_words]
         word_scores = [round(word[1], 4) for word in sim_words]
 
