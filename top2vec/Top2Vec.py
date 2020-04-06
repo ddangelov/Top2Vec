@@ -132,11 +132,6 @@ class Top2Vec:
                                   metric='euclidean',
                                   cluster_selection_method='eom').fit(umap_model.embedding_)
 
-        self.topic_vectors = np.empty([0, 300])
-        self.topic_words = []
-        self.topic_word_scores = []
-        self.topic_sizes = pd.Series()
-
         # calculate topic vectors from dense areas of documents
         self._create_topic_vectors(cluster.labels_)
 
@@ -147,15 +142,14 @@ class Top2Vec:
         self._calculate_topic_sizes()
 
         # find topic words and scores
-        np.apply_along_axis(self._generate_topic_words_scores, axis=1, arr=self.topic_vectors)
+        self._find_topic_words_scores()
 
     def _create_topic_vectors(self, cluster_labels):
 
-        cluster_labels = pd.Series(cluster_labels)
-        unique_labels = list(set(cluster_labels))
+        unique_labels = set(cluster_labels)
         if -1 in unique_labels:
             unique_labels.remove(-1)
-        self.topic_vectors = np.vstack([self.model.docvecs.vectors_docs[cluster_labels[cluster_labels == label].index]
+        self.topic_vectors = np.vstack([self.model.docvecs.vectors_docs[np.where(cluster_labels == label)]
                                        .mean(axis=0) for label in unique_labels])
 
     def _deduplicate_topics(self):
@@ -163,19 +157,19 @@ class Top2Vec:
                                       eps=0.1,
                                       min_samples=2,
                                       metric="cosine")
-        duplicate_labels = pd.Series(labels)
+
         duplicate_clusters = set(labels)
 
         if len(duplicate_clusters) > 1 or -1 not in duplicate_clusters:
             duplicate_clusters.remove(-1)
 
             # unique topics
-            unique_topics = self.topic_vectors[duplicate_labels[duplicate_labels == -1].index]
+            unique_topics = self.topic_vectors[np.where(labels == -1)]
 
             # merge duplicate topics
             for unique_label in duplicate_clusters:
                 unique_topics = np.vstack(
-                    [unique_topics, self.topic_vectors[duplicate_labels[duplicate_labels == unique_label].index]
+                    [unique_topics, self.topic_vectors[np.where(labels == unique_label)]
                         .mean(axis=0)])
 
             self.topic_vectors = unique_topics
@@ -193,6 +187,11 @@ class Top2Vec:
         # find nearest topic for each document and distance to topic
         self.doc_dist = np.max(doc_top_sim, axis=1)
         self.doc_top = np.argmax(doc_top_sim, axis=1)
+
+    def _find_topic_words_scores(self):
+        self.topic_words = []
+        self.topic_word_scores = []
+        np.apply_along_axis(self._generate_topic_words_scores, axis=1, arr=self.topic_vectors)
 
     def _generate_topic_words_scores(self, topic_vector):
         sim_words = self.model.wv.most_similar(positive=[topic_vector], topn=50)
@@ -295,7 +294,7 @@ class Top2Vec:
         topic_nums:
             The unique index of every topic will be returned.
         """
-        return list(self.topic_sizes.values), self.topic_sizes.index.tolist()
+        return self.topic_sizes.values.tolist(), self.topic_sizes.index.tolist()
 
     def get_topics(self, num_topics):
         """
@@ -539,8 +538,7 @@ class Top2Vec:
         combined_vector /= (len(word_vecs) + len(neg_word_vecs))
 
         topic_ranks = [topic[0] for topic in cosine_similarity(self.topic_vectors, combined_vector.reshape(1, -1))]
-        topic_nums = list(np.argsort(topic_ranks)[-num_topics:])
-        topic_nums.reverse()
+        topic_nums = list(np.flip(np.argsort(topic_ranks)[-num_topics:]))
 
         topic_words = [self.topic_words[topic] for topic in topic_nums]
         word_scores = [self.topic_word_scores[topic] for topic in topic_nums]
