@@ -10,6 +10,7 @@ and generates jointly embedded topic, document and word vectors. Once you train 
 you can:
 * Get number of detected topics.
 * Get topics.
+* Get topic sizes. 
 * Search topics by keywords.
 * Search documents by topic.
 * Search documents by keywords.
@@ -124,7 +125,7 @@ This will return the number of topics that Top2Vec has found in the data.
 ```
 
 ### Get Topics 
-This will return the topics.
+This will return the topics in decreasing size.
 ```python
 topic_words, word_scores, topic_nums = model.get_topics(77)
 
