@@ -23,10 +23,15 @@ class NumTopics(BaseModel):
     num_topics: int
 
 
+class TopicSizes(BaseModel):
+    topic_nums: List[int]
+    topic_sizes: List[int]
+
+
 class Topic(BaseModel):
     topic_num: int
-    topic_words: List[str] = []
-    word_scores: List[float] = []
+    topic_words: List[str]
+    word_scores: List[float]
 
 
 class TopicResult(Topic):
@@ -64,7 +69,14 @@ class WordResult(BaseModel):
 @app.get("/topics/number", response_model=NumTopics, description="Returns number of topics in the model.",
          tags=["Topics"])
 async def get_number_of_topics():
-    return {"num_topics": top2vec.get_num_topics()}
+    return NumTopics(num_topics=top2vec.get_num_topics())
+
+
+@app.get("/topics/sizes", response_model=TopicSizes, description="Returns the number of documents in each topic.",
+         tags=["Topics"])
+async def get_topic_sizes():
+    topic_sizes, topic_nums = top2vec.get_topic_sizes()
+    return TopicSizes(topic_nums=topic_nums, topic_sizes=topic_sizes)
 
 
 @app.get("/topics/get-topics", response_model=List[Topic], description="Get number of topics.", tags=["Topics"])
