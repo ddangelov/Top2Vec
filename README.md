@@ -124,14 +124,14 @@ This will return the number of topics that Top2Vec has found in the data.
 
 ```
 ### Get Topic Sizes
-This will return number of documents most similar to each topic. Topics are
+This will return the number of documents most similar to each topic. Topics are
 in decreasing order of size. 
 ```python
 topic_sizes, topic_nums = model.get_topic_sizes()
 ```
 Returns:
 
-  * ``topic_sizes``: The number of documents most similar to the topic.
+  * ``topic_sizes``: The number of documents most similar to each topic.
   
   * ``topic_nums``: The unique index of every topic will be returned. 
     
