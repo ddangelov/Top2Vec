@@ -30,9 +30,7 @@ setuptools.setup(
         'gensim',
         'umap-learn',
         'hdbscan',
-        'sklearn',
         'wordcloud',
-        'matplotlib'
       ],
     python_requires='>=3.6',
 )
