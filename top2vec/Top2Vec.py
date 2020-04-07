@@ -149,7 +149,7 @@ class Top2Vec:
         unique_labels = set(cluster_labels)
         if -1 in unique_labels:
             unique_labels.remove(-1)
-        self.topic_vectors = np.vstack([self.model.docvecs.vectors_docs[np.where(cluster_labels == label)]
+        self.topic_vectors = np.vstack([self.model.docvecs.vectors_docs[np.where(cluster_labels == label)[0]]
                                        .mean(axis=0) for label in unique_labels])
 
     def _deduplicate_topics(self):
@@ -161,15 +161,17 @@ class Top2Vec:
         duplicate_clusters = set(labels)
 
         if len(duplicate_clusters) > 1 or -1 not in duplicate_clusters:
-            duplicate_clusters.remove(-1)
 
             # unique topics
-            unique_topics = self.topic_vectors[np.where(labels == -1)]
+            unique_topics = self.topic_vectors[np.where(labels == -1)[0]]
+
+            if -1 in duplicate_clusters:
+                duplicate_clusters.remove(-1)
 
             # merge duplicate topics
             for unique_label in duplicate_clusters:
                 unique_topics = np.vstack(
-                    [unique_topics, self.topic_vectors[np.where(labels == unique_label)]
+                    [unique_topics, self.topic_vectors[np.where(labels == unique_label)[0]]
                         .mean(axis=0)])
 
             self.topic_vectors = unique_topics
@@ -298,7 +300,7 @@ class Top2Vec:
 
     def get_topics(self, num_topics):
         """
-        Get number of specified topics.
+        Get number of specified topics, ordered by decreasing size.
 
         Each topic will consist of the top 50 semantically similar words
         to the topic. These are the 50 words closest to topic vector
