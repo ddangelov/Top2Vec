@@ -527,7 +527,7 @@ class Top2Vec:
         word_vecs = [self.model[word] for word in keywords]
         neg_word_vecs = [self.model[word] for word in keywords_neg]
 
-        combined_vector = [0] * 300
+        combined_vector = np.zeros(300, dtype=np.float64)
 
         for word_vec in word_vecs:
             combined_vector += word_vec
