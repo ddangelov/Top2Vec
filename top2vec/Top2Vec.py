@@ -298,9 +298,9 @@ class Top2Vec:
 
         Returns
         -------
-        topic_sizes: array of int
+        topic_sizes: array of int, shape(num_topics)
             The number of documents most similar to the topic.
-        topic_nums: array of int
+        topic_nums: array of int, shape(num_topics)
             The unique number of every topic will be returned.
         """
         return np.array(self.topic_sizes.values), np.array(self.topic_sizes.index)
