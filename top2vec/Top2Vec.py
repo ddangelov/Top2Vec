@@ -287,7 +287,7 @@ class Top2Vec:
         Get topic sizes.
 
         The number of documents most similar to each topic. Topics are
-        in increasing order of size.
+        in decreasing order of size.
 
         Returns
         -------
