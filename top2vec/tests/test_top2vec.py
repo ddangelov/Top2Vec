@@ -8,7 +8,7 @@ import numpy as np
 @pytest.fixture(scope="session")
 def top2vec_model():
     newsgroups_train = fetch_20newsgroups(subset='all', remove=('headers', 'footers', 'quotes'))
-    top2vec = Top2Vec(newsgroups_train.data[0:1000], speed="fast-learn", workers=8)
+    top2vec = Top2Vec(documents=newsgroups_train.data[0:1000], speed="fast-learn", workers=8)
 
     return top2vec
 
@@ -71,12 +71,12 @@ def test_search_documents_by_topic(top2vec_model):
     assert len(doc_topics) == 1 and topic in doc_topics
 
 
-def test_search_documents_by_keyword(top2vec_model):
+def test_search_documents_by_keywords(top2vec_model):
     keywords = list(top2vec_model.model.wv.vocab.keys())
     keyword = keywords[-1]
     num_docs = 10
 
-    documents, document_scores, document_nums = top2vec_model.search_documents_by_keyword(keywords=[keyword],
+    documents, document_scores, document_nums = top2vec_model.search_documents_by_keywords(keywords=[keyword],
                                                                                           num_docs=num_docs)
     # check that for each document there is a score and number
     assert len(documents) == len(document_scores) == len(document_nums) == num_docs
@@ -97,9 +97,6 @@ def test_similar_words(top2vec_model):
 
     # check that there is a score for each word
     assert len(words) == len(word_scores) == num_words
-
-    # first returned word should be searched word with score of 1
-    assert words[0] == keyword and word_scores[0] == 1.0
 
     # check that words are returned in decreasing order
     assert all(word_scores[i] >= word_scores[i + 1] for i in range(len(word_scores) - 1))
@@ -126,12 +123,12 @@ def test_search_topics(top2vec_model):
     assert all(topic_words_scores[i] >= topic_words_scores[i + 1] for i in range(len(topic_words_scores) - 1))
 
 
-def test_search_document_by_document(top2vec_model):
+def test_search_document_by_documents(top2vec_model):
     num_docs = len(top2vec_model.documents)
-    doc_num = num_docs-1
+    doc_num = num_docs - 1
     num_docs = 10
 
-    documents, document_scores, document_nums = top2vec_model.search_documents_by_document(doc_num=doc_num,
+    documents, document_scores, document_nums = top2vec_model.search_documents_by_documents(doc_ids=[doc_num],
                                                                                            num_docs=num_docs)
 
     # check that for each document there is a score and number
@@ -143,5 +140,3 @@ def test_search_document_by_document(top2vec_model):
     # check that documents are returned in decreasing order
     assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
-    # first returned document should be searched word with score of 1
-    assert document_nums[0] == doc_num and document_scores[0] == 1.0

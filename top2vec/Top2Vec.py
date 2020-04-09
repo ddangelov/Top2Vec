@@ -27,7 +27,7 @@ class Top2Vec:
     documents: List of str
         Input corpus, should be a list of strings.
 
-    speed: string (optional, default 'fast-learn')
+    speed: string (Optional, default 'fast-learn')
         This parameter will determine how fast the model takes to train. The
         fast-learn option is the fastest and will generate the lowest quality
         vectors. The learn option will learn better quality vectors but take
@@ -38,17 +38,23 @@ class Top2Vec:
             * learn
             * deep-learn
 
-    document_ids: List of str
-            A unique value per document that will be used for referring to documents
-            in search results.
+    document_ids: List of str, int (Optional)
+        A unique value per document that will be used for referring to documents
+        in search results. If ids are not given, the index of each document
+        in the original corpus will become the id.
 
-    workers: int (optional)
+    keep_documents: bool (Optional, default True)
+        If set to False documents will only be used for training and not saved
+        as part of the model. This will reduce model size. When using search
+        functions only document ids will be returned, not the actual documents.
+
+    workers: int (Optional)
         The amount of worker threads to be used in training the model. Larger
         amount will lead to faster training.
 
     """
 
-    def __init__(self, documents, speed="fast-learn", document_ids=None, workers=None):
+    def __init__(self, documents, speed="fast-learn", document_ids=None, keep_documents=True, workers=None):
 
         # validate training inputs
         if speed == "fast-learn":
@@ -78,22 +84,34 @@ class Top2Vec:
             raise ValueError("workers needs to be an int")
 
         # validate documents
-        if not all(isinstance(doc, str) for doc in documents):
+        if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
             raise ValueError("Documents need to be a list of strings")
-        self.documents = np.array(documents)
+        if keep_documents:
+            self.documents = np.array(documents)
+        else:
+            self.documents = None
 
         # validate document ids
         if document_ids is not None:
+
             if len(documents) != len(document_ids):
                 raise ValueError("Document ids need to match number of documents")
             elif len(document_ids) != len(set(document_ids)):
                 raise ValueError("Document ids need to be unique")
-            elif not all(isinstance(doc_id, str) for doc_id in document_ids):
-                raise ValueError("Document ids need to be strings")
+
+            if all((isinstance(doc_id, str) or isinstance(doc_id, np.str_)) for doc_id in document_ids):
+                self.doc_id_type = np.str_
+            elif all((isinstance(doc_id, int) or isinstance(doc_id, np.int_)) for doc_id in document_ids):
+                self.doc_id_type = np.int_
             else:
-                self.document_ids = np.array(document_ids)
+                raise ValueError("Document ids need to be str or int")
+
+            self.document_ids = np.array(document_ids)
+            self.doc_id2index = dict(zip(document_ids, list(range(0, len(document_ids)))))
         else:
-            self.document_ids = np.array([str(doc_id) for doc_id in list(range(0, len(documents)))])
+            self.document_ids = None
+            self.doc_id2index = None
+            self.doc_id_type = np.int_
 
         # preprocess documents for training - tokenize and remove too long/short words
         train_corpus = [TaggedDocument(simple_preprocess(strip_tags(doc), deacc=True), [i])
@@ -234,8 +252,8 @@ class Top2Vec:
 
     def _validate_num_docs(self, num_docs):
         self._less_than_zero(num_docs, "num_docs")
-        document_count = len(self.documents)
-        if num_docs > document_count:
+        document_count = self.model.docvecs.count
+        if num_docs > self.model.docvecs.count:
             raise ValueError(f"num_docs cannot exceed the number of documents: {document_count}")
 
     def _validate_num_topics(self, num_topics):
@@ -255,13 +273,21 @@ class Top2Vec:
             raise ValueError(f"Invalid number of documents: topic {topic_num}"
                              f" only has {self.topic_sizes[topic_num]} documents")
 
-    def _validate_doc_id(self, doc_id):
+    def _validate_doc_ids(self, doc_ids, doc_ids_neg):
 
-        if not isinstance(doc_id, str):
-            raise ValueError("doc_id must be a string")
+        if not isinstance(doc_ids, list):
+            raise ValueError("doc_ids must be a list of string or int")
 
-        if doc_id not in self.document_ids:
-            raise ValueError(f"{doc_id} is an invalid document id")
+        if not isinstance(doc_ids_neg, list):
+            raise ValueError("doc_ids_neg must be a list of string or int")
+
+        doc_ids_all = doc_ids + doc_ids_neg
+        for doc_id in doc_ids_all:
+            if self.document_ids is not None:
+                if doc_id not in self.document_ids:
+                    raise ValueError(f"{doc_id} is not a valid document id")
+            elif doc_id < 0 or doc_id > self.model.docvecs.count - 1:
+                raise ValueError(f"{doc_id} is not a valid document id")
 
     def _validate_keywords(self, keywords, keywords_neg):
 
@@ -276,10 +302,16 @@ class Top2Vec:
                 raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched")
 
     def _get_document_ids(self, doc_index):
-        return self.document_ids[doc_index]
+        if self.document_ids is None:
+            return doc_index
+        else:
+            return self.document_ids[doc_index]
 
-    def _get_document_index(self, doc_id):
-        return np.where(self.document_ids == doc_id)[0][0]
+    def _get_document_indexes(self, doc_ids):
+        if self.document_ids is None:
+            return doc_ids
+        else:
+            return [self.doc_id2index[doc_id] for doc_id in doc_ids]
 
     def get_num_topics(self):
         """
@@ -349,7 +381,7 @@ class Top2Vec:
 
         return self.topic_words[0:num_topics], self.topic_word_scores[0:num_topics], np.array(range(0, num_topics))
 
-    def search_documents_by_topic(self, topic_num, num_docs):
+    def search_documents_by_topic(self, topic_num, num_docs, return_documents=True):
         """
         Get the most semantically similar documents to the topic.
 
@@ -365,18 +397,25 @@ class Top2Vec:
         num_docs: int
             Number of documents to return.
 
+        return_documents: bool (Optional default True)
+            Determines if the documents will be returned. If they were not saved
+            in the model they will also not be returned.
+
         Returns
         -------
-        documents: array of str, shape(num_docs)
+        documents: (Optional) array of str, shape(num_docs)
             The documents in a list, the most similar are first.
+
+            Will only be returned if the documents were saved and if return_documents
+            is set to True.
 
         doc_scores: array of float, shape(num_docs)
             Semantic similarity of document to topic. The cosine similarity of the
             document and topic vector.
 
         doc_ids: array of int, shape(num_docs)
-            Ids of documents in the input corpus of documents. If ids were not given,
-            the index of document will be returned.
+            Unique ids of documents. If ids were not given, the index of document
+            in the original corpus will be returned.
         """
         self._validate_num_docs(num_docs)
         self._validate_topic_num(topic_num)
@@ -386,13 +425,15 @@ class Top2Vec:
         topic_document_indexes_ordered = np.flip(np.argsort(self.doc_dist[topic_document_indexes]))
         doc_indexes = topic_document_indexes[topic_document_indexes_ordered][0:num_docs]
         doc_scores = self.doc_dist[doc_indexes]
-        documents = self.documents[doc_indexes]
-
         doc_ids = self._get_document_ids(doc_indexes)
 
-        return documents, doc_scores, doc_ids
+        if self.documents is not None and return_documents:
+            documents = self.documents[doc_indexes]
+            return documents, doc_scores, doc_ids
+        else:
+            return doc_scores, doc_ids
 
-    def search_documents_by_keyword(self, keywords, num_docs, keywords_neg=[]):
+    def search_documents_by_keywords(self, keywords, num_docs, keywords_neg=[], return_documents=True):
         """
         Semantic search of documents using keywords.
 
@@ -416,18 +457,25 @@ class Top2Vec:
         num_docs: int
             Number of documents to return.
 
+        return_documents: bool (Optional default True)
+            Determines if the documents will be returned. If they were not saved
+            in the model they will also not be returned.
+
         Returns
         -------
-        documents: array of str, shape(num_docs)
+        documents: (Optional) array of str, shape(num_docs)
             The documents in a list, the most similar are first.
+
+            Will only be returned if the documents were saved and if return_documents
+            is set to True.
 
         doc_scores: array of float, shape(num_docs)
             Semantic similarity of document to keywords. The cosine similarity of the
             document and average of keyword vectors.
 
         doc_ids: array of int, shape(num_docs)
-            Ids of documents in the input corpus of documents. If ids were not given,
-            the index of document will be returned.
+            Unique ids of documents. If ids were not given, the index of document
+            in the original corpus will be returned.
         """
         self._validate_num_docs(num_docs)
         self._validate_keywords(keywords, keywords_neg)
@@ -439,11 +487,13 @@ class Top2Vec:
                                                    topn=num_docs)
         doc_indexes = [doc[0] for doc in sim_docs]
         doc_scores = np.array([round(doc[1], 4) for doc in sim_docs])
-        documents = self.documents[doc_indexes]
-
         doc_ids = self._get_document_ids(doc_indexes)
 
-        return documents, doc_scores, doc_ids
+        if self.documents is not None and return_documents:
+            documents = self.documents[doc_indexes]
+            return documents, doc_scores, doc_ids
+        else:
+            return doc_scores, doc_ids
 
     def similar_words(self, keywords, num_words, keywords_neg=[]):
         """
@@ -480,11 +530,8 @@ class Top2Vec:
             word and average of keyword vectors.
         """
         self._validate_keywords(keywords, keywords_neg)
-
-        word_vecs = [self.model[word] for word in keywords]
-        neg_word_vecs = [self.model[word] for word in keywords_neg]
-        sim_words = self.model.wv.most_similar(positive=word_vecs,
-                                               negative=neg_word_vecs,
+        sim_words = self.model.wv.most_similar(positive=keywords,
+                                               negative=keywords_neg,
                                                topn=num_words)
         words = np.array([word[0] for word in sim_words])
         word_scores = np.array([round(word[1], 4) for word in sim_words])
@@ -566,50 +613,66 @@ class Top2Vec:
 
         return topic_words, word_scores, topic_scores, topic_nums
 
-    def search_documents_by_document(self, doc_id, num_docs):
+    def search_documents_by_documents(self, doc_ids, num_docs, doc_ids_neg=[], return_documents=True):
         """
-        Semantic similarity search of words.
+        Semantic similarity search of documents.
 
-        The most semantically similar documents to the document provided
-        will be returned. This method finds the closest document vectors
-        to the provided document vector.
+        The most semantically similar documents to the semantic combination of
+        document ids provided will be returned. If negative document ids are provided,
+        the documents will be semantically dissimilar to those document ids. Documents
+        will be ordered by decreasing similarity. This method finds the closest document
+        vectors to the provided documents averaged.
 
         Parameters
         ----------
-        doc_id: int
-            Index of document in the input corpus of documents.
+        doc_ids: List of int, str
+            Unique ids of document. If ids were not given, the index of document
+            in the original corpus.
+
+        doc_ids_neg: (Optional) List of int, str
+            Unique ids of document. If ids were not given, the index of document
+            in the original corpus.
 
         num_docs: int
             Number of documents to return.
 
+        return_documents: bool (Optional default True)
+            Determines if the documents will be returned. If they were not saved
+            in the model they will also not be returned.
+
         Returns
         -------
-        documents: array of str, shape(num_docs)
+        documents: (Optional) array of str, shape(num_docs)
             The documents in a list, the most similar are first.
+
+            Will only be returned if the documents were saved and if return_documents
+            is set to True.
 
         doc_scores: array of float, shape(num_docs)
             Semantic similarity of document to keywords. The cosine similarity of the
             document and average of keyword vectors.
 
         doc_ids: array of int, shape(num_docs)
-            Ids of documents in the input corpus of documents. If ids were not given,
-            the index of document will be returned.
+            Unique ids of documents. If ids were not given, the index of document
+            in the original corpus will be returned.
         """
         self._validate_num_docs(num_docs)
-        self._validate_doc_id(doc_id)
+        self._validate_doc_ids(doc_ids, doc_ids_neg)
 
-        doc_index = self._get_document_index(doc_id)
-
-        message_vec = self.model.docvecs[doc_index]
-        sim_docs = self.model.docvecs.most_similar(positive=[message_vec],
+        doc_indexes = self._get_document_indexes(doc_ids)
+        doc_indexes_neg = self._get_document_indexes(doc_ids_neg)
+        sim_docs = self.model.docvecs.most_similar(positive=doc_indexes,
+                                                   negative=doc_indexes_neg,
                                                    topn=num_docs)
         doc_indexes = [doc[0] for doc in sim_docs]
         doc_scores = np.array([round(doc[1], 4) for doc in sim_docs])
-        documents = self.documents[doc_indexes]
-
         doc_ids = self._get_document_ids(doc_indexes)
 
-        return documents, doc_scores, doc_ids
+        if self.documents is not None and return_documents:
+            documents = self.documents[doc_indexes]
+            return documents, doc_scores, doc_ids
+        else:
+            return doc_scores, doc_ids
 
     def generate_topic_wordcloud(self, topic_num, background_color="black"):
         """
