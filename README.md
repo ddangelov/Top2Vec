@@ -80,7 +80,7 @@ from top2vec import Top2Vec
 
 model = Top2Vec(documents)
 ```
-Parameters:
+Important parameters:
 
   * ``documents``: Input corpus, should be a list of strings.
   
@@ -88,7 +88,7 @@ Parameters:
     The 'fast-learn' option is the fastest and will generate the lowest quality
     vectors. The 'learn' option will learn better quality vectors but take a longer
     time to train. The 'deep-learn' option will learn the best quality vectors but 
-    will take significant time to train.  
+    will take significant time to train.
     
   * ``workers``: The amount of worker threads to be used in training the model. Larger
     amount will lead to faster training.
@@ -196,7 +196,7 @@ for topic in topic_nums:
 
 We are going to search by **topic 48**, a topic that appears to be about **science**.
 ```python
-documents, document_scores, document_nums = model.search_documents_by_topic(topic_num=48, num_docs=5)
+documents, document_scores, document_ids = model.search_documents_by_topic(topic_num=48, num_docs=5)
 ```
 Returns:
   * ``documents``: The documents in a list, the most similar are first.  
