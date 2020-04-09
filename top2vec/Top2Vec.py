@@ -63,6 +63,10 @@ class Top2Vec:
             hs = 1
             negative = 0
             epochs = 400
+        elif speed == "test-learn":
+            hs = 0
+            negative = 5
+            epochs = 1
         else:
             raise ValueError("speed parameter needs to be one of: fast-learn, learn or deep-learn")
 
