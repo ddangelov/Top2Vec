@@ -204,13 +204,14 @@ Returns:
   * ``doc_scores``: Semantic similarity of document to topic. The cosine similarity of the
     document and topic vector.
   
-  * ``doc_nums``: Indexes of documents in the input corpus of documents.
+  * ``doc_ids``: Unique ids of documents. If ids were not given, the index of document
+    in the original corpus.
   
 For each of the returned documents we are going to print its content, score and document number.
 ```python
-documents, document_scores, document_nums = model.search_documents_by_topic(topic_num=48, num_docs=5)
-for doc, score, doc_num in zip(documents, document_scores, document_nums):
-    print(f"Document: {doc_num}, Score: {score}")
+documents, document_scores, document_ids = model.search_documents_by_topic(topic_num=48, num_docs=5)
+for doc, score, doc_id in zip(documents, document_scores, document_ids):
+    print(f"Document: {doc_id}, Score: {score}")
     print("-----------")
     print(doc)
     print("-----------")
@@ -268,9 +269,9 @@ for doc, score, doc_num in zip(documents, document_scores, document_nums):
 
 Search documents for content semantically similar to **cryptography** and **privacy**.
 ```python
-documents, document_scores, document_nums = model.search_documents_by_keyword(keywords=["cryptography", "privacy"], num_docs=5)
-for doc, score, doc_num in zip(documents, document_scores, document_nums):
-    print(f"Document: {doc_num}, Score: {score}")
+documents, document_scores, document_ids = model.search_documents_by_keywords(keywords=["cryptography", "privacy"], num_docs=5)
+for doc, score, doc_id in zip(documents, document_scores, document_ids):
+    print(f"Document: {doc_id}, Score: {score}")
     print("-----------")
     print(doc)
     print("-----------")
