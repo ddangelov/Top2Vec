@@ -87,7 +87,7 @@ class Top2Vec:
         if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
             raise ValueError("Documents need to be a list of strings")
         if keep_documents:
-            self.documents = np.array(documents)
+            self.documents = np.array(documents, dtype="object")
         else:
             self.documents = None
 
