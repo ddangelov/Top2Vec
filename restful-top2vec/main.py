@@ -9,7 +9,7 @@ app = FastAPI(title="Top2Vec API",
               description="Speak REST to a Top2Vec trained model.",
               version="1.0.0", )
 
-top2vec = Top2Vec.load("top2vec_model/top2vec_20newsgroups")
+top2vec = Top2Vec.load("top2vec_model/top2vec_20newsgroups_no_docs")
 
 
 @app.exception_handler(ValueError)
@@ -179,7 +179,7 @@ async def search_documents_by_documents(document_search: DocumentSearch):
         doc_scores, doc_ids = top2vec.search_documents_by_documents(document_search.doc_ids,
                                                                           document_search.num_docs,
                                                                           document_search.doc_ids_neg)
-        for doc, score, num in zip(doc_scores, doc_ids):
+        for score, num in zip(doc_scores, doc_ids):
             documents.append(Document(score=score, doc_id=num))
 
     return documents
