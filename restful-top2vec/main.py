@@ -3,12 +3,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List
 from top2vec import Top2Vec
+import numpy as np
 
 app = FastAPI(title="Top2Vec API",
               description="Speak REST to a Top2Vec trained model.",
               version="1.0.0", )
 
-top2vec = Top2Vec.load("top2vec_model/top2vec_20newsgroups_learn")
+top2vec = Top2Vec.load("top2vec_model/top2vec_20newsgroups")
 
 
 @app.exception_handler(ValueError)
@@ -17,6 +18,25 @@ async def value_error_handler(request: Request, exc: ValueError):
         status_code=404,
         content={"message": str(exc)},
     )
+
+
+# determine top2vec index type
+if top2vec.doc_id_type is np.str_:
+    doc_id_type = str
+else:
+    doc_id_type = int
+
+
+class Document(BaseModel):
+    content: str
+    score: float
+    doc_id: doc_id_type
+
+
+class DocumentSearch(BaseModel):
+    doc_ids: List[doc_id_type]
+    doc_ids_neg: List[doc_id_type]
+    num_docs: int
 
 
 class NumTopics(BaseModel):
@@ -38,24 +58,12 @@ class TopicResult(Topic):
     topic_score: float
 
 
-class Document(BaseModel):
-    content: str
-    score: float
-    doc_id: int
-
-
 class KeywordSearch(BaseModel):
     keywords: List[str]
-    keywords_neg: List[str] = []
+    keywords_neg: List[str]
 
 
 class KeywordSearchDocument(KeywordSearch):
-    num_docs: int
-
-
-class DocumentSearch(BaseModel):
-    doc_ids: List[int]
-    doc_ids_neg: List[int] = None
     num_docs: int
 
 
@@ -140,8 +148,8 @@ async def search_documents_by_keywords(keyword_search: KeywordSearchDocument):
           tags=["Documents"])
 async def search_documents_by_documents(document_search: DocumentSearch):
     docs, doc_scores, doc_ids = top2vec.search_documents_by_documents(document_search.doc_ids,
-                                                                       document_search.num_docs,
-                                                                       document_search.doc_ids_neg)
+                                                                      document_search.num_docs,
+                                                                      document_search.doc_ids_neg)
 
     documents = []
     for doc, score, num in zip(docs, doc_scores, doc_ids):
