@@ -26,9 +26,16 @@ if top2vec.doc_id_type is np.str_:
 else:
     doc_id_type = int
 
+# determine if model has documents
+if top2vec.documents is None:
+    has_documents = False
+else:
+    has_documents = True
+
 
 class Document(BaseModel):
-    content: str
+    if has_documents:
+        content: str
     score: float
     doc_id: doc_id_type
 
@@ -122,11 +129,17 @@ async def search_topics_by_keywords(keyword_search: KeywordSearchTopic):
 @app.get("/documents/search-by-topic", response_model=List[Document],
          description="Semantic search of documents using keywords.", tags=["Documents"])
 async def search_documents_by_topic(topic_num: int, num_docs: int):
-    docs, doc_scores, doc_ids = top2vec.search_documents_by_topic(topic_num, num_docs)
-
     documents = []
-    for doc, score, num in zip(docs, doc_scores, doc_ids):
-        documents.append(Document(content=doc, score=score, doc_id=num))
+
+    if has_documents:
+        docs, doc_scores, doc_ids = top2vec.search_documents_by_topic(topic_num, num_docs)
+        for doc, score, num in zip(docs, doc_scores, doc_ids):
+            documents.append(Document(content=doc, score=score, doc_id=num))
+
+    else:
+        doc_scores, doc_ids = top2vec.search_documents_by_topic(topic_num, num_docs)
+        for score, num in zip(doc_scores, doc_ids):
+            documents.append(Document(score=score, doc_id=num))
 
     return documents
 
@@ -134,12 +147,19 @@ async def search_documents_by_topic(topic_num: int, num_docs: int):
 @app.post("/documents/search-by-keyword", response_model=List[Document], description="Search documents by keywords.",
           tags=["Documents"])
 async def search_documents_by_keywords(keyword_search: KeywordSearchDocument):
-    docs, doc_scores, doc_ids = top2vec.search_documents_by_keywords(keyword_search.keywords, keyword_search.num_docs,
-                                                                     keyword_search.keywords_neg)
-
     documents = []
-    for doc, score, num in zip(docs, doc_scores, doc_ids):
-        documents.append(Document(content=doc, score=score, doc_id=num))
+
+    if has_documents:
+        docs, doc_scores, doc_ids = top2vec.search_documents_by_keywords(keyword_search.keywords, keyword_search.num_docs,
+                                                                         keyword_search.keywords_neg)
+        for doc, score, num in zip(docs, doc_scores, doc_ids):
+            documents.append(Document(content=doc, score=score, doc_id=num))
+    else:
+        doc_scores, doc_ids = top2vec.search_documents_by_keywords(keyword_search.keywords,
+                                                                         keyword_search.num_docs,
+                                                                         keyword_search.keywords_neg)
+        for score, num in zip(doc_scores, doc_ids):
+            documents.append(Document(score=score, doc_id=num))
 
     return documents
 
@@ -147,13 +167,20 @@ async def search_documents_by_keywords(keyword_search: KeywordSearchDocument):
 @app.post("/documents/search-by-documents", response_model=List[Document], description="Find similar documents.",
           tags=["Documents"])
 async def search_documents_by_documents(document_search: DocumentSearch):
-    docs, doc_scores, doc_ids = top2vec.search_documents_by_documents(document_search.doc_ids,
-                                                                      document_search.num_docs,
-                                                                      document_search.doc_ids_neg)
-
     documents = []
-    for doc, score, num in zip(docs, doc_scores, doc_ids):
-        documents.append(Document(content=doc, score=score, doc_id=num))
+
+    if has_documents:
+        docs, doc_scores, doc_ids = top2vec.search_documents_by_documents(document_search.doc_ids,
+                                                                          document_search.num_docs,
+                                                                          document_search.doc_ids_neg)
+        for doc, score, num in zip(docs, doc_scores, doc_ids):
+            documents.append(Document(content=doc, score=score, doc_id=num))
+    else:
+        doc_scores, doc_ids = top2vec.search_documents_by_documents(document_search.doc_ids,
+                                                                          document_search.num_docs,
+                                                                          document_search.doc_ids_neg)
+        for doc, score, num in zip(doc_scores, doc_ids):
+            documents.append(Document(score=score, doc_id=num))
 
     return documents
 
