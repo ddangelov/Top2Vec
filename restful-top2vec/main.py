@@ -8,7 +8,7 @@ app = FastAPI(title="Top2Vec API",
               description="Speak REST to a Top2Vec trained model.",
               version="1.0.0", )
 
-top2vec = Top2Vec.load("top2vec_model/top2vec_20newsgroups")
+top2vec = Top2Vec.load("top2vec_model/top2vec_20newsgroups_learn")
 
 
 @app.exception_handler(ValueError)
@@ -41,15 +41,21 @@ class TopicResult(Topic):
 class Document(BaseModel):
     content: str
     score: float
-    doc_num: int
+    doc_id: int
 
 
 class KeywordSearch(BaseModel):
     keywords: List[str]
-    keywords_neg: List[str]
+    keywords_neg: List[str] = []
 
 
 class KeywordSearchDocument(KeywordSearch):
+    num_docs: int
+
+
+class DocumentSearch(BaseModel):
+    doc_ids: List[int]
+    doc_ids_neg: List[int] = None
     num_docs: int
 
 
@@ -76,7 +82,7 @@ async def get_number_of_topics():
          tags=["Topics"])
 async def get_topic_sizes():
     topic_sizes, topic_nums = top2vec.get_topic_sizes()
-    return TopicSizes(topic_nums=topic_nums, topic_sizes=topic_sizes)
+    return TopicSizes(topic_nums=list(topic_nums), topic_sizes=list(topic_sizes))
 
 
 @app.get("/topics/get-topics", response_model=List[Topic], description="Get number of topics.", tags=["Topics"])
@@ -85,7 +91,7 @@ async def get_topics(num_topics: int):
 
     topics = []
     for words, scores, num in zip(topic_words, word_scores, topic_nums):
-        topics.append(Topic(topic_num=num, topic_words=words, word_scores=scores))
+        topics.append(Topic(topic_num=num, topic_words=list(words), word_scores=list(scores)))
 
     return topics
 
@@ -99,8 +105,8 @@ async def search_topics_by_keywords(keyword_search: KeywordSearchTopic):
 
     topic_results = []
     for words, word_scores, topic_score, topic_num in zip(topic_words, word_scores, topic_scores, topic_nums):
-        topic_results.append(TopicResult(topic_num=topic_num, topic_words=words,
-                                         word_scores=word_scores, topic_score=topic_score))
+        topic_results.append(TopicResult(topic_num=topic_num, topic_words=list(words),
+                                         word_scores=list(word_scores), topic_score=topic_score))
 
     return topic_results
 
@@ -108,11 +114,11 @@ async def search_topics_by_keywords(keyword_search: KeywordSearchTopic):
 @app.get("/documents/search-by-topic", response_model=List[Document],
          description="Semantic search of documents using keywords.", tags=["Documents"])
 async def search_documents_by_topic(topic_num: int, num_docs: int):
-    docs, doc_scores, doc_nums = top2vec.search_documents_by_topic(topic_num, num_docs)
+    docs, doc_scores, doc_ids = top2vec.search_documents_by_topic(topic_num, num_docs)
 
     documents = []
-    for doc, score, num in zip(docs, doc_scores, doc_nums):
-        documents.append(Document(content=doc, score=score, doc_num=num))
+    for doc, score, num in zip(docs, doc_scores, doc_ids):
+        documents.append(Document(content=doc, score=score, doc_id=num))
 
     return documents
 
@@ -120,24 +126,26 @@ async def search_documents_by_topic(topic_num: int, num_docs: int):
 @app.post("/documents/search-by-keyword", response_model=List[Document], description="Search documents by keywords.",
           tags=["Documents"])
 async def search_documents_by_keywords(keyword_search: KeywordSearchDocument):
-    docs, doc_scores, doc_nums = top2vec.search_documents_by_keyword(keyword_search.keywords, keyword_search.num_docs,
+    docs, doc_scores, doc_ids = top2vec.search_documents_by_keywords(keyword_search.keywords, keyword_search.num_docs,
                                                                      keyword_search.keywords_neg)
 
     documents = []
-    for doc, score, num in zip(docs, doc_scores, doc_nums):
-        documents.append(Document(content=doc, score=score, doc_num=num))
+    for doc, score, num in zip(docs, doc_scores, doc_ids):
+        documents.append(Document(content=doc, score=score, doc_id=num))
 
     return documents
 
 
-@app.post("/documents/search-by-document", response_model=List[Document], description="Find similar documents.",
+@app.post("/documents/search-by-documents", response_model=List[Document], description="Find similar documents.",
           tags=["Documents"])
-async def search_documents_by_document(doc_num: int, num_docs: int):
-    docs, doc_scores, doc_nums = top2vec.search_documents_by_document(doc_num, num_docs)
+async def search_documents_by_documents(document_search: DocumentSearch):
+    docs, doc_scores, doc_ids = top2vec.search_documents_by_documents(document_search.doc_ids,
+                                                                       document_search.num_docs,
+                                                                       document_search.doc_ids_neg)
 
     documents = []
-    for doc, score, num in zip(docs, doc_scores, doc_nums):
-        documents.append(Document(content=doc, score=score, doc_num=num))
+    for doc, score, num in zip(docs, doc_scores, doc_ids):
+        documents.append(Document(content=doc, score=score, doc_id=num))
 
     return documents
 
