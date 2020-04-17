@@ -45,7 +45,7 @@ six==1.14.0
 sklearn==0.0
 smart-open==1.10.0
 starlette==0.13.2
-top2vec==1.0.6
+top2vec==1.0.7
 umap-learn==0.3.10
 urllib3==1.25.8
 uvicorn==0.11.3

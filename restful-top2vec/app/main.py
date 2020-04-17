@@ -13,11 +13,11 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+top2vec = Top2Vec.load(settings.model_path)
+
 app = FastAPI(title=settings.model_name,
               description="Speak REST to a Top2Vec trained model.",
               version="1.0.0", )
-
-top2vec = Top2Vec.load(settings.model_path)
 
 
 @app.exception_handler(ValueError)
@@ -152,7 +152,7 @@ async def search_documents_by_topic(topic_num: int, num_docs: int):
     return documents
 
 
-@app.post("/documents/search-by-keyword", response_model=List[Document], description="Search documents by keywords.",
+@app.post("/documents/search-by-keywords", response_model=List[Document], description="Search documents by keywords.",
           tags=["Documents"])
 async def search_documents_by_keywords(keyword_search: KeywordSearchDocument):
     documents = []
