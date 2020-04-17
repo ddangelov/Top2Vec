@@ -21,10 +21,12 @@ sh = logging.StreamHandler()
 sh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger.addHandler(sh)
 
+
 def default_tokenizer(doc):
     """Tokenize documents for training and remove too long/short words"""
     return simple_preprocess(strip_tags(doc), deacc=True)
-        
+
+
 class Top2Vec:
     """
     Topic2Vector
@@ -78,7 +80,7 @@ class Top2Vec:
             logger.setLevel(logging.DEBUG)
         else:
             logger.setLevel(logging.WARNING)
-        
+
         # validate training inputs
         if speed == "fast-learn":
             hs = 0
@@ -110,7 +112,7 @@ class Top2Vec:
             self._tokenizer = tokenizer
         else:
             self._tokenizer = default_tokenizer
-            
+
         # validate documents
         if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
             raise ValueError("Documents need to be a list of strings")
@@ -345,6 +347,9 @@ class Top2Vec:
         else:
             return [self.doc_id2index[doc_id] for doc_id in doc_ids]
 
+    def _get_word_vectors(self, keywords):
+        return [self.model[word.lower()] for word in keywords]
+
     def get_num_topics(self):
         """
         Get number of topics.
@@ -512,8 +517,8 @@ class Top2Vec:
         self._validate_num_docs(num_docs)
         self._validate_keywords(keywords, keywords_neg)
 
-        word_vecs = [self.model[word] for word in keywords]
-        neg_word_vecs = [self.model[word] for word in keywords_neg]
+        word_vecs = self._get_word_vectors(keywords)
+        neg_word_vecs = self._get_word_vectors(keywords_neg)
         sim_docs = self.model.docvecs.most_similar(positive=word_vecs,
                                                    negative=neg_word_vecs,
                                                    topn=num_docs)
@@ -623,8 +628,8 @@ class Top2Vec:
         self._validate_num_topics(num_topics)
         self._validate_keywords(keywords, keywords_neg)
 
-        word_vecs = [self.model[word] for word in keywords]
-        neg_word_vecs = [self.model[word] for word in keywords_neg]
+        word_vecs = self._get_word_vectors(keywords)
+        neg_word_vecs = self._get_word_vectors(keywords_neg)
 
         combined_vector = np.zeros(300, dtype=np.float64)
 
