@@ -146,7 +146,7 @@ class Top2Vec:
                         for i, doc in enumerate(documents)]
 
         # create documents and word embeddings with doc2vec
-        logger.info('Calculating joint word/document embedding')
+        logger.info('Creating joint document/word embedding')
         if workers is None:
             self.model = Doc2Vec(documents=train_corpus,
                                  vector_size=300,
@@ -171,13 +171,13 @@ class Top2Vec:
                                  dbow_words=1)
 
         # create 5D embeddings of documents
-        logger.info('Doing dimension reduction on document embedding')
+        logger.info('Creating lower dimension embedding of documents')
         umap_model = umap.UMAP(n_neighbors=15,
                                n_components=5,
                                metric='cosine').fit(self.model.docvecs.vectors_docs)
 
         # find dense areas of document vectors
-        logger.info('Clustering lower dimensional document embedding')
+        logger.info('Finding dense areas of documents')
         cluster = hdbscan.HDBSCAN(min_cluster_size=15,
                                   metric='euclidean',
                                   cluster_selection_method='eom').fit(umap_model.embedding_)
