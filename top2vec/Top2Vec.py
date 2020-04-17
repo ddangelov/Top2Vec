@@ -1,6 +1,7 @@
 # Author: Dimo Angelov
 #
 # License: BSD 3 clause
+import logging
 import numpy as np
 import pandas as pd
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
@@ -13,6 +14,12 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from joblib import dump, load
 from sklearn.cluster import dbscan
+
+logger = logging.getLogger('top2vec')
+logger.setLevel(logging.WARNING)
+sh = logging.StreamHandler()
+sh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(sh)
 
 def default_tokenizer(doc):
     """Tokenize documents for training and remove too long/short words"""
@@ -58,12 +65,20 @@ class Top2Vec:
     tokenizer: callable or None (default)
         Override the default tokenization method. If None then gensim.utils.simple_preprocess
         will be used.
+    
+    verbose: bool (Optional, default False)
+        Whether to print status data during training.
 
     """
 
     def __init__(self, documents, speed="fast-learn", document_ids=None, keep_documents=True, workers=None,
-                 tokenizer=None):
+                 tokenizer=None, verbose=False):
 
+        if verbose:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.WARNING)
+        
         # validate training inputs
         if speed == "fast-learn":
             hs = 0
@@ -126,11 +141,12 @@ class Top2Vec:
             self.doc_id2index = None
             self.doc_id_type = np.int_
 
-        # preprocess documents for training
+        logger.info('Preprocessing documents for training')
         train_corpus = [TaggedDocument(self._tokenizer(doc), [i])
                         for i, doc in enumerate(documents)]
 
         # create documents and word embeddings with doc2vec
+        logger.info('Calculating joint word/document embedding')
         if workers is None:
             self.model = Doc2Vec(documents=train_corpus,
                                  vector_size=300,
@@ -155,16 +171,19 @@ class Top2Vec:
                                  dbow_words=1)
 
         # create 5D embeddings of documents
+        logger.info('Doing dimension reduction on document embedding')
         umap_model = umap.UMAP(n_neighbors=15,
                                n_components=5,
                                metric='cosine').fit(self.model.docvecs.vectors_docs)
 
         # find dense areas of document vectors
+        logger.info('Clustering lower dimensional document embedding')
         cluster = hdbscan.HDBSCAN(min_cluster_size=15,
                                   metric='euclidean',
                                   cluster_selection_method='eom').fit(umap_model.embedding_)
 
         # calculate topic vectors from dense areas of documents
+        logger.info('Finding topics')
         self._create_topic_vectors(cluster.labels_)
 
         # deduplicate topics
