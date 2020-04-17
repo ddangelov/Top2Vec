@@ -16,3 +16,5 @@ Run Container
 ```bash
 docker run -d --name model-name -p 80:80 restful-top2vec
 ```
+
+![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/restful-top2vec.png)
