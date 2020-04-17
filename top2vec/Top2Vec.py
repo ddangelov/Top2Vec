@@ -14,7 +14,10 @@ import matplotlib.pyplot as plt
 from joblib import dump, load
 from sklearn.cluster import dbscan
 
-
+def default_tokenizer(doc):
+    """Tokenize documents for training and remove too long/short words"""
+    return simple_preprocess(strip_tags(doc), deacc=True)
+        
 class Top2Vec:
     """
     Topic2Vector
@@ -51,10 +54,15 @@ class Top2Vec:
     workers: int (Optional)
         The amount of worker threads to be used in training the model. Larger
         amount will lead to faster training.
+    
+    tokenizer: callable or None (default)
+        Override the default tokenization method. If None then gensim.utils.simple_preprocess
+        will be used.
 
     """
 
-    def __init__(self, documents, speed="fast-learn", document_ids=None, keep_documents=True, workers=None):
+    def __init__(self, documents, speed="fast-learn", document_ids=None, keep_documents=True, workers=None,
+                 tokenizer=None):
 
         # validate training inputs
         if speed == "fast-learn":
@@ -83,6 +91,11 @@ class Top2Vec:
         else:
             raise ValueError("workers needs to be an int")
 
+        if tokenizer is not None:
+            self._tokenizer = tokenizer
+        else:
+            self._tokenizer = default_tokenizer
+            
         # validate documents
         if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
             raise ValueError("Documents need to be a list of strings")
@@ -113,8 +126,8 @@ class Top2Vec:
             self.doc_id2index = None
             self.doc_id_type = np.int_
 
-        # preprocess documents for training - tokenize and remove too long/short words
-        train_corpus = [TaggedDocument(simple_preprocess(strip_tags(doc), deacc=True), [i])
+        # preprocess documents for training
+        train_corpus = [TaggedDocument(self._tokenizer(doc), [i])
                         for i, doc in enumerate(documents)]
 
         # create documents and word embeddings with doc2vec
