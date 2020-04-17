@@ -1,15 +1,23 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, BaseSettings
 from typing import List
 from top2vec import Top2Vec
 import numpy as np
 
-app = FastAPI(title="Top2Vec API",
+
+class Settings(BaseSettings):
+    model_name: str = "Top2Vec API"
+    model_path: str
+
+
+settings = Settings()
+
+app = FastAPI(title=settings.model_name,
               description="Speak REST to a Top2Vec trained model.",
               version="1.0.0", )
 
-top2vec = Top2Vec.load("top2vec_model/top2vec_20newsgroups_no_docs")
+top2vec = Top2Vec.load(settings.model_path)
 
 
 @app.exception_handler(ValueError)
@@ -150,14 +158,15 @@ async def search_documents_by_keywords(keyword_search: KeywordSearchDocument):
     documents = []
 
     if has_documents:
-        docs, doc_scores, doc_ids = top2vec.search_documents_by_keywords(keyword_search.keywords, keyword_search.num_docs,
+        docs, doc_scores, doc_ids = top2vec.search_documents_by_keywords(keyword_search.keywords,
+                                                                         keyword_search.num_docs,
                                                                          keyword_search.keywords_neg)
         for doc, score, num in zip(docs, doc_scores, doc_ids):
             documents.append(Document(content=doc, score=score, doc_id=num))
     else:
         doc_scores, doc_ids = top2vec.search_documents_by_keywords(keyword_search.keywords,
-                                                                         keyword_search.num_docs,
-                                                                         keyword_search.keywords_neg)
+                                                                   keyword_search.num_docs,
+                                                                   keyword_search.keywords_neg)
         for score, num in zip(doc_scores, doc_ids):
             documents.append(Document(score=score, doc_id=num))
 
@@ -177,8 +186,8 @@ async def search_documents_by_documents(document_search: DocumentSearch):
             documents.append(Document(content=doc, score=score, doc_id=num))
     else:
         doc_scores, doc_ids = top2vec.search_documents_by_documents(document_search.doc_ids,
-                                                                          document_search.num_docs,
-                                                                          document_search.doc_ids_neg)
+                                                                    document_search.num_docs,
+                                                                    document_search.doc_ids_neg)
         for score, num in zip(doc_scores, doc_ids):
             documents.append(Document(score=score, doc_id=num))
 
