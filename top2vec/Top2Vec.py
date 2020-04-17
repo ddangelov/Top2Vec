@@ -325,15 +325,20 @@ class Top2Vec:
 
     def _validate_keywords(self, keywords, keywords_neg):
 
-        if not isinstance(keywords, list):
+        if not (isinstance(keywords, list) or isinstance(keywords, np.ndarray)):
             raise ValueError("keywords must be a list of strings")
 
-        if not isinstance(keywords_neg, list):
+        if not (isinstance(keywords_neg, list) or isinstance(keywords_neg, np.ndarray)):
             raise ValueError("keywords_neg must be a list of strings")
 
-        for word in keywords + keywords_neg:
+        keywords_lower = [keyword.lower() for keyword in keywords]
+        keywords_neg_lower = [keyword.lower() for keyword in keywords_neg]
+
+        for word in keywords_lower + keywords_neg_lower:
             if word not in self.model.wv.vocab:
                 raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched")
+
+        return keywords_lower, keywords_neg_lower
 
     def _get_document_ids(self, doc_index):
         if self.document_ids is None:
@@ -348,7 +353,7 @@ class Top2Vec:
             return [self.doc_id2index[doc_id] for doc_id in doc_ids]
 
     def _get_word_vectors(self, keywords):
-        return [self.model[word.lower()] for word in keywords]
+        return [self.model[word] for word in keywords]
 
     def get_num_topics(self):
         """
@@ -515,7 +520,7 @@ class Top2Vec:
             in the original corpus will be returned.
         """
         self._validate_num_docs(num_docs)
-        self._validate_keywords(keywords, keywords_neg)
+        keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
 
         word_vecs = self._get_word_vectors(keywords)
         neg_word_vecs = self._get_word_vectors(keywords_neg)
@@ -566,7 +571,7 @@ class Top2Vec:
             Semantic similarity of word to keywords. The cosine similarity of the
             word and average of keyword vectors.
         """
-        self._validate_keywords(keywords, keywords_neg)
+        keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
         sim_words = self.model.wv.most_similar(positive=keywords,
                                                negative=keywords_neg,
                                                topn=num_words)
@@ -626,7 +631,7 @@ class Top2Vec:
             The unique number of every topic will be returned.
         """
         self._validate_num_topics(num_topics)
-        self._validate_keywords(keywords, keywords_neg)
+        keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
 
         word_vecs = self._get_word_vectors(keywords)
         neg_word_vecs = self._get_word_vectors(keywords_neg)
