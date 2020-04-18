@@ -16,6 +16,7 @@ you can:
 * Search documents by keywords.
 * Find similar words.
 * Find similar documents.
+* Expose model with [restful-top2vec](https://top2vec.readthedocs.io/en/latest/restful-top2vec.html)
 
 Benefits
 --------

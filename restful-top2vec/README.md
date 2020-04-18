@@ -32,6 +32,6 @@ docker run -d --name model-name -p 80:80 restful-top2vec
 Documentation
 -------------
 
-Go to http://localhost:80/docs
+Go to <http://localhost:80/docs>
 
 ![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/restful-top2vec.png)
