@@ -16,7 +16,7 @@ settings = Settings()
 top2vec = Top2Vec.load(settings.model_path)
 
 app = FastAPI(title=settings.model_name,
-              description="Speak REST to a Top2Vec trained model.",
+              description="RESTful Top2Vec API",
               version="1.0.0", )
 
 
