@@ -1,1 +1,1 @@
-/Users/dimo_angelov/Top2Vec/README.md
+../../README.md
