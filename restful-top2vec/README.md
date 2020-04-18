@@ -17,8 +17,8 @@ Docker Build Arguments:
   
 If providing model name:
 ```bash
-EXPORT model_path="/path_to_top2vec_model"
-EXPORT model_name="model_name"
+export model_path="/path_to_top2vec_model"
+export model_name="model_name"
 docker build --build-arg model_path --build-arg model_name -t restful-top2vec .
 ```
 
