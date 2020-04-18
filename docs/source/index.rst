@@ -10,7 +10,8 @@ Welcome to Top2Vec's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   README
+   Top2Vec
+   restful-top2vec
 
 
 Indices and tables
