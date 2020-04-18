@@ -8,12 +8,12 @@ Docker Installation
 ```bash
 git clone https://github.com/ddangelov/Top2Vec.git
 cd restful-top2vec
-docker build --build-arg model_path="/path_to_top2vec_model" -t restful-top2vec .
+docker build --build-arg top2vec_model_path="/path_to_top2vec_model" -t restful-top2vec .
 ```
 Docker Build Arguments:
 
-  * ``model_path``: Path to a saved Top2Vec model.
-  * ``model_name``: (Optional) Name of Top2Vec model.
+  * ``top2vec_model_path``: Path to a saved Top2Vec model.
+  * ``top2vec_model_name``: (Optional) Name of Top2Vec model.
   
 
 Run Container 
