@@ -6,14 +6,14 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="top2vec",
     packages=["top2vec"],
-    version="1.0.7",
+    version="1.0.8",
     author="Dimo Angelov",
     author_email="dimo.angelov@gmail.com",
     description="Topic2Vector learns jointly embedded topic, document and word vectors.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ddangelov/Top2Vec",
-    keywords="topic modeling",
+    keywords="topic modeling semantic search word document embedding",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Programming Language :: Python :: 3",
@@ -28,6 +28,7 @@ setuptools.setup(
         'numpy',
         'pandas',
         'gensim',
+        'pynndescent >= 0.4'
         'umap-learn',
         'hdbscan',
         'wordcloud',
