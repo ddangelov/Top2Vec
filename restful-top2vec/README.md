@@ -19,7 +19,7 @@ Run Container
 Docker Run Arguments:
 
   * ``model_path``: Path to a saved Top2Vec model.
-  * ``model_name``: Name of Top2Vec model.
+  * ``model_name``: Name of Top2Vec model. (Should not contain spaces.)
   
 ```bash
 export model_path="/path_to_top2vec_model"
