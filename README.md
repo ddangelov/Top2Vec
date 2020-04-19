@@ -16,7 +16,7 @@ you can:
 * Search documents by keywords.
 * Find similar words.
 * Find similar documents.
-* Expose model with [restful-top2vec](https://github.com/ddangelov/RESTful-Top2Vec)
+* Expose model with [RESTful-Top2Vec](https://github.com/ddangelov/RESTful-Top2Vec)
 
 Benefits
 --------
