@@ -24,7 +24,8 @@ Docker Run Arguments:
 ```bash
 export model_path="/path_to_top2vec_model"
 export model_name="model_name"
-docker run -v $model_path:/app/top2vec_model -e model_name=$model_name  -d --name model_name -p 80:80 ddangelov/restful-top2vec
+
+docker run -v $model_path:/app/top2vec_model -e model_name=$model_name -d --name model_name -p 80:80 ddangelov/restful-top2vec
 ```
 
 Documentation
