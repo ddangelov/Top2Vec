@@ -1,1 +1,0 @@
-../../restful-top2vec/README.md

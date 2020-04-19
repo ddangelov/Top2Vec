@@ -11,7 +11,6 @@ Welcome to Top2Vec's documentation!
    :caption: Contents:
 
    Top2Vec
-   restful-top2vec
 
 
 Indices and tables
