@@ -231,17 +231,15 @@ class Top2Vec:
 
     def _calculate_topic_sizes(self):
         # find nearest topic of each document
-        doc_top_sim = cosine_similarity(self.model.docvecs.vectors_docs, self.topic_vectors)
-        self.topic_sizes = pd.Series(np.argmax(doc_top_sim, axis=1)).value_counts()
+        doc_top, self.doc_dist = self._calculate_doc_top()
+        self.topic_sizes = pd.Series(doc_top).value_counts()
 
         # re-order topic vectors by size
         self.topic_vectors = self.topic_vectors[self.topic_sizes.index]
-        doc_top_sim = doc_top_sim[:, self.topic_sizes.index]
-        self.topic_sizes.reset_index(drop=True, inplace=True)
+        old2new = dict(zip(self.topic_sizes.index, range(self.topic_sizes.shape[0])))
+        self.doc_top = np.array([old2new[i] for i in doc_top])
 
-        # find nearest topic for each document and distance to topic
-        self.doc_dist = np.max(doc_top_sim, axis=1)
-        self.doc_top = np.argmax(doc_top_sim, axis=1)
+        self.topic_sizes.reset_index(drop=True, inplace=True)
 
     def _calculate_doc_top(self):
         batch_size = 10000
