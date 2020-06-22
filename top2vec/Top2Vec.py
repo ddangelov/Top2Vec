@@ -230,7 +230,7 @@ class Top2Vec:
             self.topic_vectors = unique_topics
 
     def _calculate_topic_sizes(self):
-        # calculate topic size
+        # find nearest topic of each document
         doc_top_sim = cosine_similarity(self.model.docvecs.vectors_docs, self.topic_vectors)
         self.topic_sizes = pd.Series(np.argmax(doc_top_sim, axis=1)).value_counts()
 
@@ -242,6 +242,36 @@ class Top2Vec:
         # find nearest topic for each document and distance to topic
         self.doc_dist = np.max(doc_top_sim, axis=1)
         self.doc_top = np.argmax(doc_top_sim, axis=1)
+
+    def _calculate_doc_top(self):
+        batch_size = 10000
+        doc_top = []
+        doc_dist = []
+
+        if self.model.docvecs.vectors_docs.shape[0] > batch_size:
+            current = 0
+            batches = int(self.model.docvecs.vectors_docs.shape[0] / batch_size)
+            extra = self.model.docvecs.vectors_docs.shape[0] % batch_size
+
+            for ind in range(0, batches):
+                res = cosine_similarity(self.model.docvecs.vectors_docs[current:current + batch_size],
+                                        self.topic_vectors)
+                doc_top.extend(np.argmax(res, axis=1))
+                doc_dist.extend(np.max(res, axis=1))
+                current += batch_size
+
+            if extra > 0:
+                res = cosine_similarity(self.model.docvecs.vectors_docs[current:current + extra],
+                                        self.topic_vectors)
+                doc_top.extend(np.argmax(res, axis=1))
+                doc_dist.extend(np.max(res, axis=1))
+        else:
+            res = cosine_similarity(self.model.docvecs.vectors_docs,
+                                    self.topic_vectors)
+            doc_top = np.argmax(res, axis=1)
+            doc_dist = np.max(res, axis=1)
+
+        return doc_top, doc_dist
 
     def _find_topic_words_scores(self):
         self.topic_words = []
