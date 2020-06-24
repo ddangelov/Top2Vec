@@ -725,6 +725,9 @@ class Top2Vec:
 
             topic_document_indexes = np.where(self.doc_top_reduced == topic_num)[0]
             topic_document_indexes_ordered = np.flip(np.argsort(self.doc_dist_reduced[topic_document_indexes]))
+            doc_indexes = topic_document_indexes[topic_document_indexes_ordered][0:num_docs]
+            doc_scores = self.doc_dist_reduced[doc_indexes]
+            doc_ids = self._get_document_ids(doc_indexes)
 
         else:
 
@@ -733,10 +736,9 @@ class Top2Vec:
 
             topic_document_indexes = np.where(self.doc_top == topic_num)[0]
             topic_document_indexes_ordered = np.flip(np.argsort(self.doc_dist[topic_document_indexes]))
-
-        doc_indexes = topic_document_indexes[topic_document_indexes_ordered][0:num_docs]
-        doc_scores = self.doc_dist[doc_indexes]
-        doc_ids = self._get_document_ids(doc_indexes)
+            doc_indexes = topic_document_indexes[topic_document_indexes_ordered][0:num_docs]
+            doc_scores = self.doc_dist[doc_indexes]
+            doc_ids = self._get_document_ids(doc_indexes)
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
