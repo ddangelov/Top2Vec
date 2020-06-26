@@ -241,10 +241,14 @@ class Top2Vec:
 
     def _calculate_topic_sizes(self, topic_vectors, hierarchy=None):
         # find nearest topic of each document
-        doc_top, doc_dist = self._calculate_documents_topic(topic_vectors=topic_vectors)
+        doc_top, doc_dist = self._calculate_documents_topic(topic_vectors=topic_vectors,
+                                                            document_vectors=self.model.docvecs.vectors_docs)
         topic_sizes = pd.Series(doc_top).value_counts()
 
-        # re-order topic vectors by size
+        return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist, hierarchy)
+
+    @staticmethod
+    def _reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist, hierarchy=None):
         topic_vectors = topic_vectors[topic_sizes.index]
         old2new = dict(zip(topic_sizes.index, range(topic_sizes.shape[0])))
         doc_top = np.array([old2new[i] for i in doc_top])
@@ -258,36 +262,34 @@ class Top2Vec:
             topic_sizes.reset_index(drop=True, inplace=True)
             return topic_vectors, doc_top, doc_dist, topic_sizes, hierarchy
 
-    def _calculate_documents_topic(self, topic_vectors, dist=True):
+    @staticmethod
+    def _calculate_documents_topic(topic_vectors, document_vectors, dist=True):
         batch_size = 10000
         doc_top = []
         if dist:
             doc_dist = []
 
-        if self.model.docvecs.vectors_docs.shape[0] > batch_size:
+        if document_vectors.shape[0] > batch_size:
             current = 0
-            batches = int(self.model.docvecs.vectors_docs.shape[0] / batch_size)
-            extra = self.model.docvecs.vectors_docs.shape[0] % batch_size
+            batches = int(document_vectors.shape[0] / batch_size)
+            extra = document_vectors.shape[0] % batch_size
 
             for ind in range(0, batches):
-                res = cosine_similarity(self.model.docvecs.vectors_docs[current:current + batch_size],
-                                        topic_vectors)
+                res = cosine_similarity(document_vectors[current:current + batch_size], topic_vectors)
                 doc_top.extend(np.argmax(res, axis=1))
                 if dist:
                     doc_dist.extend(np.max(res, axis=1))
                 current += batch_size
 
             if extra > 0:
-                res = cosine_similarity(self.model.docvecs.vectors_docs[current:current + extra],
-                                        topic_vectors)
+                res = cosine_similarity(document_vectors[current:current + extra], topic_vectors)
                 doc_top.extend(np.argmax(res, axis=1))
                 if dist:
                     doc_dist.extend(np.max(res, axis=1))
             if dist:
                 doc_dist = np.array(doc_dist)
         else:
-            res = cosine_similarity(self.model.docvecs.vectors_docs,
-                                    topic_vectors)
+            res = cosine_similarity(document_vectors, topic_vectors)
             doc_top = np.argmax(res, axis=1)
             if dist:
                 doc_dist = np.max(res, axis=1)
@@ -353,18 +355,18 @@ class Top2Vec:
         self._less_than_zero(num_docs, "num_docs")
         document_count = self.model.docvecs.count
         if num_docs > self.model.docvecs.count:
-            raise ValueError(f"num_docs cannot exceed the number of documents: {document_count}")
+            raise ValueError(f"num_docs cannot exceed the number of documents: {document_count}.")
 
     def _validate_num_topics(self, num_topics, reduced):
         self._less_than_zero(num_topics, "num_topics")
         if reduced:
             topic_count = len(self.topic_vectors_reduced)
             if num_topics > topic_count:
-                raise ValueError(f"num_topics cannot exceed the number of reduced topics: {topic_count}")
+                raise ValueError(f"num_topics cannot exceed the number of reduced topics: {topic_count}.")
         else:
             topic_count = len(self.topic_vectors)
             if num_topics > topic_count:
-                raise ValueError(f"num_topics cannot exceed the number of topics: {topic_count}")
+                raise ValueError(f"num_topics cannot exceed the number of topics: {topic_count}.")
 
     def _validate_topic_num(self, topic_num, reduced):
         self._less_than_zero(topic_num, "topic_num")
@@ -372,53 +374,51 @@ class Top2Vec:
         if reduced:
             topic_count = len(self.topic_vectors_reduced) - 1
             if topic_num > topic_count:
-                raise ValueError(f"Invalid topic number: valid reduced topics numbers are 0 to {topic_count}")
+                raise ValueError(f"Invalid topic number: valid reduced topics numbers are 0 to {topic_count}.")
         else:
             topic_count = len(self.topic_vectors) - 1
             if topic_num > topic_count:
-                raise ValueError(f"Invalid topic number: valid topics numbers are 0 to {topic_count}")
+                raise ValueError(f"Invalid topic number: valid original topics numbers are 0 to {topic_count}.")
 
     def _validate_topic_search(self, topic_num, num_docs, reduced):
         self._less_than_zero(num_docs, "num_docs")
         if reduced:
             if num_docs > self.topic_sizes_reduced[topic_num]:
                 raise ValueError(f"Invalid number of documents: reduced topic {topic_num}"
-                                 f" only has {self.topic_sizes_reduced[topic_num]} documents")
+                                 f" only has {self.topic_sizes_reduced[topic_num]} documents.")
         else:
             if num_docs > self.topic_sizes[topic_num]:
-                raise ValueError(f"Invalid number of documents: topic {topic_num}"
-                                 f" only has {self.topic_sizes[topic_num]} documents")
+                raise ValueError(f"Invalid number of documents: original topic {topic_num}"
+                                 f" only has {self.topic_sizes[topic_num]} documents.")
 
     def _validate_doc_ids(self, doc_ids, doc_ids_neg):
 
         if not isinstance(doc_ids, list):
-            raise ValueError("doc_ids must be a list of string or int")
-
+            raise ValueError("doc_ids must be a list of string or int.")
         if not isinstance(doc_ids_neg, list):
-            raise ValueError("doc_ids_neg must be a list of string or int")
+            raise ValueError("doc_ids_neg must be a list of string or int.")
 
         doc_ids_all = doc_ids + doc_ids_neg
         for doc_id in doc_ids_all:
             if self.document_ids is not None:
                 if doc_id not in self.document_ids:
-                    raise ValueError(f"{doc_id} is not a valid document id")
+                    raise ValueError(f"{doc_id} is not a valid document id.")
             elif doc_id < 0 or doc_id > self.model.docvecs.count - 1:
-                raise ValueError(f"{doc_id} is not a valid document id")
+                raise ValueError(f"{doc_id} is not a valid document id.")
 
     def _validate_keywords(self, keywords, keywords_neg):
-
         if not (isinstance(keywords, list) or isinstance(keywords, np.ndarray)):
-            raise ValueError("keywords must be a list of strings")
+            raise ValueError("keywords must be a list of strings.")
 
         if not (isinstance(keywords_neg, list) or isinstance(keywords_neg, np.ndarray)):
-            raise ValueError("keywords_neg must be a list of strings")
+            raise ValueError("keywords_neg must be a list of strings.")
 
         keywords_lower = [keyword.lower() for keyword in keywords]
         keywords_neg_lower = [keyword.lower() for keyword in keywords_neg]
 
         for word in keywords_lower + keywords_neg_lower:
             if word not in self.model.wv.vocab:
-                raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched")
+                raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched.")
 
         return keywords_lower, keywords_neg_lower
 
@@ -436,6 +436,115 @@ class Top2Vec:
 
     def _get_word_vectors(self, keywords):
         return [self.model[word] for word in keywords]
+
+    def _validate_document_ids_add_doc(self, documents, document_ids):
+        if document_ids is None:
+            raise ValueError("Document ids need to be provided.")
+        if len(documents) != len(document_ids):
+            raise ValueError("Document ids need to match number of documents.")
+        elif len(document_ids) != len(set(document_ids)):
+            raise ValueError("Document ids need to be unique.")
+
+        if all((isinstance(doc_id, str) or isinstance(doc_id, np.str_)) for doc_id in document_ids):
+            if self.doc_id_type == np.int_:
+                raise ValueError("Document ids need to be of type int.")
+        elif all((isinstance(doc_id, int) or isinstance(doc_id, np.int_)) for doc_id in document_ids):
+            if self.doc_id_type == np.str_:
+                raise ValueError("Document ids need to be of type str.")
+
+        if len(set(document_ids).intersection(self.document_ids)) > 0:
+            raise ValueError("Some document ids already exist in model.")
+
+    @staticmethod
+    def _validate_documents(documents):
+        if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
+            raise ValueError("Documents need to be a list of strings.")
+
+    def _assign_documents_to_topic(self, document_vectors, topic_vectors, topic_sizes, doc_top, doc_dist,
+                                   hierarchy=None):
+
+        doc_top_new, doc_dist_new = self._calculate_documents_topic(topic_vectors, document_vectors, dist=True)
+        doc_top = np.append(doc_top, doc_top_new)
+        doc_dist = np.append(doc_dist, doc_dist_new)
+
+        topic_sizes_new = pd.Series(doc_top_new).value_counts()
+        for top in topic_sizes_new.index.tolist():
+            topic_sizes[top] += topic_sizes_new[top]
+        topic_sizes.sort_values(ascending=False, inplace=True)
+
+        if hierarchy is None:
+            return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist)
+        else:
+            return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist, hierarchy)
+
+    def add_documents(self, documents, document_ids=None):
+        """
+        Update the model with new documents.
+
+        The documents will be added to the current model without changing
+        existing document, word and topic vectors. Topic sizes will be updated.
+
+        If adding a large quantity of documents relative to the current model size,
+        or documents containing a largely new vocabulary, a new model should be
+        trained for best results.
+
+        Parameters
+        ----------
+        documents: List of str
+
+        document_ids: List of str, int (Optional)
+
+            Only required if document_ids were given to the original model.
+
+            A unique value per document that will be used for referring to documents
+            in search results. If ids are not given, the index of each document
+            in the original corpus will become the id.
+
+
+        """
+
+        # add documents
+        self._validate_documents(documents)
+        if self.documents is not None:
+            self.documents = np.append(self.documents, documents)
+
+        # add document ids
+        if self.document_ids is not None:
+            self._validate_document_ids_add_doc(documents, document_ids)
+            doc_ids_len = len(self.document_ids)
+            self.document_ids = np.append(self.document_ids, document_ids)
+            self.doc_id2index.update(dict(zip(document_ids, list(range(doc_ids_len, doc_ids_len + len(document_ids))))))
+
+        # get document vectors
+        docs_processed = [self._tokenizer(doc) for doc in documents]
+        document_vectors = np.vstack([self.model.infer_vector(doc_words=doc, alpha=0.025, min_alpha=0.01, epochs=100)
+                                      for doc in docs_processed])
+
+        # add documents do model
+        num_docs = len(documents)
+        self.model.docvecs.vectors_docs = np.vstack([self.model.docvecs.vectors_docs, document_vectors])
+        self.model.docvecs.count += num_docs
+        self.model.docvecs.max_rawint += num_docs
+        self.model.docvecs.vectors_docs_norm = None
+        self.model.docvecs.init_sims()
+
+        # update topics
+        self.topic_vectors, self.doc_top, self.doc_dist, self.topic_sizes = self._assign_documents_to_topic(
+            document_vectors,
+            self.topic_vectors,
+            self.topic_sizes,
+            self.doc_top,
+            self.doc_dist)
+
+        if self.hierarchy is not None:
+            self.topic_vectors_reduced, self.doc_top_reduced,\
+                self.doc_dist_reduced, self.topic_sizes_reduced, self.hierarchy = self._assign_documents_to_topic(
+                    document_vectors,
+                    self.topic_vectors_reduced,
+                    self.topic_sizes_reduced,
+                    self.doc_top_reduced,
+                    self.doc_dist_reduced,
+                    self.hierarchy)
 
     def get_num_topics(self, reduced=False):
         """
@@ -641,7 +750,9 @@ class Top2Vec:
 
             # update topics sizes
             if count % interval == 0:
-                doc_top = self._calculate_documents_topic(topic_vectors=top_vecs, dist=False)
+                doc_top = self._calculate_documents_topic(topic_vectors=top_vecs,
+                                                          document_vectors=self.model.docvecs.vectors_docs,
+                                                          dist=False)
                 topic_sizes = pd.Series(doc_top).value_counts()
                 top_sizes = [topic_sizes[i] for i in range(0, len(topic_sizes))]
 
@@ -667,11 +778,14 @@ class Top2Vec:
             hierarchy.append(combined_inds)
 
         # re-calculate topic vectors from clusters
-        doc_top = self._calculate_documents_topic(topic_vectors=top_vecs, dist=False)
+        doc_top = self._calculate_documents_topic(topic_vectors=top_vecs,
+                                                  document_vectors=self.model.docvecs.vectors_docs,
+                                                  dist=False)
         top_vecs = np.vstack([self.model.docvecs.vectors_docs[np.where(doc_top == label)[0]].mean(axis=0)
                               for label in set(doc_top)])
         self.topic_vectors_reduced, self.doc_top_reduced, self.doc_dist_reduced, self.topic_sizes_reduced, \
-        self.hierarchy = self._calculate_topic_sizes(topic_vectors=top_vecs, hierarchy=hierarchy)
+        self.hierarchy = self._calculate_topic_sizes(topic_vectors=top_vecs,
+                                                     hierarchy=hierarchy)
         self.topic_words_reduced, self.topic_word_scores_reduced = self._find_topic_words_scores(
             topic_vectors=self.topic_vectors_reduced)
 
@@ -922,6 +1036,8 @@ class Top2Vec:
         combined_vector /= (len(word_vecs) + len(neg_word_vecs))
 
         if reduced:
+            self._validate_hierarchical_reduction()
+
             topic_ranks = [topic[0] for topic in
                            cosine_similarity(self.topic_vectors_reduced, combined_vector.reshape(1, -1))]
             topic_nums = np.flip(np.argsort(topic_ranks)[-num_topics:])
@@ -1026,11 +1142,13 @@ class Top2Vec:
         A matplotlib plot of the word cloud with the topic number will be displayed.
 
         """
-        self._validate_topic_num(topic_num, reduced)
 
         if reduced:
+            self._validate_hierarchical_reduction()
+            self._validate_topic_num(topic_num, reduced)
             word_score_dict = dict(zip(self.topic_words_reduced[topic_num], self.topic_word_scores_reduced[topic_num]))
         else:
+            self._validate_topic_num(topic_num, reduced)
             word_score_dict = dict(zip(self.topic_words[topic_num], self.topic_word_scores[topic_num]))
 
         plt.figure(figsize=(16, 4),

@@ -20,6 +20,23 @@ top2vec_no_docs = Top2Vec(documents=newsgroups_documents, keep_documents=False, 
 
 
 @pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+def test_add_documents_original(top2vec_model):
+    docs_to_add = newsgroups_train.data[0:100]
+
+    topic_count_sum = sum(top2vec_model.get_topic_sizes()[0])
+
+    if top2vec_model.document_ids is None:
+        top2vec_model.add_documents(docs_to_add)
+    else:
+        doc_ids_new = [str(num) for num in range(2000, 2000 + len(docs_to_add))]
+        top2vec_model.add_documents(docs_to_add, doc_ids_new)
+
+    topic_count_sum_new = sum(top2vec_model.get_topic_sizes()[0])
+
+    assert topic_count_sum + len(docs_to_add) == topic_count_sum_new
+
+
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
 def test_hierarchical_topic_reduction(top2vec_model):
     num_topics = top2vec_model.get_num_topics()
 
@@ -31,6 +48,26 @@ def test_hierarchical_topic_reduction(top2vec_model):
     hierarchy = top2vec_model.hierarchical_topic_reduction(reduced_num)
 
     assert len(hierarchy) == reduced_num == len(top2vec_model.topic_vectors_reduced)
+
+
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+def test_add_documents_post_reduce(top2vec_model):
+    docs_to_add = newsgroups_train.data[500:600]
+
+    topic_count_sum = sum(top2vec_model.get_topic_sizes()[0])
+    topic_count_reduced_sum = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
+
+    if top2vec_model.document_ids is None:
+        top2vec_model.add_documents(docs_to_add)
+    else:
+        doc_ids_new = [str(num) for num in range(2100, 2100 + len(docs_to_add))]
+        top2vec_model.add_documents(docs_to_add, doc_ids_new)
+
+    topic_count_sum_new = sum(top2vec_model.get_topic_sizes()[0])
+    topic_count_reduced_sum_new = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
+
+    assert topic_count_sum + len(docs_to_add) == topic_count_sum_new \
+        == topic_count_reduced_sum + len(docs_to_add) == topic_count_reduced_sum_new
 
 
 @pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
