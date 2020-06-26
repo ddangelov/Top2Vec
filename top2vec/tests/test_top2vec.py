@@ -1,11 +1,5 @@
 import pytest
-
-# from top2vec import Top2Vec
-import sys
-
-sys.path.insert(1, '/Users/dimo_angelov/PycharmProjects/Top2Vec')
-from Top2Vec import Top2Vec
-
+from top2vec import Top2Vec
 from sklearn.datasets import fetch_20newsgroups
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
