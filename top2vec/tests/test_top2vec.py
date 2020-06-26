@@ -1,5 +1,11 @@
 import pytest
-from top2vec import Top2Vec
+
+# from top2vec import Top2Vec
+import sys
+
+sys.path.insert(1, '/Users/dimo_angelov/PycharmProjects/Top2Vec')
+from Top2Vec import Top2Vec
+
 from sklearn.datasets import fetch_20newsgroups
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
@@ -18,8 +24,11 @@ top2vec_docids = Top2Vec(documents=newsgroups_documents, document_ids=doc_ids, s
 # train top2vec model without saving documents
 top2vec_no_docs = Top2Vec(documents=newsgroups_documents, keep_documents=False, speed="fast-learn", workers=8)
 
+# train top2vec model with corpus_file
+top2vec_corpus_file = Top2Vec(documents=newsgroups_documents, use_corpus_file=True, speed="fast-learn", workers=8)
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_add_documents_original(top2vec_model):
     docs_to_add = newsgroups_train.data[0:100]
 
@@ -36,7 +45,7 @@ def test_add_documents_original(top2vec_model):
     assert topic_count_sum + len(docs_to_add) == topic_count_sum_new
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_hierarchical_topic_reduction(top2vec_model):
     num_topics = top2vec_model.get_num_topics()
 
@@ -50,7 +59,7 @@ def test_hierarchical_topic_reduction(top2vec_model):
     assert len(hierarchy) == reduced_num == len(top2vec_model.topic_vectors_reduced)
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_add_documents_post_reduce(top2vec_model):
     docs_to_add = newsgroups_train.data[500:600]
 
@@ -70,21 +79,21 @@ def test_add_documents_post_reduce(top2vec_model):
         == topic_count_reduced_sum + len(docs_to_add) == topic_count_reduced_sum_new
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_get_topic_hierarchy(top2vec_model):
     hierarchy = top2vec.get_topic_hierarchy()
 
     assert len(hierarchy) == len(top2vec.topic_vectors_reduced)
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 @pytest.mark.parametrize('reduced', [False, True])
 def test_get_num_topics(top2vec_model, reduced):
     # check that there are more than 0 topics
     assert top2vec_model.get_num_topics(reduced=reduced) > 0
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 @pytest.mark.parametrize('reduced', [False, True])
 def test_get_topics(top2vec_model, reduced):
     num_topics = top2vec_model.get_num_topics(reduced=reduced)
@@ -101,7 +110,7 @@ def test_get_topics(top2vec_model, reduced):
     assert all(topic_words_scores[i] >= topic_words_scores[i + 1] for i in range(len(topic_words_scores) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 @pytest.mark.parametrize('reduced', [False, True])
 def test_get_topic_size(top2vec_model, reduced):
     topic_sizes, topic_nums = top2vec_model.get_topic_sizes(reduced=reduced)
@@ -113,7 +122,7 @@ def test_get_topic_size(top2vec_model, reduced):
     assert all(topic_sizes[i] >= topic_sizes[i + 1] for i in range(len(topic_sizes) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 @pytest.mark.parametrize('reduced', [False, True])
 def test_generate_topic_wordcloud(top2vec_model, reduced):
     # generate word cloud
@@ -121,7 +130,7 @@ def test_generate_topic_wordcloud(top2vec_model, reduced):
     top2vec_model.generate_topic_wordcloud(num_topics - 1, reduced=reduced)
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 @pytest.mark.parametrize('reduced', [False, True])
 def test_search_documents_by_topic(top2vec_model, reduced):
     topic_sizes, topic_nums = top2vec_model.get_topic_sizes(reduced=reduced)
@@ -160,7 +169,7 @@ def test_search_documents_by_topic(top2vec_model, reduced):
     assert len(doc_topics) == 1 and topic in doc_topics
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_search_documents_by_keywords(top2vec_model):
     keywords = list(top2vec_model.model.wv.vocab.keys())
     keyword = keywords[-1]
@@ -183,7 +192,7 @@ def test_search_documents_by_keywords(top2vec_model):
     assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_similar_words(top2vec_model):
     keywords = list(top2vec_model.model.wv.vocab.keys())
     keyword = keywords[-1]
@@ -198,7 +207,7 @@ def test_similar_words(top2vec_model):
     assert all(word_scores[i] >= word_scores[i + 1] for i in range(len(word_scores) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 @pytest.mark.parametrize('reduced', [False, True])
 def test_search_topics(top2vec_model, reduced):
     num_topics = top2vec_model.get_num_topics(reduced=reduced)
@@ -221,7 +230,7 @@ def test_search_topics(top2vec_model, reduced):
     assert all(topic_words_scores[i] >= topic_words_scores[i + 1] for i in range(len(topic_words_scores) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs])
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_search_document_by_documents(top2vec_model):
     if top2vec_model.document_ids is not None:
         doc_id = top2vec_model.document_ids[0]

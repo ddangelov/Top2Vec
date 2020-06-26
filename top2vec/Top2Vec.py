@@ -14,6 +14,7 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from joblib import dump, load
 from sklearn.cluster import dbscan
+import tempfile
 
 logger = logging.getLogger('Top2Vec')
 logger.setLevel(logging.WARNING)
@@ -50,6 +51,12 @@ class Top2Vec:
             * learn
             * deep-learn
 
+    use_corpus_file: bool (Optional, default False)
+        Setting use_corpus_file to True can sometimes provide speedup for large
+        datasets when multiple worker threads are available. Documents are still
+        passed to the model as a list of str, the model will create a temporary
+        corpus file for training.
+
     document_ids: List of str, int (Optional)
         A unique value per document that will be used for referring to documents
         in search results. If ids are not given, the index of each document
@@ -73,8 +80,8 @@ class Top2Vec:
 
     """
 
-    def __init__(self, documents, speed="fast-learn", document_ids=None, keep_documents=True, workers=None,
-                 tokenizer=None, verbose=False):
+    def __init__(self, documents, speed="fast-learn", use_corpus_file=False, document_ids=None, keep_documents=True,
+                 workers=None, tokenizer=None, verbose=False):
 
         if verbose:
             logger.setLevel(logging.DEBUG)
@@ -143,34 +150,66 @@ class Top2Vec:
             self.doc_id2index = None
             self.doc_id_type = np.int_
 
-        logger.info('Preprocessing documents for training')
-        train_corpus = [TaggedDocument(self._tokenizer(doc), [i])
-                        for i, doc in enumerate(documents)]
+        logger.info('Pre-processing documents for training')
+        if use_corpus_file:
+            processed = [self._tokenizer(doc) for doc in documents]
+            lines = [' '.join(line) + "\n" for line in processed]
+            temp = tempfile.NamedTemporaryFile(mode='w+t')
+            temp.writelines(lines)
+        else:
+            train_corpus = [TaggedDocument(self._tokenizer(doc), [i])
+                            for i, doc in enumerate(documents)]
 
         # create documents and word embeddings with doc2vec
         logger.info('Creating joint document/word embedding')
-        if workers is None:
-            self.model = Doc2Vec(documents=train_corpus,
-                                 vector_size=300,
-                                 min_count=50, window=15,
-                                 sample=1e-5,
-                                 negative=negative,
-                                 hs=hs,
-                                 epochs=epochs,
-                                 dm=0,
-                                 dbow_words=1)
+        if use_corpus_file:
+            if workers is None:
+                self.model = Doc2Vec(corpus_file=temp.name,
+                                     vector_size=300,
+                                     min_count=50, window=15,
+                                     sample=1e-5,
+                                     negative=negative,
+                                     hs=hs,
+                                     epochs=epochs,
+                                     dm=0,
+                                     dbow_words=1)
+            else:
+                self.model = Doc2Vec(corpus_file=temp.name,
+                                     vector_size=300,
+                                     min_count=50,
+                                     window=15,
+                                     sample=1e-5,
+                                     negative=negative,
+                                     hs=hs,
+                                     workers=workers,
+                                     epochs=epochs,
+                                     dm=0,
+                                     dbow_words=1)
+
+            temp.close()
         else:
-            self.model = Doc2Vec(documents=train_corpus,
-                                 vector_size=300,
-                                 min_count=50,
-                                 window=15,
-                                 sample=1e-5,
-                                 negative=negative,
-                                 hs=hs,
-                                 workers=workers,
-                                 epochs=epochs,
-                                 dm=0,
-                                 dbow_words=1)
+            if workers is None:
+                self.model = Doc2Vec(documents=train_corpus,
+                                     vector_size=300,
+                                     min_count=50, window=15,
+                                     sample=1e-5,
+                                     negative=negative,
+                                     hs=hs,
+                                     epochs=epochs,
+                                     dm=0,
+                                     dbow_words=1)
+            else:
+                self.model = Doc2Vec(documents=train_corpus,
+                                     vector_size=300,
+                                     min_count=50,
+                                     window=15,
+                                     sample=1e-5,
+                                     negative=negative,
+                                     hs=hs,
+                                     workers=workers,
+                                     epochs=epochs,
+                                     dm=0,
+                                     dbow_words=1)
 
         # create 5D embeddings of documents
         logger.info('Creating lower dimension embedding of documents')
