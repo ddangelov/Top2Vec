@@ -21,7 +21,7 @@ you can:
 Benefits
 --------
 1. Automatically finds number of topics.
-2. No stop words required.
+2. No stop word lists required.
 3. No need for stemming/lemmatizing.
 4. Works on short text.
 5. Creates jointly embedded topic, document, and word vectors. 
