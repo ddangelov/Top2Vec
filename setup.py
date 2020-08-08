@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="top2vec",
     packages=["top2vec"],
-    version="1.0.8",
+    version="1.0.9",
     author="Dimo Angelov",
     author_email="dimo.angelov@gmail.com",
     description="Topic2Vector learns jointly embedded topic, document and word vectors.",
@@ -28,7 +28,7 @@ setuptools.setup(
         'numpy',
         'pandas',
         'gensim',
-        'pynndescent >= 0.4'
+        'pynndescent >= 0.4',
         'umap-learn',
         'hdbscan',
         'wordcloud',

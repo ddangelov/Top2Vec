@@ -40,6 +40,10 @@ class Top2Vec:
     documents: List of str
         Input corpus, should be a list of strings.
 
+    min_count: int (Optional, default 50)
+        Ignores all words with total frequency lower than this. For smaller
+        corpora a smaller min_count will be necessary.
+
     speed: string (Optional, default 'fast-learn')
         This parameter will determine how fast the model takes to train. The
         fast-learn option is the fastest and will generate the lowest quality
@@ -71,7 +75,7 @@ class Top2Vec:
         The amount of worker threads to be used in training the model. Larger
         amount will lead to faster training.
     
-    tokenizer: callable or None (default)
+    tokenizer: callable (Optional, default None)
         Override the default tokenization method. If None then gensim.utils.simple_preprocess
         will be used.
     
@@ -80,8 +84,8 @@ class Top2Vec:
 
     """
 
-    def __init__(self, documents, speed="fast-learn", use_corpus_file=False, document_ids=None, keep_documents=True,
-                 workers=None, tokenizer=None, verbose=False):
+    def __init__(self, documents, min_count=50, speed="fast-learn", use_corpus_file=False, document_ids=None,
+                 keep_documents=True, workers=None, tokenizer=None, verbose=False):
 
         if verbose:
             logger.setLevel(logging.DEBUG)
@@ -166,7 +170,8 @@ class Top2Vec:
             if workers is None:
                 self.model = Doc2Vec(corpus_file=temp.name,
                                      vector_size=300,
-                                     min_count=50, window=15,
+                                     min_count=min_count,
+                                     window=15,
                                      sample=1e-5,
                                      negative=negative,
                                      hs=hs,
@@ -176,7 +181,7 @@ class Top2Vec:
             else:
                 self.model = Doc2Vec(corpus_file=temp.name,
                                      vector_size=300,
-                                     min_count=50,
+                                     min_count=min_count,
                                      window=15,
                                      sample=1e-5,
                                      negative=negative,
@@ -191,7 +196,8 @@ class Top2Vec:
             if workers is None:
                 self.model = Doc2Vec(documents=train_corpus,
                                      vector_size=300,
-                                     min_count=50, window=15,
+                                     min_count=min_count,
+                                     window=15,
                                      sample=1e-5,
                                      negative=negative,
                                      hs=hs,
@@ -201,7 +207,7 @@ class Top2Vec:
             else:
                 self.model = Doc2Vec(documents=train_corpus,
                                      vector_size=300,
-                                     min_count=50,
+                                     min_count=min_count,
                                      window=15,
                                      sample=1e-5,
                                      negative=negative,
