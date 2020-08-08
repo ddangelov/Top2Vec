@@ -16,7 +16,7 @@ from joblib import dump, load
 from sklearn.cluster import dbscan
 import tempfile
 
-logger = logging.getLogger('Top2Vec')
+logger = logging.getLogger('top2vec')
 logger.setLevel(logging.WARNING)
 sh = logging.StreamHandler()
 sh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
