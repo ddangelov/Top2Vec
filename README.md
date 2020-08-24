@@ -18,6 +18,8 @@ you can:
 * Find similar documents.
 * Expose model with [RESTful-Top2Vec](https://github.com/ddangelov/RESTful-Top2Vec)
 
+See the [paper](http://arxiv.org/abs/2008.09470) for more details on how it works.
+
 Benefits
 --------
 1. Automatically finds number of topics.
