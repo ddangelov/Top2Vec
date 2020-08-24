@@ -1,7 +1,8 @@
 [![](https://img.shields.io/pypi/v/top2vec.svg)](https://pypi.org/project/top2vec/)
 [![](https://img.shields.io/pypi/l/top2vec.svg)](https://github.com/ddangelov/Top2Vec/blob/master/LICENSE)
 [![](https://readthedocs.org/projects/top2vec/badge/?version=latest&token=0c691c6cc79b4906e35e8b7ede01e815baa05041d048945fa18e26810a3517d7)](https://top2vec.readthedocs.io/en/latest/?badge=latest)
-[![arXiv](https://img.shields.io/badge/arXiv-2008.09470-b31b1b.svg)](http://arxiv.org/abs/2008.09470)
+[![arXiv](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
+
 
 Top2Vec
 =======
