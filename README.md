@@ -49,7 +49,7 @@ attracted the documents to the dense area are the topic words.
 
 <!--![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/doc_word_embedding.svg?sanitize=true)-->
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/doc_word_embedding.svg?sanitize=true" alt="" width=800 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/doc_word_embedding.svg?sanitize=true" alt="" width=600 height="whatever">
 </p>
 
 **2. Create lower dimensional embedding of document vectors using [UMAP](https://github.com/lmcinnes/umap).**
@@ -57,7 +57,7 @@ attracted the documents to the dense area are the topic words.
 
 <!--![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/umap_docs.png)-->
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/umap_docs.png" alt="" width=800 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/umap_docs.png" alt="" width=700 height="whatever">
 </p>
 
 **3. Find dense areas of documents using [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan).**
@@ -65,7 +65,7 @@ attracted the documents to the dense area are the topic words.
 
 <!--![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/hdbscan_docs.png)-->
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/hdbscan_docs.png" alt="" width=800 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/hdbscan_docs.png" alt="" width=700 height="whatever">
 </p>
 
 **4. For each dense area calculate the centroid of document vectors in original dimension, this is the topic vector.**
@@ -73,7 +73,7 @@ attracted the documents to the dense area are the topic words.
 
 <!--![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic_vector.svg?sanitize=true)-->
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic_vector.svg?sanitize=true" alt="" width=800 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic_vector.svg?sanitize=true" alt="" width=600 height="whatever">
 </p>
 
 **5. Find n-closest word vectors to the resulting topic vector**
@@ -81,7 +81,7 @@ attracted the documents to the dense area are the topic words.
 
 <!--![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic_words.svg?sanitize=true)-->
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic_words.svg?sanitize=true" alt="" width=800 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic_words.svg?sanitize=true" alt="" width=600 height="whatever">
 </p>
 
 Installation
@@ -207,11 +207,27 @@ topic_words, word_scores, topic_scores, topic_nums = model.search_topics(keyword
 for topic in topic_nums:
     model.generate_topic_wordcloud(topic)
 ```
-![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic21.png)
+<!--![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic21.png)
 ![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic29.png)
 ![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic9.png)
 ![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic61.png)
-![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic48.png)
+![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic48.png)-->
+
+<p align="center">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic21.png" alt="" width=600 height="whatever">
+</p>
+<p align="center">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic29.png" alt="" width=600 height="whatever">
+</p>
+<p align="center">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic9.png" alt="" width=600 height="whatever">
+</p>
+<p align="center">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic61.png" alt="" width=600 height="whatever">
+</p>
+<p align="center">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic48.png" alt="" width=600 height="whatever">
+</p>
 
 ### Search Documents by Topic
 
