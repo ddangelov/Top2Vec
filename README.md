@@ -13,6 +13,7 @@ you can:
 * Get number of detected topics.
 * Get topics.
 * Get topic sizes. 
+* Get hierarchichal topics. 
 * Search topics by keywords.
 * Search documents by topic.
 * Search documents by keywords.
