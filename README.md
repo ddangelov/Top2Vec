@@ -1,7 +1,7 @@
 [![](https://img.shields.io/pypi/v/top2vec.svg)](https://pypi.org/project/top2vec/)
 [![](https://img.shields.io/pypi/l/top2vec.svg)](https://github.com/ddangelov/Top2Vec/blob/master/LICENSE)
 [![](https://readthedocs.org/projects/top2vec/badge/?version=latest&token=0c691c6cc79b4906e35e8b7ede01e815baa05041d048945fa18e26810a3517d7)](https://top2vec.readthedocs.io/en/latest/?badge=latest)
-[![arXiv](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
+[![](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
 
 
 Top2Vec
@@ -214,19 +214,19 @@ for topic in topic_nums:
 ![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic48.png)-->
 
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic21.png" alt="" width=600 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic21.png" alt="" width=700 height="whatever">
 </p>
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic29.png" alt="" width=600 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic29.png" alt="" width=700 height="whatever">
 </p>
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic9.png" alt="" width=600 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic9.png" alt="" width=700 height="whatever">
 </p>
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic61.png" alt="" width=600 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic61.png" alt="" width=700 height="whatever">
 </p>
 <p align="center">
-    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic48.png" alt="" width=600 height="whatever">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/topic48.png" alt="" width=700 height="whatever">
 </p>
 
 ### Search Documents by Topic
