@@ -7,7 +7,7 @@ import pandas as pd
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.utils import simple_preprocess
 from gensim.parsing.preprocessing import strip_tags
-import umap
+import umap.umap_ as umap
 import hdbscan
 from sklearn.metrics.pairwise import cosine_similarity
 from wordcloud import WordCloud
