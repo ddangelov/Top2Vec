@@ -6,10 +6,10 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="top2vec",
     packages=["top2vec"],
-    version="1.0.9",
+    version="1.0.10",
     author="Dimo Angelov",
     author_email="dimo.angelov@gmail.com",
-    description="Topic2Vector learns jointly embedded topic, document and word vectors.",
+    description="Top2Vec learns jointly embedded topic, document and word vectors.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ddangelov/Top2Vec",
