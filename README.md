@@ -201,7 +201,7 @@ Returns:
 
 ### Generate Word Clouds
 
-Using a topic number you can generate a word cloud. We are going to genenarate word clouds for the top 5 most similar topics to our **medicine** topic search from above.  
+Using a topic number you can generate a word cloud. We are going to generate word clouds for the top 5 most similar topics to our **medicine** topic search from above.  
 ```python
 topic_words, word_scores, topic_scores, topic_nums = model.search_topics(keywords=["medicine"], num_topics=5)
 for topic in topic_nums:
