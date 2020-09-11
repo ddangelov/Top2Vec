@@ -8,10 +8,14 @@ Welcome to Top2Vec's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: User Guide / Tutorial:
 
    Top2Vec
 
+.. toctree::
+   :caption: API Reference:
+
+   api
 
 Indices and tables
 ==================

@@ -30,7 +30,7 @@ def default_tokenizer(doc):
 
 class Top2Vec:
     """
-    Topic2Vector
+    Top2Vec
 
     Creates jointly embedded topic, document and word vectors.
 
@@ -51,6 +51,7 @@ class Top2Vec:
         a longer time to train. The deep-learn option will learn the best quality
         vectors but will take significant time to train. The valid string speed
         options are:
+        
             * fast-learn
             * learn
             * deep-learn
@@ -672,18 +673,20 @@ class Top2Vec:
         topics_words: array of shape(num_topics, 50)
             For each topic the top 50 words are returned, in order
             of semantic similarity to topic.
+            
             Example:
-                [['data', 'deep', 'learning' ... 'artificial'],          <Topic 0>
-                 ['environment', 'warming', 'climate ... 'temperature']  <Topic 1>
-                 ...]
+            [['data', 'deep', 'learning' ... 'artificial'],          <Topic 0>
+            ['environment', 'warming', 'climate ... 'temperature']  <Topic 1>
+            ...]
 
         word_scores: array of shape(num_topics, 50)
             For each topic the cosine similarity scores of the
             top 50 words to the topic are returned.
+            
             Example:
-                [[0.7132, 0.6473, 0.5700 ... 0.3455],  <Topic 0>
-                 [0.7818', 0.7671, 0.7603 ... 0.6769]  <Topic 1>
-                 ...]
+            [[0.7132, 0.6473, 0.5700 ... 0.3455],  <Topic 0>
+            [0.7818', 0.7671, 0.7603 ... 0.6769]  <Topic 1>
+            ...]
 
         topic_nums: array of int, shape(num_topics)
             The unique number of every topic will be returned.
@@ -1044,18 +1047,20 @@ class Top2Vec:
         topics_words: array of shape (num_topics, 50)
             For each topic the top 50 words are returned, in order of semantic
             similarity to topic.
+            
             Example:
-                [['data', 'deep', 'learning' ... 'artificial'],             <Topic 0>
-                 ['environment', 'warming', 'climate ... 'temperature']     <Topic 1>
-                 ...]
+            [['data', 'deep', 'learning' ... 'artificial'],             <Topic 0>
+            ['environment', 'warming', 'climate ... 'temperature']     <Topic 1>
+            ...]
 
         word_scores: array of shape (num_topics, 50)
             For each topic the cosine similarity scores of the top 50 words
             to the topic are returned.
+            
             Example:
-                [[0.7132, 0.6473, 0.5700 ... 0.3455],     <Topic 0>
-                 [0.7818', 0.7671, 0.7603 ... 0.6769]     <Topic 1>
-                 ...]
+            [[0.7132, 0.6473, 0.5700 ... 0.3455],     <Topic 0>
+            [0.7818', 0.7671, 0.7603 ... 0.6769]     <Topic 1>
+            ...]
 
         topic_scores: array of float, shape(num_topics)
             For each topic the cosine similarity to the search keywords will be
