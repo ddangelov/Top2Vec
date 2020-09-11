@@ -120,6 +120,8 @@ Important parameters:
 model.save("filename")
 model = Top2Vec.load("filename")
 ```
+
+For more information view the [API guide](https://top2vec.readthedocs.io/en/latest/api.html).
     
 Example
 -------
