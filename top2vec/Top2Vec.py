@@ -82,11 +82,14 @@ class Top2Vec:
     
     verbose: bool (Optional, default False)
         Whether to print status data during training.
+        
+    seed: bool (Optional, default 0)
+        Random seed set for UMAP and Word Vectors. Default is set to 0.
 
     """
 
     def __init__(self, documents, min_count=50, speed="fast-learn", use_corpus_file=False, document_ids=None,
-                 keep_documents=True, workers=None, tokenizer=None, verbose=False):
+                 keep_documents=True, workers=None, tokenizer=None, verbose=False ,seed=0):
 
         if verbose:
             logger.setLevel(logging.DEBUG)
@@ -178,7 +181,8 @@ class Top2Vec:
                                      hs=hs,
                                      epochs=epochs,
                                      dm=0,
-                                     dbow_words=1)
+                                     dbow_words=1,
+                                     seed=seed)
             else:
                 self.model = Doc2Vec(corpus_file=temp.name,
                                      vector_size=300,
@@ -190,7 +194,8 @@ class Top2Vec:
                                      workers=workers,
                                      epochs=epochs,
                                      dm=0,
-                                     dbow_words=1)
+                                     dbow_words=1,
+                                     seed=seed)
 
             temp.close()
         else:
@@ -204,7 +209,8 @@ class Top2Vec:
                                      hs=hs,
                                      epochs=epochs,
                                      dm=0,
-                                     dbow_words=1)
+                                     dbow_words=1,
+                                     seed=seed)
             else:
                 self.model = Doc2Vec(documents=train_corpus,
                                      vector_size=300,
@@ -216,13 +222,14 @@ class Top2Vec:
                                      workers=workers,
                                      epochs=epochs,
                                      dm=0,
-                                     dbow_words=1)
+                                     dbow_words=1,
+                                     seed=seed)
 
         # create 5D embeddings of documents
         logger.info('Creating lower dimension embedding of documents')
         umap_model = umap.UMAP(n_neighbors=15,
                                n_components=5,
-                               metric='cosine').fit(self.model.docvecs.vectors_docs)
+                               metric='cosine',random_state=seed).fit(self.model.docvecs.vectors_docs)
 
         # find dense areas of document vectors
         logger.info('Finding dense areas of documents')
