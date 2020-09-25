@@ -64,8 +64,8 @@ class Top2Vec:
 
     document_ids: List of str, int (Optional)
         A unique value per document that will be used for referring to documents
-        in search results. If ids are not given, the index of each document
-        in the original corpus will become the id.
+        in search results. If ids are not given to the model, the index of each
+        document in the original corpus will become the id.
 
     keep_documents: bool (Optional, default True)
         If set to False documents will only be used for training and not saved
@@ -560,8 +560,8 @@ class Top2Vec:
             Only required if doc_ids were given to the original model.
 
             A unique value per document that will be used for referring to documents
-            in search results. If ids are not given, the index of each document
-            in the original corpus will become the id.
+            in search results. If ids are not given to the model, the index of each
+            document in the model will become the id.
         """
 
         # add documents
@@ -624,9 +624,9 @@ class Top2Vec:
         ----------
         doc_ids: List of str, int
 
-            A unique value per document that will be used for referring to documents
-            in search results. If ids are not given, the index of each document
-            in the original corpus will become the id.
+            A unique value per document that is used for referring to documents
+            in search results. If ids were not given to the model, the index of each
+            document in the model is the id.
         """
         # make sure documents exist
         self._validate_doc_ids(doc_ids, doc_ids_neg=[])
@@ -953,8 +953,8 @@ class Top2Vec:
             document and topic vector.
 
         doc_ids: array of int, shape(num_docs)
-            Unique ids of documents. If ids were not given, the index of document
-            in the original corpus will be returned.
+            Unique ids of documents. If ids were not given to the model, the index of
+            the document in the model will be returned.
         """
 
         if reduced:
@@ -1026,8 +1026,8 @@ class Top2Vec:
             document and average of keyword vectors.
 
         doc_ids: array of int, shape(num_docs)
-            Unique ids of documents. If ids were not given, the index of document
-            in the original corpus will be returned.
+            Unique ids of documents. If ids were not given to the model, the index of
+            the document in the model will be returned.
         """
 
         if keywords_neg is None:
@@ -1230,8 +1230,8 @@ class Top2Vec:
             document and average of keyword vectors.
 
         doc_ids: array of int, shape(num_docs)
-            Unique ids of documents. If ids were not given, the index of document
-            in the original corpus will be returned.
+            Unique ids of documents. If ids were not given to the model, the index of
+            the document in the model will be returned.
         """
         if doc_ids_neg is None:
             doc_ids_neg = []
