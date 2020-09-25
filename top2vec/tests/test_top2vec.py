@@ -24,7 +24,6 @@ top2vec_corpus_file = Top2Vec(documents=newsgroups_documents, use_corpus_file=Tr
 
 @pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_add_documents_original(top2vec_model):
-
     num_docs = top2vec_model.model.docvecs.vectors_docs.shape[0]
 
     docs_to_add = newsgroups_train.data[0:100]
@@ -40,7 +39,11 @@ def test_add_documents_original(top2vec_model):
     topic_count_sum_new = sum(top2vec_model.get_topic_sizes()[0])
     num_docs_new = top2vec_model.model.docvecs.vectors_docs.shape[0]
 
-    assert topic_count_sum + len(docs_to_add) == topic_count_sum_new == num_docs + len(docs_to_add) == num_docs_new
+    assert topic_count_sum + len(docs_to_add) == topic_count_sum_new == num_docs + len(docs_to_add) \
+           == num_docs_new
+
+    if top2vec_model.documents is not None:
+        assert num_docs_new == len(top2vec_model.documents)
 
 
 @pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
@@ -79,6 +82,9 @@ def test_add_documents_post_reduce(top2vec_model):
     assert topic_count_sum + len(docs_to_add) == topic_count_sum_new == topic_count_reduced_sum + len(docs_to_add) \
            == topic_count_reduced_sum_new == num_docs + len(docs_to_add) == num_docs_new
 
+    if top2vec_model.documents is not None:
+        assert num_docs_new == len(top2vec_model.documents)
+
 
 @pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_delete_documents(top2vec_model):
@@ -99,7 +105,11 @@ def test_delete_documents(top2vec_model):
     num_docs_new = top2vec_model.model.docvecs.vectors_docs.shape[0]
 
     assert topic_count_sum - len(doc_ids_to_delete) == topic_count_sum_new == topic_count_reduced_sum - \
-           len(doc_ids_to_delete) == topic_count_reduced_sum_new == num_docs - len(doc_ids_to_delete) == num_docs_new
+           len(doc_ids_to_delete) == topic_count_reduced_sum_new == num_docs - len(doc_ids_to_delete) \
+           == num_docs_new
+
+    if top2vec_model.documents is not None:
+        assert num_docs_new == len(top2vec_model.documents)
 
 
 @pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])

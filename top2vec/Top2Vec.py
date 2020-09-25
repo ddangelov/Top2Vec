@@ -634,6 +634,10 @@ class Top2Vec:
         # get document indexes from ids
         doc_indexes = self._get_document_indexes(doc_ids)
 
+        # delete documents
+        if self.documents is not None:
+            self.documents = np.delete(self.documents, doc_indexes, 0)
+
         # delete document ids
         if self.document_ids is not None:
             for doc_id in doc_ids:
