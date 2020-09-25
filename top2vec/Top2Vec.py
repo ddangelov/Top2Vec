@@ -44,7 +44,7 @@ class Top2Vec:
         Ignores all words with total frequency lower than this. For smaller
         corpora a smaller min_count will be necessary.
 
-    speed: string (Optional, default 'fast-learn')
+    speed: string (Optional, default 'learn')
         This parameter will determine how fast the model takes to train. The
         fast-learn option is the fastest and will generate the lowest quality
         vectors. The learn option will learn better quality vectors but take
@@ -85,7 +85,7 @@ class Top2Vec:
 
     """
 
-    def __init__(self, documents, min_count=50, speed="fast-learn", use_corpus_file=False, document_ids=None,
+    def __init__(self, documents, min_count=50, speed="learn", use_corpus_file=False, document_ids=None,
                  keep_documents=True, workers=None, tokenizer=None, verbose=False):
 
         if verbose:
@@ -523,7 +523,25 @@ class Top2Vec:
         else:
             return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist, hierarchy)
 
-    def add_documents(self, documents, document_ids=None):
+    def _unassign_documents_from_topic(self, doc_indexes, doc_top, doc_dist, topic_sizes, topic_vectors,
+                                       hierarchy=None):
+
+        doc_top_remove = doc_top[doc_indexes]
+        doc_top = np.delete(doc_top, doc_indexes, 0)
+        doc_dist = np.delete(doc_dist, doc_indexes, 0)
+
+        topic_sizes_remove = pd.Series(doc_top_remove).value_counts()
+
+        for top in topic_sizes_remove.index.tolist():
+            topic_sizes[top] -= topic_sizes_remove[top]
+        topic_sizes.sort_values(ascending=False, inplace=True)
+
+        if hierarchy is None:
+            return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist)
+        else:
+            return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist, hierarchy)
+
+    def add_documents(self, documents, doc_ids=None):
         """
         Update the model with new documents.
 
@@ -538,15 +556,13 @@ class Top2Vec:
         ----------
         documents: List of str
 
-        document_ids: List of str, int (Optional)
+        doc_ids: List of str, int (Optional)
 
-            Only required if document_ids were given to the original model.
+            Only required if doc_ids were given to the original model.
 
             A unique value per document that will be used for referring to documents
             in search results. If ids are not given, the index of each document
             in the original corpus will become the id.
-
-
         """
 
         # add documents
@@ -556,10 +572,10 @@ class Top2Vec:
 
         # add document ids
         if self.document_ids is not None:
-            self._validate_document_ids_add_doc(documents, document_ids)
+            self._validate_document_ids_add_doc(documents, doc_ids)
             doc_ids_len = len(self.document_ids)
-            self.document_ids = np.append(self.document_ids, document_ids)
-            self.doc_id2index.update(dict(zip(document_ids, list(range(doc_ids_len, doc_ids_len + len(document_ids))))))
+            self.document_ids = np.append(self.document_ids, doc_ids)
+            self.doc_id2index.update(dict(zip(doc_ids, list(range(doc_ids_len, doc_ids_len + len(doc_ids))))))
 
         # get document vectors
         docs_processed = [self._tokenizer(doc) for doc in documents]
@@ -583,14 +599,54 @@ class Top2Vec:
             self.doc_dist)
 
         if self.hierarchy is not None:
+            self.topic_vectors_reduced, self.doc_top_reduced, \
+            self.doc_dist_reduced, self.topic_sizes_reduced, self.hierarchy = self._assign_documents_to_topic(
+                document_vectors,
+                self.topic_vectors_reduced,
+                self.topic_sizes_reduced,
+                self.doc_top_reduced,
+                self.doc_dist_reduced,
+                self.hierarchy)
+
+    def delete_documents(self, doc_ids):
+
+        # make sure documents exist
+        self._validate_doc_ids(doc_ids, doc_ids_neg=[])
+
+        # get document indexes from ids
+        doc_indexes = self._get_document_indexes(doc_ids)
+
+        # delete document ids
+        if self.document_ids is not None:
+            for doc_id in doc_ids:
+                self.doc_id2index.pop(doc_id)
+            self.document_ids = np.delete(self.document_ids, doc_indexes, 0)
+
+        # delete document vectors
+        num_docs = len(doc_indexes)
+        self.model.docvecs.vectors_docs = np.delete(self.model.docvecs.vectors_docs, doc_indexes, 0)
+        self.model.docvecs.count -= num_docs
+        self.model.docvecs.max_rawint -= num_docs
+        self.model.docvecs.vectors_docs_norm = None
+        self.model.docvecs.init_sims()
+
+        # update topics
+        self.topic_vectors, self.doc_top, self.doc_dist, self.topic_sizes = self._unassign_documents_from_topic(
+            doc_indexes,
+            self.doc_top,
+            self.doc_dist,
+            self.topic_sizes,
+            self.topic_vectors)
+
+        if self.hierarchy is not None:
             self.topic_vectors_reduced, self.doc_top_reduced,\
-                self.doc_dist_reduced, self.topic_sizes_reduced, self.hierarchy = self._assign_documents_to_topic(
-                    document_vectors,
-                    self.topic_vectors_reduced,
-                    self.topic_sizes_reduced,
-                    self.doc_top_reduced,
-                    self.doc_dist_reduced,
-                    self.hierarchy)
+            self.doc_dist_reduced, self.topic_sizes_reduced, self.hierarchy = self._unassign_documents_from_topic(
+                doc_indexes,
+                self.doc_top_reduced,
+                self.doc_dist_reduced,
+                self.topic_sizes_reduced,
+                self.topic_vectors_reduced,
+                self.hierarchy)
 
     def get_num_topics(self, reduced=False):
         """
