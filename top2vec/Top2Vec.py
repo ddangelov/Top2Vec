@@ -135,7 +135,6 @@ class Top2Vec:
 
         # validate document ids
         if document_ids is not None:
-
             if len(documents) != len(document_ids):
                 raise ValueError("Document ids need to match number of documents")
             elif len(document_ids) != len(set(document_ids)):
@@ -599,17 +598,36 @@ class Top2Vec:
             self.doc_dist)
 
         if self.hierarchy is not None:
-            self.topic_vectors_reduced, self.doc_top_reduced, \
-            self.doc_dist_reduced, self.topic_sizes_reduced, self.hierarchy = self._assign_documents_to_topic(
-                document_vectors,
-                self.topic_vectors_reduced,
-                self.topic_sizes_reduced,
-                self.doc_top_reduced,
-                self.doc_dist_reduced,
-                self.hierarchy)
+            self.topic_vectors_reduced, self.doc_top_reduced, self.doc_dist_reduced, self.topic_sizes_reduced, \
+                self.hierarchy = self._assign_documents_to_topic(
+                    document_vectors,
+                    self.topic_vectors_reduced,
+                    self.topic_sizes_reduced,
+                    self.doc_top_reduced,
+                    self.doc_dist_reduced,
+                    self.hierarchy)
 
     def delete_documents(self, doc_ids):
+        """
+        Delete documents from current model.
 
+        Warning: If document ids were not used in original model, deleting
+        documents will change the indexes and therefore doc_ids.
+
+        The documents will be deleted from the current model without changing
+        existing document, word and topic vectors. Topic sizes will be updated.
+
+        If deleting a large quantity of documents relative to the current model
+        size a new model should be trained for best results.
+
+        Parameters
+        ----------
+        doc_ids: List of str, int
+
+            A unique value per document that will be used for referring to documents
+            in search results. If ids are not given, the index of each document
+            in the original corpus will become the id.
+        """
         # make sure documents exist
         self._validate_doc_ids(doc_ids, doc_ids_neg=[])
 
@@ -620,7 +638,10 @@ class Top2Vec:
         if self.document_ids is not None:
             for doc_id in doc_ids:
                 self.doc_id2index.pop(doc_id)
-            self.document_ids = np.delete(self.document_ids, doc_indexes, 0)
+            keys = list(self.doc_id2index.keys())
+            self.document_ids = np.array(keys)
+            values = list(range(0, len(self.doc_id2index.values())))
+            self.doc_id2index = dict(zip(keys, values))
 
         # delete document vectors
         num_docs = len(doc_indexes)
@@ -639,14 +660,14 @@ class Top2Vec:
             self.topic_vectors)
 
         if self.hierarchy is not None:
-            self.topic_vectors_reduced, self.doc_top_reduced,\
-            self.doc_dist_reduced, self.topic_sizes_reduced, self.hierarchy = self._unassign_documents_from_topic(
-                doc_indexes,
-                self.doc_top_reduced,
-                self.doc_dist_reduced,
-                self.topic_sizes_reduced,
-                self.topic_vectors_reduced,
-                self.hierarchy)
+            self.topic_vectors_reduced, self.doc_top_reduced, \
+                self.doc_dist_reduced, self.topic_sizes_reduced, self.hierarchy = self._unassign_documents_from_topic(
+                    doc_indexes,
+                    self.doc_top_reduced,
+                    self.doc_dist_reduced,
+                    self.topic_sizes_reduced,
+                    self.topic_vectors_reduced,
+                    self.hierarchy)
 
     def get_num_topics(self, reduced=False):
         """
@@ -888,8 +909,8 @@ class Top2Vec:
         top_vecs = np.vstack([self.model.docvecs.vectors_docs[np.where(doc_top == label)[0]].mean(axis=0)
                               for label in set(doc_top)])
         self.topic_vectors_reduced, self.doc_top_reduced, self.doc_dist_reduced, self.topic_sizes_reduced, \
-        self.hierarchy = self._calculate_topic_sizes(topic_vectors=top_vecs,
-                                                     hierarchy=hierarchy)
+            self.hierarchy = self._calculate_topic_sizes(topic_vectors=top_vecs,
+                                                         hierarchy=hierarchy)
         self.topic_words_reduced, self.topic_word_scores_reduced = self._find_topic_words_scores(
             topic_vectors=self.topic_vectors_reduced)
 
