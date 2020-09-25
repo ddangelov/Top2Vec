@@ -24,6 +24,9 @@ top2vec_corpus_file = Top2Vec(documents=newsgroups_documents, use_corpus_file=Tr
 
 @pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
 def test_add_documents_original(top2vec_model):
+
+    num_docs = top2vec_model.model.docvecs.vectors_docs.shape[0]
+
     docs_to_add = newsgroups_train.data[0:100]
 
     topic_count_sum = sum(top2vec_model.get_topic_sizes()[0])
@@ -35,8 +38,9 @@ def test_add_documents_original(top2vec_model):
         top2vec_model.add_documents(docs_to_add, doc_ids_new)
 
     topic_count_sum_new = sum(top2vec_model.get_topic_sizes()[0])
+    num_docs_new = top2vec_model.model.docvecs.vectors_docs.shape[0]
 
-    assert topic_count_sum + len(docs_to_add) == topic_count_sum_new
+    assert topic_count_sum + len(docs_to_add) == topic_count_sum_new == num_docs + len(docs_to_add) == num_docs_new
 
 
 @pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
@@ -57,6 +61,7 @@ def test_hierarchical_topic_reduction(top2vec_model):
 def test_add_documents_post_reduce(top2vec_model):
     docs_to_add = newsgroups_train.data[500:600]
 
+    num_docs = top2vec_model.model.docvecs.vectors_docs.shape[0]
     topic_count_sum = sum(top2vec_model.get_topic_sizes()[0])
     topic_count_reduced_sum = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
 
@@ -69,8 +74,32 @@ def test_add_documents_post_reduce(top2vec_model):
     topic_count_sum_new = sum(top2vec_model.get_topic_sizes()[0])
     topic_count_reduced_sum_new = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
 
-    assert topic_count_sum + len(docs_to_add) == topic_count_sum_new \
-        == topic_count_reduced_sum + len(docs_to_add) == topic_count_reduced_sum_new
+    num_docs_new = top2vec_model.model.docvecs.vectors_docs.shape[0]
+
+    assert topic_count_sum + len(docs_to_add) == topic_count_sum_new == topic_count_reduced_sum + len(docs_to_add) \
+           == topic_count_reduced_sum_new == num_docs + len(docs_to_add) == num_docs_new
+
+
+@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+def test_delete_documents(top2vec_model):
+    doc_ids_to_delete = list(range(500, 550))
+
+    num_docs = top2vec_model.model.docvecs.vectors_docs.shape[0]
+    topic_count_sum = sum(top2vec_model.get_topic_sizes()[0])
+    topic_count_reduced_sum = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
+
+    if top2vec_model.document_ids is None:
+        top2vec_model.delete_documents(doc_ids=doc_ids_to_delete)
+    else:
+        doc_ids_to_delete = [str(doc_id) for doc_id in doc_ids_to_delete]
+        top2vec_model.delete_documents(doc_ids=doc_ids_to_delete)
+
+    topic_count_sum_new = sum(top2vec_model.get_topic_sizes()[0])
+    topic_count_reduced_sum_new = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
+    num_docs_new = top2vec_model.model.docvecs.vectors_docs.shape[0]
+
+    assert topic_count_sum - len(doc_ids_to_delete) == topic_count_sum_new == topic_count_reduced_sum - \
+           len(doc_ids_to_delete) == topic_count_reduced_sum_new == num_docs - len(doc_ids_to_delete) == num_docs_new
 
 
 @pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
