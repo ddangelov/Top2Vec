@@ -155,19 +155,14 @@ class Top2Vec:
             self.doc_id2index = None
             self.doc_id_type = np.int_
 
-        logger.info('Pre-processing documents for training')
         if use_corpus_file:
+            logger.info('Pre-processing documents for training')
             processed = [self._tokenizer(doc) for doc in documents]
             lines = [' '.join(line) + "\n" for line in processed]
             temp = tempfile.NamedTemporaryFile(mode='w+t')
             temp.writelines(lines)
-        else:
-            train_corpus = [TaggedDocument(self._tokenizer(doc), [i])
-                            for i, doc in enumerate(documents)]
 
-        # create documents and word embeddings with doc2vec
-        logger.info('Creating joint document/word embedding')
-        if use_corpus_file:
+            logger.info('Creating joint document/word embedding')
             if workers is None:
                 self.model = Doc2Vec(corpus_file=temp.name,
                                      vector_size=300,
@@ -194,6 +189,11 @@ class Top2Vec:
 
             temp.close()
         else:
+            logger.info('Pre-processing documents for training')
+            train_corpus = [TaggedDocument(self._tokenizer(doc), [i])
+                            for i, doc in enumerate(documents)]
+
+            logger.info('Creating joint document/word embedding')
             if workers is None:
                 self.model = Doc2Vec(documents=train_corpus,
                                      vector_size=300,
@@ -964,7 +964,7 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    def search_documents_by_keywords(self, keywords, num_docs, keywords_neg=[], return_documents=True):
+    def search_documents_by_keywords(self, keywords, num_docs, keywords_neg=None, return_documents=True):
         """
         Semantic search of documents using keywords.
 
@@ -1008,6 +1008,10 @@ class Top2Vec:
             Unique ids of documents. If ids were not given, the index of document
             in the original corpus will be returned.
         """
+
+        if keywords_neg is None:
+            keywords_neg = []
+
         self._validate_num_docs(num_docs)
         keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
 
@@ -1026,7 +1030,7 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    def similar_words(self, keywords, num_words, keywords_neg=[]):
+    def similar_words(self, keywords, num_words, keywords_neg=None):
         """
         Semantic similarity search of words.
 
@@ -1060,6 +1064,9 @@ class Top2Vec:
             Semantic similarity of word to keywords. The cosine similarity of the
             word and average of keyword vectors.
         """
+        if keywords_neg is None:
+            keywords_neg = []
+
         keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
         sim_words = self.model.wv.most_similar(positive=keywords,
                                                negative=keywords_neg,
@@ -1069,7 +1076,7 @@ class Top2Vec:
 
         return words, word_scores
 
-    def search_topics(self, keywords, num_topics, keywords_neg=[], reduced=False):
+    def search_topics(self, keywords, num_topics, keywords_neg=None, reduced=False):
         """
         Semantic search of topics using keywords.
 
@@ -1125,6 +1132,9 @@ class Top2Vec:
         topic_nums: array of int, shape(num_topics)
             The unique number of every topic will be returned.
         """
+        if keywords_neg is None:
+            keywords_neg = []
+
         self._validate_num_topics(num_topics, reduced)
         keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
 
@@ -1159,7 +1169,7 @@ class Top2Vec:
 
         return topic_words, word_scores, topic_scores, topic_nums
 
-    def search_documents_by_documents(self, doc_ids, num_docs, doc_ids_neg=[], return_documents=True):
+    def search_documents_by_documents(self, doc_ids, num_docs, doc_ids_neg=None, return_documents=True):
         """
         Semantic similarity search of documents.
 
@@ -1202,6 +1212,9 @@ class Top2Vec:
             Unique ids of documents. If ids were not given, the index of document
             in the original corpus will be returned.
         """
+        if doc_ids_neg is None:
+            doc_ids_neg = []
+
         self._validate_num_docs(num_docs)
         self._validate_doc_ids(doc_ids, doc_ids_neg)
 
