@@ -156,10 +156,10 @@ class Top2Vec:
 
         if use_corpus_file:
             logger.info('Pre-processing documents for training')
-            processed = [self._tokenizer(doc) for doc in documents]
-            lines = [' '.join(line) + "\n" for line in processed]
+            processed = [' '.join(self._tokenizer(doc)) for doc in documents]
+            lines = "\n".join(processed)
             temp = tempfile.NamedTemporaryFile(mode='w+t')
-            temp.writelines(lines)
+            temp.write(lines)
 
             logger.info('Creating joint document/word embedding')
             if workers is None:
