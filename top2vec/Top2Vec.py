@@ -56,6 +56,15 @@ class Top2Vec:
             * learn
             * deep-learn
 
+    vector_size: int (Optional, default 300)
+        Size of the Doc2Vec embeddings.
+        
+    pretrained_doc2vec_model: gensim.corpora.doc2vec.Doc2Vec model (Optional).
+        Passing a pre-trained doc2vec model instead of training it from scratch.
+        
+    n_neighbors: int (Optional, default 15)
+        Number of neighbors to use in umap() estimation.    
+
     use_corpus_file: bool (Optional, default False)
         Setting use_corpus_file to True can sometimes provide speedup for large
         datasets when multiple worker threads are available. Documents are still
@@ -85,7 +94,9 @@ class Top2Vec:
 
     """
 
-    def __init__(self, documents, min_count=50, speed="learn", use_corpus_file=False, document_ids=None,
+    def __init__(self, documents=None, min_count=50, speed="learn",
+                 vector_size=300, pretrained_doc2vec_model=None, n_neighbors=15,
+                 use_corpus_file=False, document_ids=None,
                  keep_documents=True, workers=None, tokenizer=None, verbose=False):
 
         if verbose:
@@ -125,107 +136,78 @@ class Top2Vec:
         else:
             self._tokenizer = default_tokenizer
 
-        # validate documents
-        if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
-            raise ValueError("Documents need to be a list of strings")
-        if keep_documents:
-            self.documents = np.array(documents, dtype="object")
+        if pretrained_doc2vec_model:
+            logger.info('Using pre-trained doc2vec model')
+            self.model = pretrained_doc2vec_model
         else:
-            self.documents = None
+            # validate documents
+            if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
+                raise ValueError("Documents need to be a list of strings")
+            if keep_documents:
+                self.documents = np.array(documents, dtype="object")
+            else:
+                self.documents = None
 
-        # validate document ids
-        if document_ids is not None:
-            if len(documents) != len(document_ids):
-                raise ValueError("Document ids need to match number of documents")
-            elif len(document_ids) != len(set(document_ids)):
-                raise ValueError("Document ids need to be unique")
+            # validate document ids
+            if document_ids is not None:
+                if len(documents) != len(document_ids):
+                    raise ValueError("Document ids need to match number of documents")
+                elif len(document_ids) != len(set(document_ids)):
+                    raise ValueError("Document ids need to be unique")
 
-            if all((isinstance(doc_id, str) or isinstance(doc_id, np.str_)) for doc_id in document_ids):
-                self.doc_id_type = np.str_
-            elif all((isinstance(doc_id, int) or isinstance(doc_id, np.int_)) for doc_id in document_ids):
+                if all((isinstance(doc_id, str) or isinstance(doc_id, np.str_)) for doc_id in document_ids):
+                    self.doc_id_type = np.str_
+                elif all((isinstance(doc_id, int) or isinstance(doc_id, np.int_)) for doc_id in document_ids):
+                    self.doc_id_type = np.int_
+                else:
+                    raise ValueError("Document ids need to be str or int")
+
+                self.document_ids = np.array(document_ids)
+                self.doc_id2index = dict(zip(document_ids, list(range(0, len(document_ids)))))
+            else:
+                self.document_ids = None
+                self.doc_id2index = None
                 self.doc_id_type = np.int_
+
+            doc2vec_args = {"vector_size" :300,
+                            "min_count": min_count,
+                            "window": 15,
+                            "sample": 1e-5,
+                            "negative": negative,
+                            "hs": hs,
+                            "epochs": epochs,
+                            "dm": 0,
+                            "dbow_words": 1}
+            
+            if use_corpus_file:
+                logger.info('Pre-processing documents for training')
+                processed = [' '.join(self._tokenizer(doc)) for doc in documents]
+                lines = "\n".join(processed)
+                temp = tempfile.NamedTemporaryFile(mode='w+t')
+                temp.write(lines)
+                temp.close()
+                doc2vec_args["corpus_file"] = temp.name
             else:
-                raise ValueError("Document ids need to be str or int")
-
-            self.document_ids = np.array(document_ids)
-            self.doc_id2index = dict(zip(document_ids, list(range(0, len(document_ids)))))
-        else:
-            self.document_ids = None
-            self.doc_id2index = None
-            self.doc_id_type = np.int_
-
-        if use_corpus_file:
-            logger.info('Pre-processing documents for training')
-            processed = [' '.join(self._tokenizer(doc)) for doc in documents]
-            lines = "\n".join(processed)
-            temp = tempfile.NamedTemporaryFile(mode='w+t')
-            temp.write(lines)
-
+                logger.info('Pre-processing documents for training')
+                train_corpus = [TaggedDocument(self._tokenizer(doc), [i])
+                                for i, doc in enumerate(documents)]
+                doc2vec_args["documents"] = train_corpus
+            
+            if workers:
+                doc2vec_args["workers"] = workers
+            
             logger.info('Creating joint document/word embedding')
-            if workers is None:
-                self.model = Doc2Vec(corpus_file=temp.name,
-                                     vector_size=300,
-                                     min_count=min_count,
-                                     window=15,
-                                     sample=1e-5,
-                                     negative=negative,
-                                     hs=hs,
-                                     epochs=epochs,
-                                     dm=0,
-                                     dbow_words=1)
-            else:
-                self.model = Doc2Vec(corpus_file=temp.name,
-                                     vector_size=300,
-                                     min_count=min_count,
-                                     window=15,
-                                     sample=1e-5,
-                                     negative=negative,
-                                     hs=hs,
-                                     workers=workers,
-                                     epochs=epochs,
-                                     dm=0,
-                                     dbow_words=1)
-
-            temp.close()
-        else:
-            logger.info('Pre-processing documents for training')
-            train_corpus = [TaggedDocument(self._tokenizer(doc), [i])
-                            for i, doc in enumerate(documents)]
-
-            logger.info('Creating joint document/word embedding')
-            if workers is None:
-                self.model = Doc2Vec(documents=train_corpus,
-                                     vector_size=300,
-                                     min_count=min_count,
-                                     window=15,
-                                     sample=1e-5,
-                                     negative=negative,
-                                     hs=hs,
-                                     epochs=epochs,
-                                     dm=0,
-                                     dbow_words=1)
-            else:
-                self.model = Doc2Vec(documents=train_corpus,
-                                     vector_size=300,
-                                     min_count=min_count,
-                                     window=15,
-                                     sample=1e-5,
-                                     negative=negative,
-                                     hs=hs,
-                                     workers=workers,
-                                     epochs=epochs,
-                                     dm=0,
-                                     dbow_words=1)
+            self.model = Doc2Vec(**doc2vec_args)
 
         # create 5D embeddings of documents
         logger.info('Creating lower dimension embedding of documents')
-        umap_model = umap.UMAP(n_neighbors=15,
+        umap_model = umap.UMAP(n_neighbors=n_neighbors,
                                n_components=5,
                                metric='cosine').fit(self.model.docvecs.vectors_docs)
 
         # find dense areas of document vectors
         logger.info('Finding dense areas of documents')
-        cluster = hdbscan.HDBSCAN(min_cluster_size=15,
+        cluster = hdbscan.HDBSCAN(min_cluster_size=n_neighbors,
                                   metric='euclidean',
                                   cluster_selection_method='eom').fit(umap_model.embedding_)
 
