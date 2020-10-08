@@ -231,17 +231,25 @@ class Top2Vec:
 
         # calculate topic vectors from dense areas of documents
         logger.info('Finding topics')
+
+        # create topic vectors
         self._create_topic_vectors(cluster.labels_)
 
         # deduplicate topics
         self._deduplicate_topics()
 
-        # calculate topic sizes and index nearest topic for each document
-        self.topic_vectors, self.doc_top, self.doc_dist, self.topic_sizes = self._calculate_topic_sizes(
-            self.topic_vectors)
-
         # find topic words and scores
-        self.topic_words, self.topic_word_scores = self._find_topic_words_scores(topic_vectors=self.topic_vectors)
+        self.topic_words, self.topic_word_scores = self._find_topic_words_and_scores(topic_vectors=self.topic_vectors)
+
+        # assign documents to topic
+        self.doc_top, self.doc_dist = self._calculate_documents_topic(self.topic_vectors,
+                                                                      self.model.docvecs.vectors_docs)
+
+        # calculate topic sizes
+        self.topic_sizes = self._calculate_topic_sizes(hierarchy=False)
+
+        # re-order topics
+        self._reorder_topics(hierarchy=False)
 
         # initialize variables for hierarchical topic reduction
         self.topic_vectors_reduced = None
@@ -284,28 +292,31 @@ class Top2Vec:
 
             self.topic_vectors = unique_topics
 
-    def _calculate_topic_sizes(self, topic_vectors, hierarchy=None):
-        # find nearest topic of each document
-        doc_top, doc_dist = self._calculate_documents_topic(topic_vectors=topic_vectors,
-                                                            document_vectors=self.model.docvecs.vectors_docs)
-        topic_sizes = pd.Series(doc_top).value_counts()
-
-        return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist, hierarchy)
-
-    @staticmethod
-    def _reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist, hierarchy=None):
-        topic_vectors = topic_vectors[topic_sizes.index]
-        old2new = dict(zip(topic_sizes.index, range(topic_sizes.shape[0])))
-        doc_top = np.array([old2new[i] for i in doc_top])
-
-        if hierarchy is None:
-            topic_sizes.reset_index(drop=True, inplace=True)
-            return topic_vectors, doc_top, doc_dist, topic_sizes
-
+    def _calculate_topic_sizes(self, hierarchy=False):
+        if hierarchy:
+            topic_sizes = pd.Series(self.doc_top_reduced).value_counts()
         else:
-            hierarchy = [hierarchy[i] for i in topic_sizes.index]
-            topic_sizes.reset_index(drop=True, inplace=True)
-            return topic_vectors, doc_top, doc_dist, topic_sizes, hierarchy
+            topic_sizes = pd.Series(self.doc_top).value_counts()
+
+        return topic_sizes
+
+    def _reorder_topics(self, hierarchy=False):
+
+        if hierarchy:
+            self.topic_vectors_reduced = self.topic_vectors_reduced[self.topic_sizes_reduced.index]
+            self.topic_words_reduced = self.topic_words_reduced[self.topic_sizes_reduced.index]
+            self.topic_word_scores_reduced = self.topic_word_scores_reduced[self.topic_sizes_reduced.index]
+            old2new = dict(zip(self.topic_sizes_reduced.index, range(self.topic_sizes_reduced.index.shape[0])))
+            self.doc_top_reduced = np.array([old2new[i] for i in self.doc_top_reduced])
+            self.hierarchy = [self.hierarchy[i] for i in self.topic_sizes_reduced.index]
+            self.topic_sizes_reduced.reset_index(drop=True, inplace=True)
+        else:
+            self.topic_vectors = self.topic_vectors[self.topic_sizes.index]
+            self.topic_words = self.topic_words[self.topic_sizes.index]
+            self.topic_word_scores = self.topic_word_scores[self.topic_sizes.index]
+            old2new = dict(zip(self.topic_sizes.index, range(self.topic_sizes.index.shape[0])))
+            self.doc_top = np.array([old2new[i] for i in self.doc_top])
+            self.topic_sizes.reset_index(drop=True, inplace=True)
 
     @staticmethod
     def _calculate_documents_topic(topic_vectors, document_vectors, dist=True):
@@ -344,7 +355,7 @@ class Top2Vec:
         else:
             return doc_top
 
-    def _find_topic_words_scores(self, topic_vectors):
+    def _find_topic_words_and_scores(self, topic_vectors):
         topic_words = []
         topic_word_scores = []
 
@@ -357,6 +368,51 @@ class Top2Vec:
         topic_word_scores = np.array(topic_word_scores)
 
         return topic_words, topic_word_scores
+
+    def _assign_documents_to_topic(self, document_vectors, hierarchy=False):
+
+        if hierarchy:
+            doc_top_new, doc_dist_new = self._calculate_documents_topic(self.topic_vectors_reduced,
+                                                                        document_vectors,
+                                                                        dist=True)
+            self.doc_top_reduced = np.append(self.doc_top_reduced, doc_top_new)
+            self.doc_dist_reduced = np.append(self.doc_dist_reduced, doc_dist_new)
+
+            topic_sizes_new = pd.Series(doc_top_new).value_counts()
+            for top in topic_sizes_new.index.tolist():
+                self.topic_sizes_reduced[top] += topic_sizes_new[top]
+            self.topic_sizes_reduced.sort_values(ascending=False, inplace=True)
+            self._reorder_topics(hierarchy)
+        else:
+            doc_top_new, doc_dist_new = self._calculate_documents_topic(self.topic_vectors, document_vectors, dist=True)
+            self.doc_top = np.append(self.doc_top, doc_top_new)
+            self.doc_dist = np.append(self.doc_dist, doc_dist_new)
+
+            topic_sizes_new = pd.Series(doc_top_new).value_counts()
+            for top in topic_sizes_new.index.tolist():
+                self.topic_sizes[top] += topic_sizes_new[top]
+            self.topic_sizes.sort_values(ascending=False, inplace=True)
+            self._reorder_topics(hierarchy)
+
+    def _unassign_documents_from_topic(self, doc_indexes, hierarchy=False):
+        if hierarchy:
+            doc_top_remove = self.doc_top_reduced[doc_indexes]
+            self.doc_top_reduced = np.delete(self.doc_top_reduced, doc_indexes, 0)
+            self.doc_dist_reduced = np.delete(self.doc_dist_reduced, doc_indexes, 0)
+            topic_sizes_remove = pd.Series(doc_top_remove).value_counts()
+            for top in topic_sizes_remove.index.tolist():
+                self.topic_sizes_reduced[top] -= topic_sizes_remove[top]
+            self.topic_sizes_reduced.sort_values(ascending=False, inplace=True)
+            self._reorder_topics(hierarchy)
+        else:
+            doc_top_remove = self.doc_top[doc_indexes]
+            self.doc_top = np.delete(self.doc_top, doc_indexes, 0)
+            self.doc_dist = np.delete(self.doc_dist, doc_indexes, 0)
+            topic_sizes_remove = pd.Series(doc_top_remove).value_counts()
+            for top in topic_sizes_remove.index.tolist():
+                self.topic_sizes[top] -= topic_sizes_remove[top]
+            self.topic_sizes.sort_values(ascending=False, inplace=True)
+            self._reorder_topics(hierarchy)
 
     def save(self, file):
         """
@@ -505,41 +561,6 @@ class Top2Vec:
         if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
             raise ValueError("Documents need to be a list of strings.")
 
-    def _assign_documents_to_topic(self, document_vectors, topic_vectors, topic_sizes, doc_top, doc_dist,
-                                   hierarchy=None):
-
-        doc_top_new, doc_dist_new = self._calculate_documents_topic(topic_vectors, document_vectors, dist=True)
-        doc_top = np.append(doc_top, doc_top_new)
-        doc_dist = np.append(doc_dist, doc_dist_new)
-
-        topic_sizes_new = pd.Series(doc_top_new).value_counts()
-        for top in topic_sizes_new.index.tolist():
-            topic_sizes[top] += topic_sizes_new[top]
-        topic_sizes.sort_values(ascending=False, inplace=True)
-
-        if hierarchy is None:
-            return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist)
-        else:
-            return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist, hierarchy)
-
-    def _unassign_documents_from_topic(self, doc_indexes, doc_top, doc_dist, topic_sizes, topic_vectors,
-                                       hierarchy=None):
-
-        doc_top_remove = doc_top[doc_indexes]
-        doc_top = np.delete(doc_top, doc_indexes, 0)
-        doc_dist = np.delete(doc_dist, doc_indexes, 0)
-
-        topic_sizes_remove = pd.Series(doc_top_remove).value_counts()
-
-        for top in topic_sizes_remove.index.tolist():
-            topic_sizes[top] -= topic_sizes_remove[top]
-        topic_sizes.sort_values(ascending=False, inplace=True)
-
-        if hierarchy is None:
-            return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist)
-        else:
-            return self._reorder_topics(topic_vectors, topic_sizes, doc_top, doc_dist, hierarchy)
-
     def add_documents(self, documents, doc_ids=None):
         """
         Update the model with new documents.
@@ -590,22 +611,10 @@ class Top2Vec:
         self.model.docvecs.init_sims()
 
         # update topics
-        self.topic_vectors, self.doc_top, self.doc_dist, self.topic_sizes = self._assign_documents_to_topic(
-            document_vectors,
-            self.topic_vectors,
-            self.topic_sizes,
-            self.doc_top,
-            self.doc_dist)
+        self._assign_documents_to_topic(document_vectors, hierarchy=False)
 
         if self.hierarchy is not None:
-            self.topic_vectors_reduced, self.doc_top_reduced, self.doc_dist_reduced, self.topic_sizes_reduced, \
-                self.hierarchy = self._assign_documents_to_topic(
-                    document_vectors,
-                    self.topic_vectors_reduced,
-                    self.topic_sizes_reduced,
-                    self.doc_top_reduced,
-                    self.doc_dist_reduced,
-                    self.hierarchy)
+            self._assign_documents_to_topic(document_vectors, hierarchy=True)
 
     def delete_documents(self, doc_ids):
         """
@@ -656,22 +665,10 @@ class Top2Vec:
         self.model.docvecs.init_sims()
 
         # update topics
-        self.topic_vectors, self.doc_top, self.doc_dist, self.topic_sizes = self._unassign_documents_from_topic(
-            doc_indexes,
-            self.doc_top,
-            self.doc_dist,
-            self.topic_sizes,
-            self.topic_vectors)
+        self._unassign_documents_from_topic(doc_indexes, hierarchy=False)
 
         if self.hierarchy is not None:
-            self.topic_vectors_reduced, self.doc_top_reduced, \
-                self.doc_dist_reduced, self.topic_sizes_reduced, self.hierarchy = self._unassign_documents_from_topic(
-                    doc_indexes,
-                    self.doc_top_reduced,
-                    self.doc_dist_reduced,
-                    self.topic_sizes_reduced,
-                    self.topic_vectors_reduced,
-                    self.hierarchy)
+            self._unassign_documents_from_topic(doc_indexes, hierarchy=True)
 
     def get_num_topics(self, reduced=False):
         """
@@ -910,13 +907,23 @@ class Top2Vec:
         doc_top = self._calculate_documents_topic(topic_vectors=top_vecs,
                                                   document_vectors=self.model.docvecs.vectors_docs,
                                                   dist=False)
-        top_vecs = np.vstack([self.model.docvecs.vectors_docs[np.where(doc_top == label)[0]].mean(axis=0)
-                              for label in set(doc_top)])
-        self.topic_vectors_reduced, self.doc_top_reduced, self.doc_dist_reduced, self.topic_sizes_reduced, \
-            self.hierarchy = self._calculate_topic_sizes(topic_vectors=top_vecs,
-                                                         hierarchy=hierarchy)
-        self.topic_words_reduced, self.topic_word_scores_reduced = self._find_topic_words_scores(
+        self.topic_vectors_reduced = np.vstack([self.model.docvecs.vectors_docs[np.where(doc_top == label)[0]]
+                                               .mean(axis=0) for label in set(doc_top)])
+
+        self.hierarchy = hierarchy
+
+        # assign documents to topic
+        self.doc_top_reduced, self.doc_dist_reduced = self._calculate_documents_topic(self.topic_vectors_reduced,
+                                                                                      self.model.docvecs.vectors_docs)
+        # find topic words and scores
+        self.topic_words_reduced, self.topic_word_scores_reduced = self._find_topic_words_and_scores(
             topic_vectors=self.topic_vectors_reduced)
+
+        # calculate topic sizes
+        self.topic_sizes_reduced = self._calculate_topic_sizes(hierarchy=True)
+
+        # re-order topics
+        self._reorder_topics(hierarchy=True)
 
         return self.hierarchy
 
