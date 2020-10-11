@@ -154,68 +154,37 @@ class Top2Vec:
             self.doc_id2index = None
             self.doc_id_type = np.int_
 
+        doc2vec_args = {"vector_size": 300,
+                        "min_count": min_count,
+                        "window": 15,
+                        "sample": 1e-5,
+                        "negative": negative,
+                        "hs": hs,
+                        "epochs": epochs,
+                        "dm": 0,
+                        "dbow_words": 1}
+
+        if workers is not None:
+            doc2vec_args["workers"] = workers
+
+        logger.info('Pre-processing documents for training')
+
         if use_corpus_file:
-            logger.info('Pre-processing documents for training')
             processed = [' '.join(self._tokenizer(doc)) for doc in documents]
             lines = "\n".join(processed)
             temp = tempfile.NamedTemporaryFile(mode='w+t')
             temp.write(lines)
+            doc2vec_args["corpus_file"] = temp.name
 
-            logger.info('Creating joint document/word embedding')
-            if workers is None:
-                self.model = Doc2Vec(corpus_file=temp.name,
-                                     vector_size=300,
-                                     min_count=min_count,
-                                     window=15,
-                                     sample=1e-5,
-                                     negative=negative,
-                                     hs=hs,
-                                     epochs=epochs,
-                                     dm=0,
-                                     dbow_words=1)
-            else:
-                self.model = Doc2Vec(corpus_file=temp.name,
-                                     vector_size=300,
-                                     min_count=min_count,
-                                     window=15,
-                                     sample=1e-5,
-                                     negative=negative,
-                                     hs=hs,
-                                     workers=workers,
-                                     epochs=epochs,
-                                     dm=0,
-                                     dbow_words=1)
-
-            temp.close()
         else:
-            logger.info('Pre-processing documents for training')
-            train_corpus = [TaggedDocument(self._tokenizer(doc), [i])
-                            for i, doc in enumerate(documents)]
+            train_corpus = [TaggedDocument(self._tokenizer(doc), [i]) for i, doc in enumerate(documents)]
+            doc2vec_args["documents"] = train_corpus
 
-            logger.info('Creating joint document/word embedding')
-            if workers is None:
-                self.model = Doc2Vec(documents=train_corpus,
-                                     vector_size=300,
-                                     min_count=min_count,
-                                     window=15,
-                                     sample=1e-5,
-                                     negative=negative,
-                                     hs=hs,
-                                     epochs=epochs,
-                                     dm=0,
-                                     dbow_words=1)
-            else:
-                self.model = Doc2Vec(documents=train_corpus,
-                                     vector_size=300,
-                                     min_count=min_count,
-                                     window=15,
-                                     sample=1e-5,
-                                     negative=negative,
-                                     hs=hs,
-                                     workers=workers,
-                                     epochs=epochs,
-                                     dm=0,
-                                     dbow_words=1)
+        logger.info('Creating joint document/word embedding')
+        self.model = Doc2Vec(**doc2vec_args)
+
+        if use_corpus_file:
+            temp.close()
 
         # create 5D embeddings of documents
         logger.info('Creating lower dimension embedding of documents')
