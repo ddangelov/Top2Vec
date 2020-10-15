@@ -86,6 +86,13 @@ class Top2Vec:
         the universal sentence encoder options. For more information visit:
         https://www.sbert.net/docs/pretrained_models.html
 
+    embedding_model_path: string (Optional)
+        Pre-trained embedding models will be downloaded automatically by default. However
+        they can also be uploaded from a file that is in the location of embedding_model_path.
+
+        Warning: the model at embedding_model_path must match the embedding_model parameter
+        type.
+
     documents: List of str
         Input corpus, should be a list of strings.
 
@@ -766,8 +773,10 @@ class Top2Vec:
     def update_embedding_model_path(self, embedding_model_path):
         """
         Update the path of the embedding model to be loaded. The model will no longer
-        be downloaded but loaded from the path location. This must match the embedding model
-        use to train the model.
+        be downloaded but loaded from the path location.
+
+        Warning: the model at embedding_model_path must match the embedding_model parameter
+        type.
 
         Parameters
         ----------
