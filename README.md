@@ -4,7 +4,7 @@
 [![](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
 
 
-#### Update: Pre-trained Universal Sentence Encoders and BERT Sentence Transformer now available for embedding.
+#### Update: Pre-trained Universal Sentence Encoders and BERT Sentence Transformer now available for embedding. Read [more](#pretrained).
 
 Top2Vec
 ======= 
@@ -124,6 +124,42 @@ model = Top2Vec.load("filename")
 ```
 
 For more information view the [API guide](https://top2vec.readthedocs.io/en/latest/api.html).
+
+Pretrained Models <a name="pretrained"></a>
+-----------------
+Doc2Vec will be used by default to generate joint word and document embedding. However there are also pretrained `embedding_model` options:
+
+  * `universal-sentence-encoder`
+  * `universal-sentence-encoder-multilingual`
+  * `distiluse-base-multilingual-cased`
+  
+```python
+from top2vec import Top2Vec
+
+model = Top2Vec(documents, embedding_model='universal-sentence-encoder')
+```
+
+For large data sets and data sets with very unique vocabulary doc2vec could
+produce better results. This will train a doc2vec model from scratch. This method
+is language agnostic. However multiple languages will not be aligned.
+
+Using the universal sentence encoder options will be much faster since those are
+pre-trained and efficient models. The universal sentence encoder options are
+suggested for smaller data sets. They are also good options for large data sets
+that are in English or in languages covered by the multilingual model. It is also
+suggested for data sets that are multilingual.
+
+For more information on universal-sentence-encoder visit:
+https://tfhub.dev/google/universal-sentence-encoder-multilingual/3
+
+For more information on universal-sentence-encoder-multilingual visit:
+https://tfhub.dev/google/universal-sentence-encoder/4
+
+The distiluse-base-multilingual-cased pre-trained sentence transformer is suggested
+for multilingual datasets and languages that are not covered by the multilingual
+universal sentence encoder. The transformer is significantly slower than
+the universal sentence encoder options. For more information visit:
+https://www.sbert.net/docs/pretrained_models.html
     
 Example
 -------
