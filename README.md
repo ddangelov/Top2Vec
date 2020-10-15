@@ -4,7 +4,7 @@
 [![](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
 
 
-#### Update: Pre-trained Universal Sentence Encoders and BERT Sentence Transformer now available for embedding. Read [more](#pretrained).
+**Update: Pre-trained Universal Sentence Encoders and BERT Sentence Transformer now available for embedding. Read [more](#pretrained).**
 
 Top2Vec
 ======= 
