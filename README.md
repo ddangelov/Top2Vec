@@ -127,7 +127,7 @@ For more information view the [API guide](https://top2vec.readthedocs.io/en/late
 
 Pretrained Models <a name="pretrained"></a>
 -----------------
-Doc2Vec will be used by default to generate the joint word and document embeddings. However there are also pretrained `embedding_model` options:
+Doc2Vec will be used by default to generate the joint word and document embeddings. However there are also pretrained `embedding_model` options for generating joint word and document embeddings:
 
   * `universal-sentence-encoder`
   * `universal-sentence-encoder-multilingual`
