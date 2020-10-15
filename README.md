@@ -4,8 +4,10 @@
 [![](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
 
 
+#### Update: Pre-trained Universal Sentence Encoders and BERT Sentence Transformer now available for embedding.
+
 Top2Vec
-=======
+======= 
 
 Top2Vec is an algorithm for **topic modeling** and **semantic search**. It automatically detects topics present in text
 and generates jointly embedded topic, document and word vectors. Once you train the Top2Vec model 
@@ -44,7 +46,7 @@ attracted the documents to the dense area are the topic words.
 
 ### The Algorithm:
 
-#### 1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html).
+#### 1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html) or [Universal Sentence Encoder](https://tfhub.dev/google/collections/universal-sentence-encoder/1) or [BERT Sentence Transformer](https://www.sbert.net/).
 >Documents will be placed close to other similar documents and close to the most distinguishing words.
 
 <!--![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/doc_word_embedding.svg?sanitize=true)-->
