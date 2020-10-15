@@ -21,10 +21,31 @@ top2vec_no_docs = Top2Vec(documents=newsgroups_documents, keep_documents=False, 
 # train top2vec model with corpus_file
 top2vec_corpus_file = Top2Vec(documents=newsgroups_documents, use_corpus_file=True, speed="fast-learn", workers=8)
 
+# test USE
+top2vec_use = Top2Vec(documents=newsgroups_documents, embedding_model='universal-sentence-encoder')
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+# test USE-multilang
+top2vec_use_multilang = Top2Vec(documents=newsgroups_documents,
+                                embedding_model='universal-sentence-encoder-multilingual')
+
+# test USE-multilang
+top2vec_transformer_multilang = Top2Vec(documents=newsgroups_documents,
+                                        embedding_model='distiluse-base-multilingual-cased')
+
+models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
+          top2vec_use, top2vec_use_multilang, top2vec_transformer_multilang]
+
+
+def get_model_vocab(top2vec_model):
+    if top2vec_model.embedding_model == 'doc2vec':
+        return list(top2vec_model.model.wv.vocab.keys())
+    else:
+        return top2vec_model.vocab
+
+
+@pytest.mark.parametrize('top2vec_model', models)
 def test_add_documents_original(top2vec_model):
-    num_docs = top2vec_model.model.docvecs.vectors_docs.shape[0]
+    num_docs = top2vec_model._get_document_vectors().shape[0]
 
     docs_to_add = newsgroups_train.data[0:100]
 
@@ -37,7 +58,7 @@ def test_add_documents_original(top2vec_model):
         top2vec_model.add_documents(docs_to_add, doc_ids_new)
 
     topic_count_sum_new = sum(top2vec_model.get_topic_sizes()[0])
-    num_docs_new = top2vec_model.model.docvecs.vectors_docs.shape[0]
+    num_docs_new = top2vec_model._get_document_vectors().shape[0]
 
     assert topic_count_sum + len(docs_to_add) == topic_count_sum_new == num_docs + len(docs_to_add) \
            == num_docs_new
@@ -46,7 +67,7 @@ def test_add_documents_original(top2vec_model):
         assert num_docs_new == len(top2vec_model.documents)
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 def test_hierarchical_topic_reduction(top2vec_model):
     num_topics = top2vec_model.get_num_topics()
 
@@ -60,11 +81,11 @@ def test_hierarchical_topic_reduction(top2vec_model):
     assert len(hierarchy) == reduced_num == len(top2vec_model.topic_vectors_reduced)
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 def test_add_documents_post_reduce(top2vec_model):
     docs_to_add = newsgroups_train.data[500:600]
 
-    num_docs = top2vec_model.model.docvecs.vectors_docs.shape[0]
+    num_docs = top2vec_model._get_document_vectors().shape[0]
     topic_count_sum = sum(top2vec_model.get_topic_sizes()[0])
     topic_count_reduced_sum = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
 
@@ -77,7 +98,7 @@ def test_add_documents_post_reduce(top2vec_model):
     topic_count_sum_new = sum(top2vec_model.get_topic_sizes()[0])
     topic_count_reduced_sum_new = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
 
-    num_docs_new = top2vec_model.model.docvecs.vectors_docs.shape[0]
+    num_docs_new = top2vec_model._get_document_vectors().shape[0]
 
     assert topic_count_sum + len(docs_to_add) == topic_count_sum_new == topic_count_reduced_sum + len(docs_to_add) \
            == topic_count_reduced_sum_new == num_docs + len(docs_to_add) == num_docs_new
@@ -86,11 +107,11 @@ def test_add_documents_post_reduce(top2vec_model):
         assert num_docs_new == len(top2vec_model.documents)
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 def test_delete_documents(top2vec_model):
     doc_ids_to_delete = list(range(500, 550))
 
-    num_docs = top2vec_model.model.docvecs.vectors_docs.shape[0]
+    num_docs = top2vec_model._get_document_vectors().shape[0]
     topic_count_sum = sum(top2vec_model.get_topic_sizes()[0])
     topic_count_reduced_sum = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
 
@@ -102,7 +123,7 @@ def test_delete_documents(top2vec_model):
 
     topic_count_sum_new = sum(top2vec_model.get_topic_sizes()[0])
     topic_count_reduced_sum_new = sum(top2vec_model.get_topic_sizes(reduced=True)[0])
-    num_docs_new = top2vec_model.model.docvecs.vectors_docs.shape[0]
+    num_docs_new = top2vec_model._get_document_vectors().shape[0]
 
     assert topic_count_sum - len(doc_ids_to_delete) == topic_count_sum_new == topic_count_reduced_sum - \
            len(doc_ids_to_delete) == topic_count_reduced_sum_new == num_docs - len(doc_ids_to_delete) \
@@ -112,21 +133,21 @@ def test_delete_documents(top2vec_model):
         assert num_docs_new == len(top2vec_model.documents)
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 def test_get_topic_hierarchy(top2vec_model):
-    hierarchy = top2vec.get_topic_hierarchy()
+    hierarchy = top2vec_model.get_topic_hierarchy()
 
-    assert len(hierarchy) == len(top2vec.topic_vectors_reduced)
+    assert len(hierarchy) == len(top2vec_model.topic_vectors_reduced)
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 @pytest.mark.parametrize('reduced', [False, True])
 def test_get_num_topics(top2vec_model, reduced):
     # check that there are more than 0 topics
     assert top2vec_model.get_num_topics(reduced=reduced) > 0
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 @pytest.mark.parametrize('reduced', [False, True])
 def test_get_topics(top2vec_model, reduced):
     num_topics = top2vec_model.get_num_topics(reduced=reduced)
@@ -143,27 +164,27 @@ def test_get_topics(top2vec_model, reduced):
     assert all(topic_words_scores[i] >= topic_words_scores[i + 1] for i in range(len(topic_words_scores) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 @pytest.mark.parametrize('reduced', [False, True])
 def test_get_topic_size(top2vec_model, reduced):
     topic_sizes, topic_nums = top2vec_model.get_topic_sizes(reduced=reduced)
 
     # check that topic sizes add up to number of documents
-    assert sum(topic_sizes) == top2vec_model.model.docvecs.count
+    assert sum(topic_sizes) == top2vec_model._get_document_vectors().shape[0]
 
     # check that topics are ordered decreasingly
     assert all(topic_sizes[i] >= topic_sizes[i + 1] for i in range(len(topic_sizes) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
-@pytest.mark.parametrize('reduced', [False, True])
-def test_generate_topic_wordcloud(top2vec_model, reduced):
-    # generate word cloud
-    num_topics = top2vec_model.get_num_topics(reduced=reduced)
-    top2vec_model.generate_topic_wordcloud(num_topics - 1, reduced=reduced)
+# @pytest.mark.parametrize('top2vec_model', models)
+# @pytest.mark.parametrize('reduced', [False, True])
+# def test_generate_topic_wordcloud(top2vec_model, reduced):
+#     # generate word cloud
+#     num_topics = top2vec_model.get_num_topics(reduced=reduced)
+#     top2vec_model.generate_topic_wordcloud(num_topics - 1, reduced=reduced)
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 @pytest.mark.parametrize('reduced', [False, True])
 def test_search_documents_by_topic(top2vec_model, reduced):
     topic_sizes, topic_nums = top2vec_model.get_topic_sizes(reduced=reduced)
@@ -193,18 +214,18 @@ def test_search_documents_by_topic(top2vec_model, reduced):
 
     if reduced:
         doc_topics = set(np.argmax(
-            cosine_similarity(top2vec_model.model.docvecs.vectors_docs[document_indexes],
+            cosine_similarity(top2vec_model._get_document_vectors()[document_indexes],
                               top2vec_model.topic_vectors_reduced), axis=1))
     else:
         doc_topics = set(np.argmax(
-            cosine_similarity(top2vec_model.model.docvecs.vectors_docs[document_indexes],
+            cosine_similarity(top2vec_model._get_document_vectors()[document_indexes],
                               top2vec_model.topic_vectors), axis=1))
     assert len(doc_topics) == 1 and topic in doc_topics
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 def test_search_documents_by_keywords(top2vec_model):
-    keywords = list(top2vec_model.model.wv.vocab.keys())
+    keywords = get_model_vocab(top2vec_model)
     keyword = keywords[-1]
     num_docs = 10
 
@@ -225,9 +246,9 @@ def test_search_documents_by_keywords(top2vec_model):
     assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 def test_similar_words(top2vec_model):
-    keywords = list(top2vec_model.model.wv.vocab.keys())
+    keywords = get_model_vocab(top2vec_model)
     keyword = keywords[-1]
     num_words = 20
 
@@ -240,11 +261,11 @@ def test_similar_words(top2vec_model):
     assert all(word_scores[i] >= word_scores[i + 1] for i in range(len(word_scores) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 @pytest.mark.parametrize('reduced', [False, True])
 def test_search_topics(top2vec_model, reduced):
     num_topics = top2vec_model.get_num_topics(reduced=reduced)
-    keywords = list(top2vec_model.model.wv.vocab.keys())
+    keywords = get_model_vocab(top2vec_model)
     keyword = keywords[-1]
     topic_words, word_scores, topic_scores, topic_nums = top2vec_model.search_topics(keywords=[keyword],
                                                                                      num_topics=num_topics,
@@ -263,7 +284,7 @@ def test_search_topics(top2vec_model, reduced):
     assert all(topic_words_scores[i] >= topic_words_scores[i + 1] for i in range(len(topic_words_scores) - 1))
 
 
-@pytest.mark.parametrize('top2vec_model', [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file])
+@pytest.mark.parametrize('top2vec_model', models)
 def test_search_document_by_documents(top2vec_model):
     if top2vec_model.document_ids is not None:
         doc_id = top2vec_model.document_ids[0]
@@ -287,3 +308,19 @@ def test_search_document_by_documents(top2vec_model):
 
     # check that documents are returned in decreasing order
     assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+
+
+@pytest.mark.parametrize('top2vec_model', models)
+def test_get_documents_topics(top2vec_model):
+    if top2vec_model.document_ids is not None:
+        doc_ids_get = top2vec_model.document_ids[[0, 5]]
+    else:
+        doc_ids_get = [0, 5]
+
+    if top2vec_model.hierarchy is not None:
+        doc_topics, doc_dist, topic_words, topic_word_scores = top2vec_model.get_documents_topics(doc_ids=doc_ids_get,
+                                                                                                  reduced=True)
+    else:
+        doc_topics, doc_dist, topic_words, topic_word_scores = top2vec_model.get_documents_topics(doc_ids=doc_ids_get)
+
+    assert len(doc_topics) == len(doc_dist) == len(topic_words) == len(topic_word_scores) == len(doc_ids_get)
