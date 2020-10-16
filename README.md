@@ -154,7 +154,7 @@ for multilingual datasets and languages that are not covered by the multilingual
 universal sentence encoder. The transformer is significantly slower than
 the universal sentence encoder options. 
 
-More information on [universal-sentence-encoder](https://tfhub.dev/google/universal-sentence-encoder/4), [universal-sentence-encoder-multilingual](https://tfhub.dev/google/universal-sentence-encoder-multilingual/3), [distiluse-base-multilingual-cased](https://www.sbert.net/docs/pretrained_models.html)
+More information on [universal-sentence-encoder](https://tfhub.dev/google/universal-sentence-encoder/4), [universal-sentence-encoder-multilingual](https://tfhub.dev/google/universal-sentence-encoder-multilingual/3), [distiluse-base-multilingual-cased](https://www.sbert.net/docs/pretrained_models.html).
     
 Example
 -------
