@@ -150,6 +150,7 @@ that are in English or in languages covered by the multilingual model. It is als
 suggested for data sets that are multilingual.
 
 More information on [universal-sentence-encoder](https://tfhub.dev/google/universal-sentence-encoder-multilingual/3)
+
 More information on [universal-sentence-encoder-multilingual visit](https://tfhub.dev/google/universal-sentence-encoder/4)
 
 The distiluse-base-multilingual-cased pre-trained sentence transformer is suggested
