@@ -147,9 +147,8 @@ class Top2Vec:
         Override the default tokenization method. If None then
         gensim.utils.simple_preprocess will be used.
     
-    verbose: bool (Optional, default False)
+    verbose: bool (Optional, default True)
         Whether to print status data during training.
-
     """
 
     def __init__(self,
@@ -163,12 +162,14 @@ class Top2Vec:
                  keep_documents=True,
                  workers=None,
                  tokenizer=None,
-                 verbose=False):
+                 verbose=True):
 
         if verbose:
             logger.setLevel(logging.DEBUG)
+            self.verbose = True
         else:
             logger.setLevel(logging.WARNING)
+            self.verbose = False
 
         if tokenizer is not None:
             self._tokenizer = tokenizer
@@ -632,7 +633,8 @@ class Top2Vec:
 
     def _check_model_status(self):
         if self.embed is None:
-            logger.setLevel(logging.DEBUG)
+            if self.verbose is False:
+                logger.setLevel(logging.DEBUG)
 
             if self.embedding_model != "distiluse-base-multilingual-cased":
                 if self.embedding_model_path is None:
@@ -655,7 +657,9 @@ class Top2Vec:
                     module = self.embedding_model_path
                 model = SentenceTransformer(module)
                 self.embed = model.encode
-        logger.setLevel(logging.WARNING)
+
+        if self.verbose is False:
+            logger.setLevel(logging.WARNING)
 
     @staticmethod
     def _less_than_zero(num, var_name):
@@ -1082,7 +1086,7 @@ class Top2Vec:
             
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],  <Topic 0>
-            [0.7818', 0.7671, 0.7603 ... 0.6769]  <Topic 1>
+            [0.7818', 0.7671, 0.7603 ... 0.6769]   <Topic 1>
             ...]
 
         topic_nums: array of int, shape(num_topics)
