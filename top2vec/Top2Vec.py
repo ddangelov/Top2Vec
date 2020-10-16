@@ -56,42 +56,47 @@ class Top2Vec:
     Parameters
     ----------
     embedding_model: string
-        This will determine which model is used to generate the document and word
-        embeddings. The valid string options are:
+        This will determine which model is used to generate the document and
+        word embeddings. The valid string options are:
 
             * doc2vec
             * universal-sentence-encoder
             * universal-sentence-encoder-multilingual
             * distiluse-base-multilingual-cased
 
-        For large data sets and data sets with very unique vocabulary doc2vec could
-        produce better results. This will train a doc2vec model from scratch. This method
-        is language agnostic. However multiple languages will not be aligned.
+        For large data sets and data sets with very unique vocabulary doc2vec
+        could produce better results. This will train a doc2vec model from
+        scratch. This method is language agnostic. However multiple languages
+        will not be aligned.
 
-        Using the universal sentence encoder options will be much faster since those are
-        pre-trained and efficient models. The universal sentence encoder options are
-        suggested for smaller data sets. They are also good options for large data sets
-        that are in English or in languages covered by the multilingual model. It is also
-        suggested for data sets that are multilingual.
+        Using the universal sentence encoder options will be much faster since
+        those are pre-trained and efficient models. The universal sentence
+        encoder options are suggested for smaller data sets. They are also
+        good options for large data sets that are in English or in languages
+        covered by the multilingual model. It is also suggested for data sets
+        that are multilingual.
 
         For more information on universal-sentence-encoder visit:
-        https://tfhub.dev/google/universal-sentence-encoder-multilingual/3
-
-        For more information on universal-sentence-encoder-multilingual visit:
         https://tfhub.dev/google/universal-sentence-encoder/4
 
-        The distiluse-base-multilingual-cased pre-trained sentence transformer is suggested
-        for multilingual datasets and languages that are not covered by the multilingual
-        universal sentence encoder. The transformer is significantly slower than
-        the universal sentence encoder options. For more information visit:
+        For more information on universal-sentence-encoder-multilingual visit:
+        https://tfhub.dev/google/universal-sentence-encoder-multilingual/3
+
+        The distiluse-base-multilingual-cased pre-trained sentence transformer
+        is suggested for multilingual datasets and languages that are not
+        covered by the multilingual universal sentence encoder. The transformer
+        is significantly slower than the universal sentence encoder options.
+
+        For more informati ond istiluse-base-multilingual-cased visit:
         https://www.sbert.net/docs/pretrained_models.html
 
     embedding_model_path: string (Optional)
-        Pre-trained embedding models will be downloaded automatically by default. However
-        they can also be uploaded from a file that is in the location of embedding_model_path.
+        Pre-trained embedding models will be downloaded automatically by
+        default. However they can also be uploaded from a file that is in the
+        location of embedding_model_path.
 
-        Warning: the model at embedding_model_path must match the embedding_model parameter
-        type.
+        Warning: the model at embedding_model_path must match the
+        embedding_model parameter type.
 
     documents: List of str
         Input corpus, should be a list of strings.
@@ -120,14 +125,14 @@ class Top2Vec:
         This parameter is only used when using doc2vec as embedding_model.
 
         Setting use_corpus_file to True can sometimes provide speedup for large
-        datasets when multiple worker threads are available. Documents are still
-        passed to the model as a list of str, the model will create a temporary
-        corpus file for training.
+        datasets when multiple worker threads are available. Documents are
+        still passed to the model as a list of str, the model will create a
+        temporary corpus file for training.
 
     document_ids: List of str, int (Optional)
-        A unique value per document that will be used for referring to documents
-        in search results. If ids are not given to the model, the index of each
-        document in the original corpus will become the id.
+        A unique value per document that will be used for referring to
+        documents in search results. If ids are not given to the model, the
+        index of each document in the original corpus will become the id.
 
     keep_documents: bool (Optional, default True)
         If set to False documents will only be used for training and not saved
@@ -139,8 +144,8 @@ class Top2Vec:
         amount will lead to faster training.
     
     tokenizer: callable (Optional, default None)
-        Override the default tokenization method. If None then gensim.utils.simple_preprocess
-        will be used.
+        Override the default tokenization method. If None then
+        gensim.utils.simple_preprocess will be used.
     
     verbose: bool (Optional, default False)
         Whether to print status data during training.
@@ -772,11 +777,11 @@ class Top2Vec:
 
     def update_embedding_model_path(self, embedding_model_path):
         """
-        Update the path of the embedding model to be loaded. The model will no longer
-        be downloaded but loaded from the path location.
+        Update the path of the embedding model to be loaded. The model will
+        no longer be downloaded but loaded from the path location.
 
-        Warning: the model at embedding_model_path must match the embedding_model parameter
-        type.
+        Warning: the model at embedding_model_path must match the
+        embedding_model parameter type.
 
         Parameters
         ----------
@@ -788,9 +793,9 @@ class Top2Vec:
 
     def change_to_download_embedding_model(self):
         """
-        Use automatic download to load embedding model used for training. Top2Vec will no
-        longer try and load the embedding model from a file if a embedding_model path was
-        previously added.
+        Use automatic download to load embedding model used for training.
+        Top2Vec will no longer try and load the embedding model from a file
+        if a embedding_model path was previously added.
 
         """
         self.embedding_model_path = None
@@ -801,15 +806,16 @@ class Top2Vec:
 
         The topic of each document will be returned.
 
-        The corresponding original topics are returned unless reduced=True, in which
-        case the reduced topics will be returned.
+        The corresponding original topics are returned unless reduced=True,
+        in which case the reduced topics will be returned.
 
         Parameters
         ----------
         doc_ids: List of str, int
             A unique value per document that is used for referring to documents
-            in search results. If ids were not given to the model, the index of each
-            document in the model is the id.
+            in search results. If ids were not given to the model, the index of
+            each document in the model is the id.
+
         reduced: bool (Optional, default False)
             Original topics are returned by default. If True the
             reduced topics will be returned.
@@ -820,8 +826,8 @@ class Top2Vec:
             The topic number of the document corresponding to each doc_id.
 
         topic_score: array of float, shape(doc_ids)
-            Semantic similarity of document to topic. The cosine similarity of the
-            document and topic vector.
+            Semantic similarity of document to topic. The cosine similarity of
+            the document and topic vector.
 
         topics_words: array of shape(num_topics, 50)
             For each topic the top 50 words are returned, in order
@@ -871,9 +877,9 @@ class Top2Vec:
         The documents will be added to the current model without changing
         existing document, word and topic vectors. Topic sizes will be updated.
 
-        If adding a large quantity of documents relative to the current model size,
-        or documents containing a largely new vocabulary, a new model should be
-        trained for best results.
+        If adding a large quantity of documents relative to the current model
+        size, or documents containing a largely new vocabulary, a new model
+        should be trained for best results.
 
         Parameters
         ----------
@@ -883,9 +889,9 @@ class Top2Vec:
 
             Only required if doc_ids were given to the original model.
 
-            A unique value per document that will be used for referring to documents
-            in search results. If ids are not given to the model, the index of each
-            document in the model will become the id.
+            A unique value per document that will be used for referring to
+            documents in search results. If ids are not given to the model, the
+            index of each document in the model will become the id.
         """
 
         # add documents
@@ -945,8 +951,8 @@ class Top2Vec:
         doc_ids: List of str, int
 
             A unique value per document that is used for referring to documents
-            in search results. If ids were not given to the model, the index of each
-            document in the model is the id.
+            in search results. If ids were not given to the model, the index of
+            each document in the model is the id.
         """
         # make sure documents exist
         self._validate_doc_ids(doc_ids, doc_ids_neg=[])
@@ -993,9 +999,9 @@ class Top2Vec:
         Parameters
         ----------
         reduced: bool (Optional, default False)
-            The number of original topics will be returned by default. If True will
-            return the number of reduced topics, if hierarchical topic reduction
-            has been performed.
+            The number of original topics will be returned by default. If True
+            will return the number of reduced topics, if hierarchical topic
+            reduction has been performed.
 
         Returns
         -------
@@ -1066,7 +1072,7 @@ class Top2Vec:
             of semantic similarity to topic.
             
             Example:
-            [['data', 'deep', 'learning' ... 'artificial'],          <Topic 0>
+            [['data', 'deep', 'learning' ... 'artificial'],         <Topic 0>
             ['environment', 'warming', 'climate ... 'temperature']  <Topic 1>
             ...]
 
@@ -1103,17 +1109,18 @@ class Top2Vec:
 
     def get_topic_hierarchy(self):
         """
-        Get the hierarchy of reduced topics. The mapping of each original topic to the reduced
-        topics is returned.
+        Get the hierarchy of reduced topics. The mapping of each original topic
+        to the reduced topics is returned.
 
-        Hierarchical topic reduction must be performed before calling this method.
+        Hierarchical topic reduction must be performed before calling this
+        method.
 
         Returns
         -------
         hierarchy: list of ints
-            Each index of the hierarchy corresponds to the topic number of a reduced topic.
-            For each reduced topic the topic numbers of the original topics that were merged
-            to create it are listed.
+            Each index of the hierarchy corresponds to the topic number of a
+            reduced topic. For each reduced topic the topic numbers of the
+            original topics that were merged to create it are listed.
 
             Example:
             [[3]  <Reduced Topic 0> contains original Topic 3
@@ -1130,8 +1137,9 @@ class Top2Vec:
         """
         Reduce the number of topics discovered by Top2Vec.
 
-        The most representative topics of the corpus will be found, by iteratively merging
-        each smallest topic to the most similar topic until num_topics is reached.
+        The most representative topics of the corpus will be found, by
+        iteratively merging each smallest topic to the most similar topic until
+        num_topics is reached.
 
         Parameters
         ----------
@@ -1141,9 +1149,9 @@ class Top2Vec:
         Returns
         -------
         hierarchy: list of ints
-            Each index of hierarchy corresponds to the reduced topics, for each reduced
-            topic the indexes of the original topics that were merged to create it are
-            listed.
+            Each index of hierarchy corresponds to the reduced topics, for each
+            reduced topic the indexes of the original topics that were merged
+            to create it are listed.
 
             Example:
             [[3]  <Reduced Topic 0> contains original Topic 3
@@ -1244,9 +1252,9 @@ class Top2Vec:
         """
         Get the most semantically similar documents to the topic.
 
-        These are the documents closest to the topic vector. Documents are ordered
-        by proximity to the topic vector. Successive documents in the list are
-        less semantically similar to the topic.
+        These are the documents closest to the topic vector. Documents are
+        ordered by proximity to the topic vector. Successive documents in the
+        list are less semantically similar to the topic.
 
         Parameters
         ----------
@@ -1257,8 +1265,8 @@ class Top2Vec:
             Number of documents to return.
 
         return_documents: bool (Optional default True)
-            Determines if the documents will be returned. If they were not saved
-            in the model they will also not be returned.
+            Determines if the documents will be returned. If they were not
+            saved in the model they will also not be returned.
 
         reduced: bool (Optional, default False)
             Original topics are used to search by default. If True the
@@ -1269,16 +1277,16 @@ class Top2Vec:
         documents: (Optional) array of str, shape(num_docs)
             The documents in a list, the most similar are first.
 
-            Will only be returned if the documents were saved and if return_documents
-            is set to True.
+            Will only be returned if the documents were saved and if
+            return_documents is set to True.
 
         doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to topic. The cosine similarity of the
-            document and topic vector.
+            Semantic similarity of document to topic. The cosine similarity of
+            the document and topic vector.
 
         doc_ids: array of int, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the index of
-            the document in the model will be returned.
+            Unique ids of documents. If ids were not given to the model, the
+            index of the document in the model will be returned.
         """
 
         if reduced:
@@ -1313,45 +1321,46 @@ class Top2Vec:
         """
         Semantic search of documents using keywords.
 
-        The most semantically similar documents to the combination of the keywords
-        will be returned. If negative keywords are provided, the documents will be
-        semantically dissimilar to those words. Too many keywords or certain
-        combinations of words may give strange results. This method finds an average
-        vector(negative keywords are subtracted) of all the keyword vectors and
-        returns the documents closest to the resulting vector.
+        The most semantically similar documents to the combination of the
+        keywords will be returned. If negative keywords are provided, the
+        documents will be semantically dissimilar to those words. Too many
+        keywords or certain combinations of words may give strange results.
+        This method finds an average vector(negative keywords are subtracted)
+        of all the keyword vectors and returns the documents closest to the
+        resulting vector.
 
         Parameters
         ----------
         keywords: List of str
-            List of positive keywords being used for search of semantically similar
-            documents.
+            List of positive keywords being used for search of semantically
+            similar documents.
 
         keywords_neg: List of str (Optional)
-            List of negative keywords being used for search of semantically dissimilar
-            documents.
+            List of negative keywords being used for search of semantically
+            dissimilar documents.
 
         num_docs: int
             Number of documents to return.
 
         return_documents: bool (Optional default True)
-            Determines if the documents will be returned. If they were not saved
-            in the model they will also not be returned.
+            Determines if the documents will be returned. If they were not
+            saved in the model they will also not be returned.
 
         Returns
         -------
         documents: (Optional) array of str, shape(num_docs)
             The documents in a list, the most similar are first.
 
-            Will only be returned if the documents were saved and if return_documents
-            is set to True.
+            Will only be returned if the documents were saved and if
+            return_documents is set to True.
 
         doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to keywords. The cosine similarity of the
-            document and average of keyword vectors.
+            Semantic similarity of document to keywords. The cosine similarity
+            of the document and average of keyword vectors.
 
         doc_ids: array of int, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the index of
-            the document in the model will be returned.
+            Unique ids of documents. If ids were not given to the model, the
+            index of the document in the model will be returned.
         """
 
         if keywords_neg is None:
@@ -1388,19 +1397,19 @@ class Top2Vec:
         The most semantically similar word to the combination of the keywords
         will be returned. If negative keywords are provided, the words will be
         semantically dissimilar to those words. Too many keywords or certain
-        combinations of words may give strange results. This method finds an average
-        vector(negative keywords are subtracted) of all the keyword vectors and
-        returns the words closest to the resulting vector.
+        combinations of words may give strange results. This method finds an
+        average vector(negative keywords are subtracted) of all the keyword
+        vectors and returns the words closest to the resulting vector.
 
         Parameters
         ----------
         keywords: List of str
-            List of positive keywords being used for search of semantically similar
-            words.
+            List of positive keywords being used for search of semantically
+            similar words.
 
         keywords_neg: List of str
-            List of negative keywords being used for search of semantically dissimilar
-            words.
+            List of negative keywords being used for search of semantically
+            dissimilar words.
 
         num_words: int
             Number of words to return.
@@ -1412,8 +1421,8 @@ class Top2Vec:
             The words in a list, the most similar are first.
 
         word_scores: array of float, shape(num_words)
-            Semantic similarity of word to keywords. The cosine similarity of the
-            word and average of keyword vectors.
+            Semantic similarity of word to keywords. The cosine similarity of
+            the word and average of keyword vectors.
         """
         if keywords_neg is None:
             keywords_neg = []
@@ -1444,19 +1453,19 @@ class Top2Vec:
         will be returned. If negative keywords are provided, the topics will be
         semantically dissimilar to those words. Topics will be ordered by
         decreasing similarity to the keywords. Too many keywords or certain
-        combinations of words may give strange results. This method finds an average
-        vector(negative keywords are subtracted) of all the keyword vectors and
-        returns the topics closest to the resulting vector.
+        combinations of words may give strange results. This method finds an
+        average vector(negative keywords are subtracted) of all the keyword
+        vectors and returns the topics closest to the resulting vector.
 
         Parameters
         ----------
         keywords: List of str
-            List of positive keywords being used for search of semantically similar
-            documents.
+            List of positive keywords being used for search of semantically
+            similar documents.
 
         keywords_neg: (Optional) List of str
-            List of negative keywords being used for search of semantically dissimilar
-            documents.
+            List of negative keywords being used for search of semantically
+            dissimilar documents.
 
         num_topics: int
             Number of documents to return.
@@ -1472,8 +1481,8 @@ class Top2Vec:
             similarity to topic.
             
             Example:
-            [['data', 'deep', 'learning' ... 'artificial'],             <Topic 0>
-            ['environment', 'warming', 'climate ... 'temperature']     <Topic 1>
+            [['data', 'deep', 'learning' ... 'artificial'],           <Topic 0>
+            ['environment', 'warming', 'climate ... 'temperature']    <Topic 1>
             ...]
 
         word_scores: array of shape (num_topics, 50)
@@ -1522,43 +1531,44 @@ class Top2Vec:
         Semantic similarity search of documents.
 
         The most semantically similar documents to the semantic combination of
-        document ids provided will be returned. If negative document ids are provided,
-        the documents will be semantically dissimilar to those document ids. Documents
-        will be ordered by decreasing similarity. This method finds the closest document
-        vectors to the provided documents averaged.
+        document ids provided will be returned. If negative document ids are
+        provided, the documents will be semantically dissimilar to those
+        document ids. Documents will be ordered by decreasing similarity. This
+        method finds the closest document vectors to the provided documents
+        averaged.
 
         Parameters
         ----------
         doc_ids: List of int, str
-            Unique ids of document. If ids were not given, the index of document
-            in the original corpus.
+            Unique ids of document. If ids were not given, the index of
+            document in the original corpus.
 
         doc_ids_neg: (Optional) List of int, str
-            Unique ids of document. If ids were not given, the index of document
-            in the original corpus.
+            Unique ids of document. If ids were not given, the index of
+            document in the original corpus.
 
         num_docs: int
             Number of documents to return.
 
         return_documents: bool (Optional default True)
-            Determines if the documents will be returned. If they were not saved
-            in the model they will also not be returned.
+            Determines if the documents will be returned. If they were not
+            saved in the model they will also not be returned.
 
         Returns
         -------
         documents: (Optional) array of str, shape(num_docs)
             The documents in a list, the most similar are first.
 
-            Will only be returned if the documents were saved and if return_documents
-            is set to True.
+            Will only be returned if the documents were saved and if
+            return_documents is set to True.
 
         doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to keywords. The cosine similarity of the
-            document and average of keyword vectors.
+            Semantic similarity of document to keywords. The cosine similarity
+            of the document and average of keyword vectors.
 
         doc_ids: array of int, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the index of
-            the document in the model will be returned.
+            Unique ids of documents. If ids were not given to the model, the
+            index of the document in the model will be returned.
         """
         if doc_ids_neg is None:
             doc_ids_neg = []
@@ -1569,7 +1579,6 @@ class Top2Vec:
         doc_indexes = self._get_document_indexes(doc_ids)
         doc_indexes_neg = self._get_document_indexes(doc_ids_neg)
 
-        # TO-DO: generalize to USE
         if self.embedding_model == 'doc2vec':
             sim_docs = self.model.docvecs.most_similar(positive=doc_indexes,
                                                        negative=doc_indexes_neg,
@@ -1595,10 +1604,10 @@ class Top2Vec:
         """
         Create a word cloud for a topic.
 
-        A word cloud will be generated and displayed. The most semantically similar
-        words to the topic will have the largest size, less similar words will be
-        smaller. The size is determined using the cosine distance of the word vectors
-        from the topic vector.
+        A word cloud will be generated and displayed. The most semantically
+        similar words to the topic will have the largest size, less similar
+        words will be smaller. The size is determined using the cosine distance
+        of the word vectors from the topic vector.
 
         Parameters
         ----------
@@ -1616,7 +1625,8 @@ class Top2Vec:
 
         Returns
         -------
-        A matplotlib plot of the word cloud with the topic number will be displayed.
+        A matplotlib plot of the word cloud with the topic number will be
+        displayed.
 
         """
 
