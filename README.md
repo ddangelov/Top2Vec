@@ -149,16 +149,12 @@ suggested for smaller data sets. They are also good options for large data sets
 that are in English or in languages covered by the multilingual model. It is also
 suggested for data sets that are multilingual.
 
-More information on [universal-sentence-encoder](https://tfhub.dev/google/universal-sentence-encoder-multilingual/3)
-
-More information on [universal-sentence-encoder-multilingual visit](https://tfhub.dev/google/universal-sentence-encoder/4)
-
 The distiluse-base-multilingual-cased pre-trained sentence transformer is suggested
 for multilingual datasets and languages that are not covered by the multilingual
 universal sentence encoder. The transformer is significantly slower than
 the universal sentence encoder options. 
 
-More information on [distiluse-base-multilingual-cased](https://www.sbert.net/docs/pretrained_models.html)
+More information on [universal-sentence-encoder](https://tfhub.dev/google/universal-sentence-encoder/4), [universal-sentence-encoder-multilingual](https://tfhub.dev/google/universal-sentence-encoder-multilingual/3), [distiluse-base-multilingual-cased](https://www.sbert.net/docs/pretrained_models.html)
     
 Example
 -------
