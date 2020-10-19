@@ -61,7 +61,7 @@ def test_add_documents_original(top2vec_model):
     num_docs_new = top2vec_model._get_document_vectors().shape[0]
 
     assert topic_count_sum + len(docs_to_add) == topic_count_sum_new == num_docs + len(docs_to_add) \
-           == num_docs_new
+           == num_docs_new == len(top2vec_model.doc_top)
 
     if top2vec_model.documents is not None:
         assert num_docs_new == len(top2vec_model.documents)
@@ -101,7 +101,8 @@ def test_add_documents_post_reduce(top2vec_model):
     num_docs_new = top2vec_model._get_document_vectors().shape[0]
 
     assert topic_count_sum + len(docs_to_add) == topic_count_sum_new == topic_count_reduced_sum + len(docs_to_add) \
-           == topic_count_reduced_sum_new == num_docs + len(docs_to_add) == num_docs_new
+           == topic_count_reduced_sum_new == num_docs + len(docs_to_add) == num_docs_new == len(top2vec_model.doc_top) \
+           == len(top2vec_model.doc_top_reduced)
 
     if top2vec_model.documents is not None:
         assert num_docs_new == len(top2vec_model.documents)
@@ -127,7 +128,7 @@ def test_delete_documents(top2vec_model):
 
     assert topic_count_sum - len(doc_ids_to_delete) == topic_count_sum_new == topic_count_reduced_sum - \
            len(doc_ids_to_delete) == topic_count_reduced_sum_new == num_docs - len(doc_ids_to_delete) \
-           == num_docs_new
+           == num_docs_new == len(top2vec_model.doc_top) == len(top2vec_model.doc_top_reduced)
 
     if top2vec_model.documents is not None:
         assert num_docs_new == len(top2vec_model.documents)
