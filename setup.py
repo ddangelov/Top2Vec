@@ -14,6 +14,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/ddangelov/Top2Vec",
     keywords="topic modeling semantic search word document embedding",
+    license="BSD",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Programming Language :: Python :: 3",
