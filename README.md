@@ -406,4 +406,3 @@ for word, score in zip(words, word_scores):
     facility 0.4325
     propulsion 0.4251
     aerospace 0.4226
-```
