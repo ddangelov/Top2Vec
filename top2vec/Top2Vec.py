@@ -1625,6 +1625,44 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
+    def search_keywords_by_documents(self, doc_ids, num_keywords=50):
+        """
+        TODO
+        """
+
+        # make sure documents exist
+        self._validate_doc_ids(doc_ids, doc_ids_neg=[])
+
+        if self.embedding_model == 'doc2vec':
+            doc_vectors = self.model.docvecs.vectors_docs[doc_ids]
+        else:
+            doc_vectors = self.document_vectors[doc_ids]
+
+        # Take the average document of the input set
+        doc_vectors = np.reshape(doc_vectors.mean(axis=0), (1, -1))
+
+        doc_words = []
+        doc_word_scores = []
+
+        if self.embedding_model == 'doc2vec':
+            for doc_vector in doc_vectors:
+                sim_words = self.model.wv.most_similar(positive=[doc_vector], topn=num_keywords)
+                doc_words.append([word[0] for word in sim_words])
+                doc_word_scores.append([round(word[1], 4) for word in sim_words])
+        else:
+            res = cosine_similarity(doc_vectors, self.word_vectors)
+            top_words = np.flip(np.argsort(res, axis=1), axis=1)
+            top_scores = np.flip(np.sort(res, axis=1), axis=1)
+
+            for words, scores in zip(top_words, top_scores):
+                doc_words.append([self.vocab[i] for i in words[0:num_keywords]])
+                doc_word_scores.append(scores[0:num_keywords])
+
+        doc_words = np.array(doc_words)
+        doc_word_scores = np.array(doc_word_scores)
+
+        return sorted(zip(doc_word_scores[0], doc_words[0]), reverse=True)
+
     def generate_topic_wordcloud(self, topic_num, background_color="black", reduced=False):
         """
         Create a word cloud for a topic.
