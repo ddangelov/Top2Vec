@@ -9,7 +9,6 @@ from gensim.utils import simple_preprocess
 from gensim.parsing.preprocessing import strip_tags
 import umap
 import hdbscan
-from sklearn.metrics.pairwise import cosine_similarity
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from joblib import dump, load
@@ -531,10 +530,6 @@ class Top2Vec:
         topic_word_scores = []
 
         if self.embedding_model == 'doc2vec':
-            # for topic_vector in topic_vectors:
-            #     sim_words = self.model.wv.most_similar(positive=[topic_vector], topn=50)
-            #     topic_words.append([word[0] for word in sim_words])
-            #     topic_word_scores.append([round(word[1], 4) for word in sim_words])
             self.model.wv.init_sims()
             res = np.inner(topic_vectors, self.model.wv.vectors_norm)
             top_words = np.flip(np.argsort(res, axis=1), axis=1)

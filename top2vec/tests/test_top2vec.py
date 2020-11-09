@@ -1,7 +1,6 @@
 import pytest
 from top2vec import Top2Vec
 from sklearn.datasets import fetch_20newsgroups
-from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
 # get 20 newsgroups data
@@ -188,10 +187,12 @@ def test_get_topic_size(top2vec_model, reduced):
 @pytest.mark.parametrize('top2vec_model', models)
 @pytest.mark.parametrize('reduced', [False, True])
 def test_search_documents_by_topic(top2vec_model, reduced):
+    # get topic sizes
     topic_sizes, topic_nums = top2vec_model.get_topic_sizes(reduced=reduced)
     topic = topic_nums[0]
     num_docs = topic_sizes[0]
 
+    # search documents by topic
     if top2vec_model.documents is not None:
         documents, document_scores, document_ids = top2vec_model.search_documents_by_topic(topic, num_docs,
                                                                                            reduced=reduced)
@@ -215,11 +216,11 @@ def test_search_documents_by_topic(top2vec_model, reduced):
 
     if reduced:
         doc_topics = set(np.argmax(
-            cosine_similarity(top2vec_model._get_document_vectors()[document_indexes],
+            np.inner(top2vec_model._get_document_vectors()[document_indexes],
                               top2vec_model.topic_vectors_reduced), axis=1))
     else:
         doc_topics = set(np.argmax(
-            cosine_similarity(top2vec_model._get_document_vectors()[document_indexes],
+            np.inner(top2vec_model._get_document_vectors()[document_indexes],
                               top2vec_model.topic_vectors), axis=1))
     assert len(doc_topics) == 1 and topic in doc_topics
 
