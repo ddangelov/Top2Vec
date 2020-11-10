@@ -642,13 +642,13 @@ class Top2Vec:
         if self.embedding_model != 'distiluse-base-multilingual-cased':
             if not _HAVE_TENSORFLOW:
                 raise ImportError(f"{self.embedding_model} is not available.\n\n"
-                                  "Was not able to import tensorflow. Make sure tensorflow, tensorflow_hub, and "
-                                  "tensorflow_text are installed.")
+                                  "Try pip install top2vec[sentence_encoders]\n\n"
+                                  "Alternatively try pip install tensorflow tensorflow_hub tensorflow_text")
         else:
             if not _HAVE_TORCH:
                 raise ImportError(f"{self.embedding_model} is not available.\n\n"
-                                  "Was not able to import sentence_transformers. Make sure torch and "
-                                  "sentence_transformers are installed.")
+                                  "Try pip install top2vec[sentence_transformers]\n\n"
+                                  "Alternatively try pip install torch sentence_transformers")
 
     def _check_model_status(self):
         if self.embed is None:
