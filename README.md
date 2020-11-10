@@ -92,6 +92,14 @@ Installation
 The easy way to install Top2Vec is:
 
     pip install top2vec
+    
+To install pre-trained universal sentence encoder options:
+    
+    pip install top2vec[sentence-encoders]
+    
+To install pre-trained BERT sentence transformer options:
+
+    pip install top2vec[sentence_transformers]
 
 
 Usage
