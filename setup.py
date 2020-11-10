@@ -33,11 +33,17 @@ setuptools.setup(
         'umap-learn',
         'hdbscan',
         'wordcloud',
-        'tensorflow',
-        'tensorflow_hub',
-        'tensorflow_text',
-        'torch',
-        'sentence_transformers',
-      ],
+    ],
+    extras_require={
+        sentence_encoders=[
+            'tensorflow',
+            'tensorflow_hub',
+            'tensorflow_text',
+        ],
+        sentence_transformers=[
+            'torch',
+            'sentence_transformers',
+        ],
+    },
     python_requires='>=3.6',
 )
