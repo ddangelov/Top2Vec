@@ -35,12 +35,12 @@ setuptools.setup(
         'wordcloud',
     ],
     extras_require={
-        sentence_encoders=[
+        'sentence_encoders': [
             'tensorflow',
             'tensorflow_hub',
             'tensorflow_text',
         ],
-        sentence_transformers=[
+        'sentence_transformers': [
             'torch',
             'sentence_transformers',
         ],
