@@ -18,6 +18,13 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
 
 try:
+    import hnswlib
+
+    _HAVE_HNSWLIB = True
+except ImportError:
+    _HAVE_HNSWLIB = False
+
+try:
     import tensorflow as tf
     import tensorflow_hub as hub
     import tensorflow_text
@@ -197,11 +204,13 @@ class Top2Vec:
             else:
                 raise ValueError("Document ids need to be str or int")
 
+            self.document_ids_provided = True
             self.document_ids = np.array(document_ids)
             self.doc_id2index = dict(zip(document_ids, list(range(0, len(document_ids)))))
         else:
-            self.document_ids = None
-            self.doc_id2index = None
+            self.document_ids_provided = False
+            self.document_ids = np.array(range(0, len(documents)))
+            self.doc_id2index = dict(zip(self.document_ids, list(range(0, len(self.document_ids)))))
             self.doc_id_type = np.int_
 
         acceptable_embedding_models = ["universal-sentence-encoder-multilingual",
@@ -353,6 +362,11 @@ class Top2Vec:
         self.topic_word_scores_reduced = None
         self.hierarchy = None
 
+        # initialize indexing variables
+        self.document_index = None
+        self.serialized_document_index = None
+        self.documents_indexed = False
+
     def save(self, file):
         """
         Saves the current model to the specified file.
@@ -362,8 +376,18 @@ class Top2Vec:
         file: str
             File where model will be saved.
         """
+        # do not save sentence encoders and sentence transformers
         if self.embedding_model != "doc2vec":
             self.embed = None
+
+        # serialize document index so that it can be saved
+        if self.documents_indexed:
+            temp = tempfile.NamedTemporaryFile(mode='w+b')
+            self.document_index.save_index(temp.name)
+            self.serialized_document_index = temp.read()
+            temp.close()
+            self.document_index = None
+
         dump(self, file)
 
     @classmethod
@@ -377,7 +401,31 @@ class Top2Vec:
         file: str
             File where model will be loaded from.
         """
-        return load(file)
+
+        top2vec_model = load(file)
+
+        if top2vec_model.documents_indexed:
+
+            if not _HAVE_HNSWLIB:
+                raise ImportError(f"Cannot load document index.\n\n"
+                                  "Try: pip install top2vec[indexing]\n\n"
+                                  "Alternatively try: pip hnswlib")
+
+            temp = tempfile.NamedTemporaryFile(mode='w+b')
+            temp.write(top2vec_model.serialized_document_index)
+
+            if top2vec_model.embedding_model == 'doc2vec':
+                document_vectors = top2vec_model.model.docvecs.vectors_docs
+            else:
+                document_vectors = top2vec_model.document_vectors
+
+            top2vec_model.document_index = hnswlib.Index(space='ip',
+                                                         dim=document_vectors.shape[1])
+            top2vec_model.document_index.load_index(temp.name, max_elements=document_vectors.shape[0])
+            temp.close()
+            top2vec_model.serialized_document_index = None
+
+        return top2vec_model
 
     @staticmethod
     def _l2_normalize(vectors):
@@ -457,8 +505,8 @@ class Top2Vec:
             # merge duplicate topics
             for unique_label in duplicate_clusters:
                 unique_topics = np.vstack(
-                    [unique_topics, self.topic_vectors[np.where(labels == unique_label)[0]]
-                        .mean(axis=0)])
+                    [unique_topics, self._l2_normalize(self.topic_vectors[np.where(labels == unique_label)[0]]
+                                                       .mean(axis=0))])
 
             self.topic_vectors = unique_topics
 
@@ -599,10 +647,7 @@ class Top2Vec:
             self._reorder_topics(hierarchy)
 
     def _get_document_ids(self, doc_index):
-        if self.document_ids is None:
-            return doc_index
-        else:
-            return self.document_ids[doc_index]
+        return self.document_ids[doc_index]
 
     def _get_document_indexes(self, doc_ids):
         if self.document_ids is None:
@@ -634,9 +679,21 @@ class Top2Vec:
     def _search_vectors_by_vector(vectors, vector, num_res):
         ranks = np.inner(vectors, vector)
         indexes = np.flip(np.argsort(ranks)[-num_res:])
-        scores = np.array([round(ranks[res], 4) for res in indexes])
+        scores = np.array([ranks[res] for res in indexes])
 
         return indexes, scores
+
+    @staticmethod
+    def _check_hnswlib_status():
+        if not _HAVE_HNSWLIB:
+            raise ImportError(f"Indexing is not available.\n\n"
+                              "Try: pip install top2vec[indexing]\n\n"
+                              "Alternatively try: pip hnswlib")
+
+    def _check_document_index_status(self):
+        if self.document_index is None:
+            raise ImportError("There is no document index.\n\n"
+                              "Call index_document_vectors method before setting use_index=True.")
 
     def _check_import_status(self):
         if self.embedding_model != 'distiluse-base-multilingual-cased':
@@ -780,23 +837,66 @@ class Top2Vec:
             raise ValueError("Document ids need to be provided.")
         if len(documents) != len(document_ids):
             raise ValueError("Document ids need to match number of documents.")
-        elif len(document_ids) != len(set(document_ids)):
+        if len(document_ids) != len(set(document_ids)):
             raise ValueError("Document ids need to be unique.")
-
-        if all((isinstance(doc_id, str) or isinstance(doc_id, np.str_)) for doc_id in document_ids):
-            if self.doc_id_type == np.int_:
-                raise ValueError("Document ids need to be of type int.")
-        elif all((isinstance(doc_id, int) or isinstance(doc_id, np.int_)) for doc_id in document_ids):
-            if self.doc_id_type == np.str_:
-                raise ValueError("Document ids need to be of type str.")
 
         if len(set(document_ids).intersection(self.document_ids)) > 0:
             raise ValueError("Some document ids already exist in model.")
+
+        if self.doc_id_type == np.str_:
+            if not all((isinstance(doc_id, str) or isinstance(doc_id, np.str_)) for doc_id in document_ids):
+                raise ValueError("Document ids need to be of type str.")
+
+        if self.doc_id_type == np.int_:
+            if not all((isinstance(doc_id, int) or isinstance(doc_id, np.int_)) for doc_id in document_ids):
+                raise ValueError("Document ids need to be of type int.")
 
     @staticmethod
     def _validate_documents(documents):
         if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
             raise ValueError("Documents need to be a list of strings.")
+
+    def _validate_vector(self, vector):
+        if not isinstance(vector, np.ndarray):
+            raise ValueError("Vector needs to be a numpy array.")
+        vec_size = self._get_document_vectors().shape[1]
+        if not vector.shape[0] == vec_size:
+            raise ValueError(f"Vector needs to be of {vec_size} dimensions.")
+
+    def index_documents_vectors(self, ef_construction=200, M=64):
+        """
+        Creates an index of the document vectors using hnswlib. This will
+        lead to faster search times for models with a large number of
+        documents. 
+
+        For more information on hnswlib see: https://github.com/nmslib/hnswlib
+
+        Parameters
+        ----------
+        ef_construction: int (Optional default 200)
+            This parameter controls the trade-off between index construction
+            time and index accuracy. Larger values will lead to greater
+            accuracy but will take longer to construct.
+
+        M: int (Optional default 64)
+            This parameter controls the trade-off between both index size as
+            well as construction time and accuracy. Larger values will lead to
+            greater accuracy but will result in a larger index as well as
+            longer construction time.
+
+        For more information on the parameters see:
+        https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+        """
+
+        self._check_hnswlib_status()
+
+        vec_dim = self._get_document_vectors().shape[1]
+        num_vecs = self._get_document_vectors().shape[0]
+
+        self.document_index = hnswlib.Index(space='ip', dim=vec_dim)
+        self.document_index.init_index(max_elements=num_vecs, ef_construction=ef_construction, M=M)
+        self.document_index.add_items(self._get_document_vectors(), self.document_ids)
+        self.documents_indexed = True
 
     def update_embedding_model_path(self, embedding_model_path):
         """
@@ -910,11 +1010,10 @@ class Top2Vec:
 
         doc_ids: List of str, int (Optional)
 
-            Only required if doc_ids were given to the original model.
+            Only required when doc_ids were given to the original model.
 
             A unique value per document that will be used for referring to
-            documents in search results. If ids are not given to the model, the
-            index of each document in the model will become the id.
+            documents in search results.
         """
 
         # add documents
@@ -923,11 +1022,21 @@ class Top2Vec:
             self.documents = np.append(self.documents, documents)
 
         # add document ids
-        if self.document_ids is not None:
+        if self.document_ids_provided is True:
             self._validate_document_ids_add_doc(documents, doc_ids)
             doc_ids_len = len(self.document_ids)
             self.document_ids = np.append(self.document_ids, doc_ids)
             self.doc_id2index.update(dict(zip(doc_ids, list(range(doc_ids_len, doc_ids_len + len(doc_ids))))))
+
+        elif doc_ids is None:
+            num_docs = len(documents)
+            start_id = max(self.document_ids) + 1
+            doc_ids = list(range(start_id, start_id + num_docs))
+            doc_ids_len = len(self.document_ids)
+            self.document_ids = np.append(self.document_ids, doc_ids)
+            self.doc_id2index.update(dict(zip(doc_ids, list(range(doc_ids_len, doc_ids_len + len(doc_ids))))))
+        else:
+            raise ValueError("doc_ids cannot be used because they were not provided to model during training.")
 
         # get document vectors
         docs_processed = [self._tokenizer(doc) for doc in documents]
@@ -948,6 +1057,13 @@ class Top2Vec:
             docs_training = [' '.join(doc) for doc in docs_processed]
             document_vectors = self._embed_documents(docs_training)
             self._set_document_vectors(np.vstack([self._get_document_vectors(), document_vectors]))
+
+        # update index
+        if self.documents_indexed:
+            current_max = self.documents_index.get_max_elements()
+            updated_max = current_max + len(documents)
+            self.documents_index.resize_index(updated_max)
+            self.documents_index.add_items(document_vectors, doc_ids)
 
         # update topics
         self._assign_documents_to_topic(document_vectors, hierarchy=False)
@@ -973,11 +1089,15 @@ class Top2Vec:
         doc_ids: List of str, int
 
             A unique value per document that is used for referring to documents
-            in search results. If ids were not given to the model, the index of
-            each document in the model is the id.
+            in search results.
         """
         # make sure documents exist
         self._validate_doc_ids(doc_ids, doc_ids_neg=[])
+
+        # update index
+        if self.documents_indexed:
+            for doc_id in doc_ids:
+                self.document_index.mark_deleted(doc_id)
 
         # get document indexes from ids
         doc_indexes = self._get_document_indexes(doc_ids)
@@ -1194,10 +1314,12 @@ class Top2Vec:
         while num_topics_current > num_topics:
 
             # find smallest and most similar topics
-            sizes = pd.Series(top_sizes).sort_values(ascending=False)
-            smallest = sizes.sort_values(ascending=True).index[0]
+            smallest = np.argmin(top_sizes)
             res = np.inner(top_vecs[smallest], top_vecs)
-            most_sim = np.flip(np.argsort(res))[1]
+            sims = np.flip(np.argsort(res))
+            most_sim = sims[1]
+            if most_sim == smallest:
+                most_sim = sims[0]
 
             # calculate combined topic vector
             top_vec_smallest = top_vecs[smallest]
@@ -1271,6 +1393,78 @@ class Top2Vec:
 
         return self.hierarchy
 
+    def search_documents_by_vector(self, vector, num_docs, return_documents=True, use_index=False, ef=None):
+        """
+        Semantic search of documents using a vector.
+
+        These are the documents closest to the vector. Documents are
+        ordered by proximity to the vector. Successive documents in the
+        list are less semantically similar to the vector.
+
+        Parameters
+        ----------
+        vector: array of shape(vector dimension, 1)
+            The vector dimension should be the same as the vectors in
+            the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
+
+        num_docs: int
+            Number of documents to return.
+
+        return_documents: bool (Optional default True)
+            Determines if the documents will be returned. If they were not
+            saved in the model they will not be returned.
+
+        use_index: bool (Optional default False)
+            If index_documents method has been called, setting this to True
+            will speed up search for models with large number of documents.
+
+        ef: int (Optional default None)
+            Higher ef leads to more accurate but slower search. This value
+            must be higher than num_docs. For more information see:
+
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+
+        Returns
+        -------
+        documents: (Optional) array of str, shape(num_docs)
+            The documents in a list, the most similar are first.
+
+            Will only be returned if the documents were saved and if
+            return_documents is set to True.
+
+        doc_scores: array of float, shape(num_docs)
+            Semantic similarity of document to topic. The cosine similarity of
+            the document and topic vector.
+
+        doc_ids: array of int, shape(num_docs)
+            Unique ids of documents. If ids were not given to the model, the
+            index of the document in the model will be returned.
+        """
+        self._validate_vector(vector)
+        self._validate_num_docs(num_docs)
+
+        if use_index:
+            self._check_document_index_status()
+
+            if ef is not None:
+                self.document_index.set_ef(ef)
+
+            doc_ids, doc_scores = self.document_index.knn_query(vector, k=num_docs)
+            doc_ids = doc_ids[0]
+            doc_scores = doc_scores[0]
+            doc_scores = np.array([1-score for score in doc_scores])
+            doc_indexes = self._get_document_indexes(doc_ids)
+        else:
+            doc_indexes, doc_scores = self._search_vectors_by_vector(self._get_document_vectors(),
+                                                                     vector, num_docs)
+            doc_ids = self._get_document_ids(doc_indexes)
+
+        if self.documents is not None and return_documents:
+            documents = self.documents[doc_indexes]
+            return documents, doc_scores, doc_ids
+        else:
+            return doc_scores, doc_ids
+
     def search_documents_by_topic(self, topic_num, num_docs, return_documents=True, reduced=False):
         """
         Get the most semantically similar documents to the topic.
@@ -1289,7 +1483,7 @@ class Top2Vec:
 
         return_documents: bool (Optional default True)
             Determines if the documents will be returned. If they were not
-            saved in the model they will also not be returned.
+            saved in the model they will not be returned.
 
         reduced: bool (Optional, default False)
             Original topics are used to search by default. If True the
@@ -1340,7 +1534,8 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    def search_documents_by_keywords(self, keywords, num_docs, keywords_neg=None, return_documents=True):
+    def search_documents_by_keywords(self, keywords, num_docs, keywords_neg=None, return_documents=True,
+                                     use_index=False, ef=None):
         """
         Semantic search of documents using keywords.
 
@@ -1369,6 +1564,16 @@ class Top2Vec:
             Determines if the documents will be returned. If they were not
             saved in the model they will also not be returned.
 
+        use_index: bool (Optional default False)
+            If index_documents method has been called, setting this to True
+            will speed up search for models with large number of documents.
+
+        ef: int (Optional default None)
+            Higher ef leads to more accurate but slower search. This value
+            must be higher than num_docs. For more information see:
+
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+
         Returns
         -------
         documents: (Optional) array of str, shape(num_docs)
@@ -1394,12 +1599,18 @@ class Top2Vec:
         word_vecs = self._get_word_vectors(keywords)
         neg_word_vecs = self._get_word_vectors(keywords_neg)
 
+        if use_index:
+            self._check_document_index_status()
+            combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
+            return self.search_documents_by_vector(combined_vector, num_docs, return_documents=return_documents,
+                                                   use_index=True, ef=ef)
+
         if self.embedding_model == 'doc2vec':
             sim_docs = self.model.docvecs.most_similar(positive=word_vecs,
                                                        negative=neg_word_vecs,
                                                        topn=num_docs)
             doc_indexes = [doc[0] for doc in sim_docs]
-            doc_scores = np.array([round(doc[1], 4) for doc in sim_docs])
+            doc_scores = np.array([doc[1] for doc in sim_docs])
         else:
             combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
             doc_indexes, doc_scores = self._search_vectors_by_vector(self._get_document_vectors(),
@@ -1457,7 +1668,7 @@ class Top2Vec:
                                                    negative=keywords_neg,
                                                    topn=num_words)
             words = np.array([word[0] for word in sim_words])
-            word_scores = np.array([round(word[1], 4) for word in sim_words])
+            word_scores = np.array([word[1] for word in sim_words])
         else:
             word_vecs = self._get_word_vectors(keywords)
             neg_word_vecs = self._get_word_vectors(keywords_neg)
@@ -1560,7 +1771,8 @@ class Top2Vec:
 
         return topic_words, word_scores, topic_scores, topic_nums
 
-    def search_documents_by_documents(self, doc_ids, num_docs, doc_ids_neg=None, return_documents=True):
+    def search_documents_by_documents(self, doc_ids, num_docs, doc_ids_neg=None, return_documents=True,
+                                      use_index=False, ef=None):
         """
         Semantic similarity search of documents.
 
@@ -1588,6 +1800,16 @@ class Top2Vec:
             Determines if the documents will be returned. If they were not
             saved in the model they will also not be returned.
 
+        use_index: bool (Optional default False)
+            If index_documents method has been called, setting this to True
+            will speed up search for models with large number of documents.
+
+        ef: int (Optional default None)
+            Higher ef leads to more accurate but slower search. This value
+            must be higher than num_docs. For more information see:
+
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+
         Returns
         -------
         documents: (Optional) array of str, shape(num_docs)
@@ -1613,12 +1835,21 @@ class Top2Vec:
         doc_indexes = self._get_document_indexes(doc_ids)
         doc_indexes_neg = self._get_document_indexes(doc_ids_neg)
 
+        if use_index:
+            self._check_document_index_status()
+            document_vectors = self._get_document_vectors()
+            doc_vecs = [document_vectors[ind] for ind in doc_indexes]
+            doc_vecs_neg = [document_vectors[ind] for ind in doc_indexes_neg]
+            combined_vector = self._get_combined_vec(doc_vecs, doc_vecs_neg)
+            return self.search_documents_by_vector(combined_vector, num_docs, return_documents=return_documents,
+                                                   use_index=True, ef=ef)
+
         if self.embedding_model == 'doc2vec':
             sim_docs = self.model.docvecs.most_similar(positive=doc_indexes,
                                                        negative=doc_indexes_neg,
                                                        topn=num_docs)
             doc_indexes = [doc[0] for doc in sim_docs]
-            doc_scores = np.array([round(doc[1], 4) for doc in sim_docs])
+            doc_scores = np.array([doc[1] for doc in sim_docs])
         else:
             doc_vecs = [self.document_vectors[ind] for ind in doc_indexes]
             doc_vecs_neg = [self.document_vectors[ind] for ind in doc_indexes_neg]
