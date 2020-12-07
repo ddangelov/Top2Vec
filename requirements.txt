@@ -10,3 +10,4 @@ tensorflow_hub
 tensorflow_text
 torch
 sentence_transformers
+hnswlib

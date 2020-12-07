@@ -102,6 +102,7 @@ class Top2Vec:
         location of embedding_model_path.
 
         Warning: the model at embedding_model_path must match the
+        Warning: the model at embedding_model_path must match the
         embedding_model parameter type.
 
     documents: List of str
@@ -183,6 +184,8 @@ class Top2Vec:
             self._tokenizer = default_tokenizer
 
         # validate documents
+        if not (isinstance(documents, list) or isinstance(documents, np.ndarray)):
+            raise ValueError("Documents need to be a list of strings")
         if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
             raise ValueError("Documents need to be a list of strings")
         if keep_documents:
@@ -192,6 +195,9 @@ class Top2Vec:
 
         # validate document ids
         if document_ids is not None:
+            if not (isinstance(document_ids, list) or isinstance(document_ids, np.ndarray)):
+                raise ValueError("Documents ids need to be a list of str or int")
+
             if len(documents) != len(document_ids):
                 raise ValueError("Document ids need to match number of documents")
             elif len(document_ids) != len(set(document_ids)):
@@ -366,6 +372,8 @@ class Top2Vec:
         self.document_index = None
         self.serialized_document_index = None
         self.documents_indexed = False
+        self.index_id2doc_id = None
+        self.doc_id2index_id = None
 
     def save(self, file):
         """
@@ -863,7 +871,7 @@ class Top2Vec:
         if not vector.shape[0] == vec_size:
             raise ValueError(f"Vector needs to be of {vec_size} dimensions.")
 
-    def index_documents_vectors(self, ef_construction=200, M=64):
+    def index_document_vectors(self, ef_construction=200, M=64):
         """
         Creates an index of the document vectors using hnswlib. This will
         lead to faster search times for models with a large number of
@@ -893,9 +901,14 @@ class Top2Vec:
         vec_dim = self._get_document_vectors().shape[1]
         num_vecs = self._get_document_vectors().shape[0]
 
+        index_ids = list(range(0, len(self.document_ids)))
+
+        self.index_id2doc_id = dict(zip(index_ids, self.document_ids))
+        self.doc_id2index_id = dict(zip(self.document_ids, index_ids))
+
         self.document_index = hnswlib.Index(space='ip', dim=vec_dim)
         self.document_index.init_index(max_elements=num_vecs, ef_construction=ef_construction, M=M)
-        self.document_index.add_items(self._get_document_vectors(), self.document_ids)
+        self.document_index.add_items(self._get_document_vectors(), index_ids)
         self.documents_indexed = True
 
     def update_embedding_model_path(self, embedding_model_path):
@@ -1060,10 +1073,17 @@ class Top2Vec:
 
         # update index
         if self.documents_indexed:
+            # update capacity of index
             current_max = self.documents_index.get_max_elements()
             updated_max = current_max + len(documents)
             self.documents_index.resize_index(updated_max)
-            self.documents_index.add_items(document_vectors, doc_ids)
+
+            # update index_id and doc_ids
+            start_index_id = max(self.index_id2doc_id.keys()) + 1
+            new_index_ids = list(range(start_index_id, start_index_id + len(doc_ids)))
+            self.index_id2doc_id.update(dict(zip(new_index_ids, doc_ids)))
+            self.doc_id2index_id.update(dict(zip(doc_ids, new_index_ids)))
+            self.documents_index.add_items(document_vectors, new_index_ids)
 
         # update topics
         self._assign_documents_to_topic(document_vectors, hierarchy=False)
@@ -1096,8 +1116,15 @@ class Top2Vec:
 
         # update index
         if self.documents_indexed:
+            # delete doc_ids from index
+            index_ids = [self.doc_id2index_id(doc_id) for doc_id in doc_ids]
+            for index_id in index_ids:
+                self.document_index.mark_deleted(index_id)
+            # update index_id and doc_ids
             for doc_id in doc_ids:
-                self.document_index.mark_deleted(doc_id)
+                self.doc_id2index_id.pop(doc_id)
+            for index_id in index_ids:
+                self.index_id2doc_id.pop(index_id)
 
         # get document indexes from ids
         doc_indexes = self._get_document_indexes(doc_ids)
@@ -1420,9 +1447,11 @@ class Top2Vec:
 
         ef: int (Optional default None)
             Higher ef leads to more accurate but slower search. This value
-            must be higher than num_docs. For more information see:
+            must be higher than num_docs.
 
-            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+        For more information see:
+
+        https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
 
         Returns
         -------
@@ -1449,10 +1478,11 @@ class Top2Vec:
             if ef is not None:
                 self.document_index.set_ef(ef)
 
-            doc_ids, doc_scores = self.document_index.knn_query(vector, k=num_docs)
-            doc_ids = doc_ids[0]
+            index_ids, doc_scores = self.document_index.knn_query(vector, k=num_docs)
+            index_ids = index_ids[0]
+            doc_ids = np.array([self.index_id2doc_id[index_id] for index_id in index_ids])
             doc_scores = doc_scores[0]
-            doc_scores = np.array([1-score for score in doc_scores])
+            doc_scores = np.array([1 - score for score in doc_scores])
             doc_indexes = self._get_document_indexes(doc_ids)
         else:
             doc_indexes, doc_scores = self._search_vectors_by_vector(self._get_document_vectors(),
@@ -1570,9 +1600,11 @@ class Top2Vec:
 
         ef: int (Optional default None)
             Higher ef leads to more accurate but slower search. This value
-            must be higher than num_docs. For more information see:
+            must be higher than num_docs.
 
-            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+        For more information see:
+
+        https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
 
         Returns
         -------
@@ -1806,9 +1838,11 @@ class Top2Vec:
 
         ef: int (Optional default None)
             Higher ef leads to more accurate but slower search. This value
-            must be higher than num_docs. For more information see:
+            must be higher than num_docs.
 
-            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+        For more information see:
+
+        https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
 
         Returns
         -------
