@@ -892,8 +892,8 @@ class Top2Vec:
             greater accuracy but will result in a larger index as well as
             longer construction time.
 
-        For more information on the parameters see:
-        https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+            For more information on the parameters see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
         """
 
         self._check_hnswlib_status()
@@ -1449,9 +1449,8 @@ class Top2Vec:
             Higher ef leads to more accurate but slower search. This value
             must be higher than num_docs.
 
-        For more information see:
-
-        https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+            For more information see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
 
         Returns
         -------
@@ -1602,9 +1601,8 @@ class Top2Vec:
             Higher ef leads to more accurate but slower search. This value
             must be higher than num_docs.
 
-        For more information see:
-
-        https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+            For more information see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
 
         Returns
         -------
@@ -1840,9 +1838,8 @@ class Top2Vec:
             Higher ef leads to more accurate but slower search. This value
             must be higher than num_docs.
 
-        For more information see:
-
-        https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+            For more information see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
 
         Returns
         -------
