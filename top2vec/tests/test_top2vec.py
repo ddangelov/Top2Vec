@@ -419,3 +419,41 @@ def test_search_document_by_documents_index(top2vec_model):
 
     # check that documents are returned in decreasing order
     assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+
+
+@pytest.mark.parametrize('top2vec_model', models)
+def test_search_words_by_vector(top2vec_model):
+    word_vectors = top2vec_model._get_word_vectors()
+    top2vec_model.search_words_by_vector(vector=word_vectors[0], num_words=10)
+
+    num_words = 10
+
+    words, word_scores = top2vec_model.search_words_by_vector(vector=word_vectors[0],
+                                                              num_words=num_words)
+
+    # check that there is a score for each word
+    assert len(words) == len(word_scores) == num_words
+
+    # check that words are returned in decreasing order
+    assert all(word_scores[i] >= word_scores[i + 1] for i in range(len(word_scores) - 1))
+
+
+@pytest.mark.parametrize('top2vec_model', models)
+def test_index_words(top2vec_model):
+    top2vec_model.index_word_vectors()
+    assert top2vec_model._get_word_vectors().shape[1] <= top2vec_model.word_index.get_max_elements()
+
+
+@pytest.mark.parametrize('top2vec_model', models)
+def test_similar_words_index(top2vec_model):
+    keywords = get_model_vocab(top2vec_model)
+    keyword = keywords[-1]
+    num_words = 20
+
+    words, word_scores = top2vec_model.similar_words(keywords=[keyword], num_words=num_words, use_index=True)
+
+    # check that there is a score for each word
+    assert len(words) == len(word_scores) == num_words
+
+    # check that words are returned in decreasing order
+    assert all(word_scores[i] >= word_scores[i + 1] for i in range(len(word_scores) - 1))

@@ -316,7 +316,7 @@ class Top2Vec:
             logger.info('Creating joint document/word embedding')
 
             # embed words
-            self.word2index = dict(zip(self.vocab, range(len(self.vocab))))
+            self.word_indexes = dict(zip(self.vocab, range(len(self.vocab))))
             self.word_vectors = self._l2_normalize(np.array(self.embed(self.vocab)))
 
             # embed documents
@@ -368,12 +368,17 @@ class Top2Vec:
         self.topic_word_scores_reduced = None
         self.hierarchy = None
 
-        # initialize indexing variables
+        # initialize document indexing variables
         self.document_index = None
         self.serialized_document_index = None
         self.documents_indexed = False
         self.index_id2doc_id = None
         self.doc_id2index_id = None
+
+        # initialize word indexing variables
+        self.word_index = None
+        self.serialized_word_index = None
+        self.words_indexed = False
 
     def save(self, file):
         """
@@ -396,6 +401,14 @@ class Top2Vec:
             temp.close()
             self.document_index = None
 
+        # serialize word index so that it can be saved
+        if self.word_indexed:
+            temp = tempfile.NamedTemporaryFile(mode='w+b')
+            self.word_index.save_index(temp.name)
+            self.serialized_word_index = temp.read()
+            temp.close()
+            self.word_index = None
+
         dump(self, file)
 
     @classmethod
@@ -412,8 +425,8 @@ class Top2Vec:
 
         top2vec_model = load(file)
 
+        # load document index
         if top2vec_model.documents_indexed:
-
             if not _HAVE_HNSWLIB:
                 raise ImportError(f"Cannot load document index.\n\n"
                                   "Try: pip install top2vec[indexing]\n\n"
@@ -432,6 +445,28 @@ class Top2Vec:
             top2vec_model.document_index.load_index(temp.name, max_elements=document_vectors.shape[0])
             temp.close()
             top2vec_model.serialized_document_index = None
+
+        # load word index
+        if top2vec_model.words_indexed:
+
+            if not _HAVE_HNSWLIB:
+                raise ImportError(f"Cannot load word index.\n\n"
+                                  "Try: pip install top2vec[indexing]\n\n"
+                                  "Alternatively try: pip hnswlib")
+
+            temp = tempfile.NamedTemporaryFile(mode='w+b')
+            temp.write(top2vec_model.serialized_word_index)
+
+            if top2vec_model.embedding_model == 'doc2vec':
+                word_vectors = top2vec_model.model.wv.vectors
+            else:
+                word_vectors = top2vec_model.word_vectors
+
+            top2vec_model.word_index = hnswlib.Index(space='ip',
+                                                     dim=word_vectors.shape[1])
+            top2vec_model.word_index.load_index(temp.name, max_elements=word_vectors.shape[0])
+            temp.close()
+            top2vec_model.serialized_word_index = None
 
         return top2vec_model
 
@@ -484,6 +519,19 @@ class Top2Vec:
                 return self.model.docvecs.vectors_docs
         else:
             return self.document_vectors
+
+    def _index2word(self, index):
+        if self.embedding_model == 'doc2vec':
+            return self.model.wv.index2word[index]
+        else:
+            return self.vocab[index]
+
+    def _get_word_vectors(self):
+        if self.embedding_model == 'doc2vec':
+            self.model.wv.init_sims()
+            return self.model.wv.vectors_norm
+        else:
+            return self.word_vectors
 
     def _create_topic_vectors(self, cluster_labels):
 
@@ -585,24 +633,13 @@ class Top2Vec:
         topic_words = []
         topic_word_scores = []
 
-        if self.embedding_model == 'doc2vec':
-            self.model.wv.init_sims()
-            res = np.inner(topic_vectors, self.model.wv.vectors_norm)
-            top_words = np.flip(np.argsort(res, axis=1), axis=1)
-            top_scores = np.flip(np.sort(res, axis=1), axis=1)
+        res = np.inner(topic_vectors, self._get_word_vectors())
+        top_words = np.flip(np.argsort(res, axis=1), axis=1)
+        top_scores = np.flip(np.sort(res, axis=1), axis=1)
 
-            for words, scores in zip(top_words, top_scores):
-                topic_words.append([self.model.wv.index2word[i] for i in words[0:50]])
-                topic_word_scores.append(scores[0:50])
-
-        else:
-            res = np.inner(topic_vectors, self.word_vectors)
-            top_words = np.flip(np.argsort(res, axis=1), axis=1)
-            top_scores = np.flip(np.sort(res, axis=1), axis=1)
-
-            for words, scores in zip(top_words, top_scores):
-                topic_words.append([self.vocab[i] for i in words[0:50]])
-                topic_word_scores.append(scores[0:50])
+        for words, scores in zip(top_words, top_scores):
+            topic_words.append([self._index2word(i) for i in words[0:50]])
+            topic_word_scores.append(scores[0:50])
 
         topic_words = np.array(topic_words)
         topic_word_scores = np.array(topic_word_scores)
@@ -663,13 +700,15 @@ class Top2Vec:
         else:
             return [self.doc_id2index[doc_id] for doc_id in doc_ids]
 
-    def _get_word_vectors(self, keywords):
+    def _words2word_vectors(self, keywords):
 
+        return self._get_word_vectors()[[self._word2index(word) for word in keywords]]
+
+    def _word2index(self, word):
         if self.embedding_model == 'doc2vec':
-            self.model.wv.init_sims()
-            return [self.model.wv.vectors_norm[self.model.wv.vocab[word].index] for word in keywords]
+            return self.model.wv.vocab[word].index
         else:
-            return [self.word_vectors[self.word2index[word]] for word in keywords]
+            return self.word_indexes[word]
 
     def _get_combined_vec(self, vecs, vecs_neg):
 
@@ -702,6 +741,11 @@ class Top2Vec:
         if self.document_index is None:
             raise ImportError("There is no document index.\n\n"
                               "Call index_document_vectors method before setting use_index=True.")
+
+    def _check_word_index_status(self):
+        if self.word_index is None:
+            raise ImportError("There is no word index.\n\n"
+                              "Call index_word_vectors method before setting use_index=True.")
 
     def _check_import_status(self):
         if self.embedding_model != 'distiluse-base-multilingual-cased':
@@ -898,8 +942,9 @@ class Top2Vec:
 
         self._check_hnswlib_status()
 
-        vec_dim = self._get_document_vectors().shape[1]
-        num_vecs = self._get_document_vectors().shape[0]
+        document_vectors = self._get_document_vectors()
+        vec_dim = document_vectors.shape[1]
+        num_vecs = document_vectors.shape[0]
 
         index_ids = list(range(0, len(self.document_ids)))
 
@@ -908,8 +953,45 @@ class Top2Vec:
 
         self.document_index = hnswlib.Index(space='ip', dim=vec_dim)
         self.document_index.init_index(max_elements=num_vecs, ef_construction=ef_construction, M=M)
-        self.document_index.add_items(self._get_document_vectors(), index_ids)
+        self.document_index.add_items(document_vectors, index_ids)
         self.documents_indexed = True
+
+    def index_word_vectors(self, ef_construction=200, M=64):
+        """
+        Creates an index of the word vectors using hnswlib. This will
+        lead to faster search times for models with a large number of
+        words.
+
+        For more information on hnswlib see: https://github.com/nmslib/hnswlib
+
+        Parameters
+        ----------
+        ef_construction: int (Optional default 200)
+            This parameter controls the trade-off between index construction
+            time and index accuracy. Larger values will lead to greater
+            accuracy but will take longer to construct.
+
+        M: int (Optional default 64)
+            This parameter controls the trade-off between both index size as
+            well as construction time and accuracy. Larger values will lead to
+            greater accuracy but will result in a larger index as well as
+            longer construction time.
+
+            For more information on the parameters see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+        """
+        self._check_hnswlib_status()
+
+        word_vectors = self._get_word_vectors()
+        vec_dim = word_vectors.shape[1]
+        num_vecs = word_vectors.shape[0]
+
+        index_ids = list(range(0, num_vecs))
+
+        self.word_index = hnswlib.Index(space='ip', dim=vec_dim)
+        self.word_index.init_index(max_elements=num_vecs, ef_construction=ef_construction, M=M)
+        self.word_index.add_items(word_vectors, index_ids)
+        self.words_indexed = True
 
     def update_embedding_model_path(self, embedding_model_path):
         """
@@ -1461,8 +1543,8 @@ class Top2Vec:
             return_documents is set to True.
 
         doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to topic. The cosine similarity of
-            the document and topic vector.
+            Semantic similarity of document to vector. The cosine similarity of
+            the document and vector.
 
         doc_ids: array of int, shape(num_docs)
             Unique ids of documents. If ids were not given to the model, the
@@ -1476,6 +1558,8 @@ class Top2Vec:
 
             if ef is not None:
                 self.document_index.set_ef(ef)
+            else:
+                self.document_index.set_ef(num_docs)
 
             index_ids, doc_scores = self.document_index.knn_query(vector, k=num_docs)
             index_ids = index_ids[0]
@@ -1493,6 +1577,65 @@ class Top2Vec:
             return documents, doc_scores, doc_ids
         else:
             return doc_scores, doc_ids
+
+    def search_words_by_vector(self, vector, num_words, use_index=False, ef=None):
+        """
+        Semantic search of words using a vector.
+
+        These are the words closest to the vector. Words are ordered by
+        proximity to the vector. Successive words in the list are less
+        semantically similar to the vector.
+
+        Parameters
+        ----------
+        vector: array of shape(vector dimension, 1)
+            The vector dimension should be the same as the vectors in
+            the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
+
+        num_words: int
+            Number of words to return.
+
+        use_index: bool (Optional default False)
+            If index_words method has been called, setting this to True will
+            speed up search for models with large number of words.
+
+        ef: int (Optional default None)
+            Higher ef leads to more accurate but slower search. This value
+            must be higher than num_docs.
+
+            For more information see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+
+        Returns
+        -------
+        words: array of str, shape(num_words)
+            The words in a list, the most similar are first.
+
+        word_scores: array of float, shape(num_words)
+            Semantic similarity of word to vector. The cosine similarity of
+            the word and vector.
+        """
+
+        if use_index:
+            self._check_word_index_status()
+
+            if ef is not None:
+                self.word_index.set_ef(ef)
+            else:
+                self.word_index.set_ef(num_words)
+
+            word_indexes, word_scores = self.word_index.knn_query(vector, k=num_words)
+            word_indexes = word_indexes[0]
+            word_scores = word_scores[0]
+            word_scores = np.array([1 - score for score in word_scores])
+
+        else:
+            word_indexes, word_scores = self._search_vectors_by_vector(self._get_word_vectors(),
+                                                                       vector, num_words)
+
+        words = np.array([self._index2word(index) for index in word_indexes])
+
+        return words, word_scores
 
     def search_documents_by_topic(self, topic_num, num_docs, return_documents=True, reduced=False):
         """
@@ -1626,8 +1769,8 @@ class Top2Vec:
 
         self._validate_num_docs(num_docs)
         keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
-        word_vecs = self._get_word_vectors(keywords)
-        neg_word_vecs = self._get_word_vectors(keywords_neg)
+        word_vecs = self._words2word_vectors(keywords)
+        neg_word_vecs = self._words2word_vectors(keywords_neg)
 
         if use_index:
             self._check_document_index_status()
@@ -1654,7 +1797,7 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    def similar_words(self, keywords, num_words, keywords_neg=None):
+    def similar_words(self, keywords, num_words, keywords_neg=None, use_index=False, ef=None):
         """
         Semantic similarity search of words.
 
@@ -1678,6 +1821,16 @@ class Top2Vec:
         num_words: int
             Number of words to return.
 
+        use_index: bool (Optional default False)
+            If index_words method has been called, setting this to True will
+            speed up search for models with large number of words.
+
+        ef: int (Optional default None)
+            Higher ef leads to more accurate but slower search. This value
+            must be higher than num_docs.
+
+            For more information see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
 
         Returns
         -------
@@ -1693,30 +1846,34 @@ class Top2Vec:
 
         keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
 
-        if self.embedding_model == "doc2vec":
-            sim_words = self.model.wv.most_similar(positive=keywords,
-                                                   negative=keywords_neg,
-                                                   topn=num_words)
-            words = np.array([word[0] for word in sim_words])
-            word_scores = np.array([word[1] for word in sim_words])
-        else:
-            word_vecs = self._get_word_vectors(keywords)
-            neg_word_vecs = self._get_word_vectors(keywords_neg)
-            combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
+        word_vecs = self._words2word_vectors(keywords)
+        neg_word_vecs = self._words2word_vectors(keywords_neg)
+        combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
 
-            num_res = min(num_words + len(keywords) + len(keywords_neg), len(self.vocab))
+        num_res = min(num_words + len(keywords) + len(keywords_neg), self._get_word_vectors().shape[0])
 
-            word_indexes, word_scores = self._search_vectors_by_vector(self.word_vectors,
-                                                                       combined_vector, num_res)
+        # if use_index:
+        words, word_scores = self.search_words_by_vector(vector=combined_vector,
+                                                         num_words=num_res,
+                                                         use_index=use_index,
+                                                         ef=ef)
+        # else:
+        #     word_indexes, word_scores = self._search_vectors_by_vector(self._get_word_vectors(),
+        #                                                                combined_vector, num_res)
 
-            # do not return words that were searched
-            search_word_indexes = [self.word2index[word] for word in list(keywords) + list(keywords_neg)]
-            res_indexes = [index for index, word_ind in enumerate(word_indexes)
-                           if word_ind not in search_word_indexes][:num_words]
-            word_indexes = word_indexes[res_indexes]
-            word_scores = word_scores[res_indexes]
+        # do not return words that were searched
+        # search_word_indexes = [self._word2index(word) for word in list(keywords) + list(keywords_neg)]
+        # res_indexes = [index for index, word_ind in enumerate(word_indexes)
+        #                if word_ind not in search_word_indexes][:num_words]
+        # word_indexes = word_indexes[res_indexes]
+        # word_scores = word_scores[res_indexes]
+        #
+        # words = [self._index2word(word_index) for word_index in word_indexes]
 
-            words = [self.vocab[word] for word in word_indexes]
+        res_indexes = [index for index, word in enumerate(words)
+                       if word not in list(keywords) + list(keywords_neg)][:num_words]
+        words = words[res_indexes]
+        word_scores = word_scores[res_indexes]
 
         return words, word_scores
 
@@ -1781,8 +1938,8 @@ class Top2Vec:
 
         self._validate_num_topics(num_topics, reduced)
         keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
-        word_vecs = self._get_word_vectors(keywords)
-        neg_word_vecs = self._get_word_vectors(keywords_neg)
+        word_vecs = self._words2word_vectors(keywords)
+        neg_word_vecs = self._words2word_vectors(keywords_neg)
         combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
 
         if reduced:
