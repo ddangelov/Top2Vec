@@ -2,6 +2,7 @@ import pytest
 from top2vec import Top2Vec
 from sklearn.datasets import fetch_20newsgroups
 import numpy as np
+import tempfile
 
 # get 20 newsgroups data
 newsgroups_train = fetch_20newsgroups(subset='all', remove=('headers', 'footers', 'quotes'))
@@ -457,3 +458,11 @@ def test_similar_words_index(top2vec_model):
 
     # check that words are returned in decreasing order
     assert all(word_scores[i] >= word_scores[i + 1] for i in range(len(word_scores) - 1))
+
+
+@pytest.mark.parametrize('top2vec_model', models)
+def test_similar_words_index(top2vec_model):
+    temp = tempfile.NamedTemporaryFile(mode='w+b')
+    top2vec_model.save(temp.name)
+    Top2Vec.load(temp.name)
+    temp.close()

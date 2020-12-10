@@ -402,7 +402,7 @@ class Top2Vec:
             self.document_index = None
 
         # serialize word index so that it can be saved
-        if self.word_indexed:
+        if self.words_indexed:
             temp = tempfile.NamedTemporaryFile(mode='w+b')
             self.word_index.save_index(temp.name)
             self.serialized_word_index = temp.read()
