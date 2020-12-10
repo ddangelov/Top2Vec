@@ -1857,18 +1857,6 @@ class Top2Vec:
                                                          num_words=num_res,
                                                          use_index=use_index,
                                                          ef=ef)
-        # else:
-        #     word_indexes, word_scores = self._search_vectors_by_vector(self._get_word_vectors(),
-        #                                                                combined_vector, num_res)
-
-        # do not return words that were searched
-        # search_word_indexes = [self._word2index(word) for word in list(keywords) + list(keywords_neg)]
-        # res_indexes = [index for index, word_ind in enumerate(word_indexes)
-        #                if word_ind not in search_word_indexes][:num_words]
-        # word_indexes = word_indexes[res_indexes]
-        # word_scores = word_scores[res_indexes]
-        #
-        # words = [self._index2word(word_index) for word_index in word_indexes]
 
         res_indexes = [index for index, word in enumerate(words)
                        if word not in list(keywords) + list(keywords_neg)][:num_words]
