@@ -2084,10 +2084,16 @@ class Top2Vec:
         if reduced:
             self._validate_hierarchical_reduction()
             self._validate_topic_num(topic_num, reduced)
-            word_score_dict = dict(zip(self.topic_words_reduced[topic_num], self.topic_word_scores_reduced[topic_num]))
+
+            # get index of positive word scores
+            positive_max_index = np.max(np.argwhere(self.topic_word_scores_reduced[topic_num]>0)) + 1
+            word_score_dict = dict(zip(self.topic_words_reduced[topic_num][:positive_max_index], self.topic_word_scores_reduced[topic_num][:positive_max_index]))
         else:
             self._validate_topic_num(topic_num, reduced)
-            word_score_dict = dict(zip(self.topic_words[topic_num], self.topic_word_scores[topic_num]))
+
+            # get index of positive word scores
+            positive_max_index = np.max(np.argwhere(self.topic_word_scores[topic_num]>0)) + 1
+            word_score_dict = dict(zip(self.topic_words[topic_num][:positive_max_index], self.topic_word_scores[topic_num][positive_max_index]))
 
         plt.figure(figsize=(16, 4),
                    dpi=200)
