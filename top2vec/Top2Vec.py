@@ -2093,7 +2093,7 @@ class Top2Vec:
 
             # get index of positive word scores
             positive_max_index = np.max(np.argwhere(self.topic_word_scores[topic_num]>0)) + 1
-            word_score_dict = dict(zip(self.topic_words[topic_num][:positive_max_index], self.topic_word_scores[topic_num][positive_max_index]))
+            word_score_dict = dict(zip(self.topic_words[topic_num][:positive_max_index], self.topic_word_scores[topic_num][:positive_max_index]))
 
         plt.figure(figsize=(16, 4),
                    dpi=200)
