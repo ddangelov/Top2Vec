@@ -95,7 +95,7 @@ The easy way to install Top2Vec is:
     
 To install pre-trained universal sentence encoder options:
     
-    pip install top2vec[sentence-encoders]
+    pip install top2vec[sentence_encoders]
     
 To install pre-trained BERT sentence transformer options:
 
