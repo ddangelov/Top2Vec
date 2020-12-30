@@ -701,8 +701,10 @@ class Top2Vec:
             return [self.doc_id2index[doc_id] for doc_id in doc_ids]
 
     def _words2word_vectors(self, keywords):
-
-        return self._get_word_vectors()[[self._word2index(word) for word in keywords]]
+        if self.embedding_model == 'doc2vec':
+            return [self.model.infer_vector(keywords)]
+        else:
+            return self._get_word_vectors()[[self._word2index(word) for word in keywords]]
 
     def _word2index(self, word):
         if self.embedding_model == 'doc2vec':
@@ -874,13 +876,12 @@ class Top2Vec:
         keywords_neg_lower = [keyword.lower() for keyword in keywords_neg]
 
         if self.embedding_model == 'doc2vec':
-            vocab = self.model.wv.vocab
+            return keywords_lower, keywords_neg_lower
         else:
             vocab = self.vocab
-
-        for word in keywords_lower + keywords_neg_lower:
-            if word not in vocab:
-                raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched.")
+            for word in keywords_lower + keywords_neg_lower:
+                if word not in vocab:
+                    raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched.")
 
         return keywords_lower, keywords_neg_lower
 
