@@ -16,6 +16,7 @@ from sklearn.cluster import dbscan
 import tempfile
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
+from scipy.special import softmax
 
 try:
     import hnswlib
@@ -90,8 +91,9 @@ class Top2Vec:
 
         The distiluse-base-multilingual-cased pre-trained sentence transformer
         is suggested for multilingual datasets and languages that are not
-        covered by the multilingual universal sentence encoder. The transformer
-        is significantly slower than the universal sentence encoder options.
+        covered by the multilingual universal sentence encoder. The
+        transformer is significantly slower than the universal sentence
+        encoder options.
 
         For more informati ond istiluse-base-multilingual-cased visit:
         https://www.sbert.net/docs/pretrained_models.html
@@ -119,9 +121,9 @@ class Top2Vec:
         It will determine how fast the model takes to train. The
         fast-learn option is the fastest and will generate the lowest quality
         vectors. The learn option will learn better quality vectors but take
-        a longer time to train. The deep-learn option will learn the best quality
-        vectors but will take significant time to train. The valid string speed
-        options are:
+        a longer time to train. The deep-learn option will learn the best
+        quality vectors but will take significant time to train. The valid
+        string speed options are:
         
             * fast-learn
             * learn
@@ -131,10 +133,10 @@ class Top2Vec:
 
         This parameter is only used when using doc2vec as embedding_model.
 
-        Setting use_corpus_file to True can sometimes provide speedup for large
-        datasets when multiple worker threads are available. Documents are
-        still passed to the model as a list of str, the model will create a
-        temporary corpus file for training.
+        Setting use_corpus_file to True can sometimes provide speedup for
+        large datasets when multiple worker threads are available. Documents
+        are still passed to the model as a list of str, the model will create
+        a temporary corpus file for training.
 
     document_ids: List of str, int (Optional)
         A unique value per document that will be used for referring to
@@ -144,7 +146,8 @@ class Top2Vec:
     keep_documents: bool (Optional, default True)
         If set to False documents will only be used for training and not saved
         as part of the model. This will reduce model size. When using search
-        functions only document ids will be returned, not the actual documents.
+        functions only document ids will be returned, not the actual
+        documents.
 
     workers: int (Optional)
         The amount of worker threads to be used in training the model. Larger
@@ -153,6 +156,12 @@ class Top2Vec:
     tokenizer: callable (Optional, default None)
         Override the default tokenization method. If None then
         gensim.utils.simple_preprocess will be used.
+
+    use_embedding_model_tokenizer: bool (Optional, default False)
+        If using an embedding model other than doc2vec, use the model's
+        tokenizer for document embedding. If set to True the tokenizer, either
+        default or passed callable will be used to tokenize the text to
+        extract the vocabulary for word embedding.
     
     verbose: bool (Optional, default True)
         Whether to print status data during training.
@@ -169,6 +178,7 @@ class Top2Vec:
                  keep_documents=True,
                  workers=None,
                  tokenizer=None,
+                 use_embedding_model_tokenizer=False,
                  verbose=True):
 
         if verbose:
@@ -320,7 +330,10 @@ class Top2Vec:
             self.word_vectors = self._l2_normalize(np.array(self.embed(self.vocab)))
 
             # embed documents
-            self.document_vectors = self._embed_documents(train_corpus)
+            if use_embedding_model_tokenizer:
+                self.document_vectors = self._embed_documents(documents)
+            else:
+                self.document_vectors = self._embed_documents(train_corpus)
 
         else:
             raise ValueError(f"{embedding_model} is an invalid embedding model.")
@@ -430,7 +443,7 @@ class Top2Vec:
             if not _HAVE_HNSWLIB:
                 raise ImportError(f"Cannot load document index.\n\n"
                                   "Try: pip install top2vec[indexing]\n\n"
-                                  "Alternatively try: pip hnswlib")
+                                  "Alternatively try: pip install hnswlib")
 
             temp = tempfile.NamedTemporaryFile(mode='w+b')
             temp.write(top2vec_model.serialized_document_index)
@@ -452,7 +465,7 @@ class Top2Vec:
             if not _HAVE_HNSWLIB:
                 raise ImportError(f"Cannot load word index.\n\n"
                                   "Try: pip install top2vec[indexing]\n\n"
-                                  "Alternatively try: pip hnswlib")
+                                  "Alternatively try: pip install hnswlib")
 
             temp = tempfile.NamedTemporaryFile(mode='w+b')
             temp.write(top2vec_model.serialized_word_index)
@@ -735,7 +748,7 @@ class Top2Vec:
         if not _HAVE_HNSWLIB:
             raise ImportError(f"Indexing is not available.\n\n"
                               "Try: pip install top2vec[indexing]\n\n"
-                              "Alternatively try: pip hnswlib")
+                              "Alternatively try: pip install hnswlib")
 
     def _check_document_index_status(self):
         if self.document_index is None:
@@ -2084,10 +2097,12 @@ class Top2Vec:
         if reduced:
             self._validate_hierarchical_reduction()
             self._validate_topic_num(topic_num, reduced)
-            word_score_dict = dict(zip(self.topic_words_reduced[topic_num], self.topic_word_scores_reduced[topic_num]))
+            word_score_dict = dict(zip(self.topic_words_reduced[topic_num],
+                                       softmax(self.topic_word_scores_reduced[topic_num])))
         else:
             self._validate_topic_num(topic_num, reduced)
-            word_score_dict = dict(zip(self.topic_words[topic_num], self.topic_word_scores[topic_num]))
+            word_score_dict = dict(zip(self.topic_words[topic_num],
+                                       softmax(self.topic_word_scores[topic_num])))
 
         plt.figure(figsize=(16, 4),
                    dpi=200)

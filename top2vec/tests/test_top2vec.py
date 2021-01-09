@@ -1,5 +1,5 @@
 import pytest
-from top2vec import Top2Vec
+from top2vec.Top2Vec import Top2Vec
 from sklearn.datasets import fetch_20newsgroups
 import numpy as np
 import tempfile
@@ -24,16 +24,27 @@ top2vec_corpus_file = Top2Vec(documents=newsgroups_documents, use_corpus_file=Tr
 # test USE
 top2vec_use = Top2Vec(documents=newsgroups_documents, embedding_model='universal-sentence-encoder')
 
+# test USE with model embedding
+top2vec_use_model_embedding = Top2Vec(documents=newsgroups_documents,
+                                      embedding_model='universal-sentence-encoder',
+                                      use_embedding_model_tokenizer=True)
+
 # test USE-multilang
 top2vec_use_multilang = Top2Vec(documents=newsgroups_documents,
                                 embedding_model='universal-sentence-encoder-multilingual')
 
-# test USE-multilang
+# test Sentence Transformer-multilang
 top2vec_transformer_multilang = Top2Vec(documents=newsgroups_documents,
                                         embedding_model='distiluse-base-multilingual-cased')
 
+# test Sentence Transformer with model emebdding
+top2vec_transformer_model_embedding = Top2Vec(documents=newsgroups_documents,
+                                              embedding_model='distiluse-base-multilingual-cased',
+                                              use_embedding_model_tokenizer=True)
+
 models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
-          top2vec_use, top2vec_use_multilang, top2vec_transformer_multilang]
+          top2vec_use, top2vec_use_multilang, top2vec_transformer_multilang,
+          top2vec_use_model_embedding, top2vec_transformer_model_embedding]
 
 
 def get_model_vocab(top2vec_model):
@@ -177,12 +188,12 @@ def test_get_topic_size(top2vec_model, reduced):
     assert all(topic_sizes[i] >= topic_sizes[i + 1] for i in range(len(topic_sizes) - 1))
 
 
-# @pytest.mark.parametrize('top2vec_model', models)
-# @pytest.mark.parametrize('reduced', [False, True])
-# def test_generate_topic_wordcloud(top2vec_model, reduced):
-#     # generate word cloud
-#     num_topics = top2vec_model.get_num_topics(reduced=reduced)
-#     top2vec_model.generate_topic_wordcloud(num_topics - 1, reduced=reduced)
+@pytest.mark.parametrize('top2vec_model', models)
+@pytest.mark.parametrize('reduced', [False, True])
+def test_generate_topic_wordcloud(top2vec_model, reduced):
+    # generate word cloud
+    num_topics = top2vec_model.get_num_topics(reduced=reduced)
+    top2vec_model.generate_topic_wordcloud(num_topics - 1, reduced=reduced)
 
 
 @pytest.mark.parametrize('top2vec_model', models)
