@@ -179,7 +179,9 @@ class Top2Vec:
                  workers=None,
                  tokenizer=None,
                  use_embedding_model_tokenizer=False,
-                 verbose=True):
+                 verbose=True,
+                 umap_args=None,
+                 hdbscan_args=None):
 
         if verbose:
             logger.setLevel(logging.DEBUG)
@@ -340,15 +342,19 @@ class Top2Vec:
 
         # create 5D embeddings of documents
         logger.info('Creating lower dimension embedding of documents')
-        umap_model = umap.UMAP(n_neighbors=15,
-                               n_components=5,
-                               metric='cosine').fit(self._get_document_vectors(norm=False))
+        
+        self.umap_args = {'n_neighbors': 15,
+                            'n_components': 5,
+                            'metric': 'cosine'} if umap_args is not None else umap_args
+        umap_model = umap.UMAP(**self.umap_args).fit(self._get_document_vectors(norm=False))
 
         # find dense areas of document vectors
         logger.info('Finding dense areas of documents')
-        cluster = hdbscan.HDBSCAN(min_cluster_size=15,
-                                  metric='euclidean',
-                                  cluster_selection_method='eom').fit(umap_model.embedding_)
+        
+        self.hdbscan_args = {'min_cluster_size': 15,
+                            'metric': 'euclidean',
+                            'cluster_selection_method': 'eom'} if hdbscan_args is not None else hdbscan_args
+        cluster = hdbscan.HDBSCAN(**self.hdbscan_args).fit(umap_model.embedding_)
 
         # calculate topic vectors from dense areas of documents
         logger.info('Finding topics')
