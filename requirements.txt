@@ -5,10 +5,5 @@ pynndescent>=0.4
 umap-learn
 hdbscan
 wordcloud
-tensorflow
-tensorflow_hub
-tensorflow_text
-torch
-sentence_transformers
 hnswlib
 joblib<1.0.0
