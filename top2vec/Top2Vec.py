@@ -807,9 +807,13 @@ class Top2Vec:
         if num < 0:
             raise ValueError(f"{var_name} cannot be less than 0.")
 
-    def _validate_hierarchical_reduction(self):
-        if self.hierarchy is None:
+    def _validate_hierarchical_reduction(self, reduced):
+        if reduced is None:  # When user designate the reduced parameter
+            return self.hierarchy is not None
+        elif reduced and self.hierarchy is None:
             raise ValueError("Hierarchical topic reduction has not been performed.")
+        else:
+            return reduced
 
     def _validate_hierarchical_reduction_num_topics(self, num_topics):
         current_num_topics = len(self.topic_vectors)
@@ -1031,7 +1035,7 @@ class Top2Vec:
         """
         self.embedding_model_path = None
 
-    def get_documents_topics(self, doc_ids, reduced=False):
+    def get_documents_topics(self, doc_ids, reduced=None):
         """
         Get document topics.
 
@@ -1079,8 +1083,7 @@ class Top2Vec:
             ...]
 
         """
-        if reduced:
-            self._validate_hierarchical_reduction()
+        reduced = self._validate_hierarchical_reduction(reduced)
 
         # make sure documents exist
         self._validate_doc_ids(doc_ids, doc_ids_neg=[])
@@ -1253,7 +1256,7 @@ class Top2Vec:
         if self.hierarchy is not None:
             self._unassign_documents_from_topic(doc_indexes, hierarchy=True)
 
-    def get_num_topics(self, reduced=False):
+    def get_num_topics(self, reduced=None):
         """
         Get number of topics.
 
@@ -1271,14 +1274,13 @@ class Top2Vec:
         -------
         num_topics: int
         """
-
+        reduced = self._validate_hierarchical_reduction(reduced)
         if reduced:
-            self._validate_hierarchical_reduction()
             return len(self.topic_vectors_reduced)
         else:
             return len(self.topic_vectors)
 
-    def get_topic_sizes(self, reduced=False):
+    def get_topic_sizes(self, reduced=None):
         """
         Get topic sizes.
 
@@ -1301,13 +1303,13 @@ class Top2Vec:
         topic_nums: array of int, shape(num_topics)
             The unique number of every topic will be returned.
         """
+        reduced = self._validate_hierarchical_reduction(reduced)
         if reduced:
-            self._validate_hierarchical_reduction()
             return np.array(self.topic_sizes_reduced.values), np.array(self.topic_sizes_reduced.index)
         else:
             return np.array(self.topic_sizes.values), np.array(self.topic_sizes.index)
 
-    def get_topics(self, num_topics=None, reduced=False):
+    def get_topics(self, num_topics=None, reduced=None):
         """
         Get topics, ordered by decreasing size. All topics are returned
         if num_topics is not specified.
@@ -1352,8 +1354,8 @@ class Top2Vec:
         topic_nums: array of int, shape(num_topics)
             The unique number of every topic will be returned.
         """
+        reduced = self._validate_hierarchical_reduction(reduced)
         if reduced:
-            self._validate_hierarchical_reduction()
 
             if num_topics is None:
                 num_topics = len(self.topic_vectors_reduced)
@@ -1650,7 +1652,7 @@ class Top2Vec:
 
         return words, word_scores
 
-    def search_documents_by_topic(self, topic_num, num_docs, return_documents=True, reduced=False):
+    def search_documents_by_topic(self, topic_num, num_docs, return_documents=True, reduced=None):
         """
         Get the most semantically similar documents to the topic.
 
@@ -1690,9 +1692,8 @@ class Top2Vec:
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
-
+        reduced = self._validate_hierarchical_reduction(reduced)
         if reduced:
-            self._validate_hierarchical_reduction()
             self._validate_topic_num(topic_num, reduced)
             self._validate_topic_search(topic_num, num_docs, reduced)
 
@@ -1878,7 +1879,7 @@ class Top2Vec:
 
         return words, word_scores
 
-    def search_topics(self, keywords, num_topics, keywords_neg=None, reduced=False):
+    def search_topics(self, keywords, num_topics, keywords_neg=None, reduced=None):
         """
         Semantic search of topics using keywords.
 
@@ -1943,9 +1944,8 @@ class Top2Vec:
         neg_word_vecs = self._words2word_vectors(keywords_neg)
         combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
 
+        reduced = self._validate_hierarchical_reduction(reduced)
         if reduced:
-            self._validate_hierarchical_reduction()
-
             topic_nums, topic_scores = self._search_vectors_by_vector(self.topic_vectors_reduced,
                                                                       combined_vector, num_topics)
             topic_words = [self.topic_words_reduced[topic] for topic in topic_nums]
@@ -2064,7 +2064,7 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    def generate_topic_wordcloud(self, topic_num, background_color="black", reduced=False):
+    def generate_topic_wordcloud(self, topic_num, background_color="black", reduced=None):
         """
         Create a word cloud for a topic.
 
@@ -2093,9 +2093,8 @@ class Top2Vec:
         displayed.
 
         """
-
+        reduced = self._validate_hierarchical_reduction(reduced)
         if reduced:
-            self._validate_hierarchical_reduction()
             self._validate_topic_num(topic_num, reduced)
             word_score_dict = dict(zip(self.topic_words_reduced[topic_num],
                                        softmax(self.topic_word_scores_reduced[topic_num])))
