@@ -26,7 +26,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'numpy == 1.19.2',
+        'numpy == 1.20.0',
         'joblib < 1.0.0',
         'pandas',
         'gensim',
