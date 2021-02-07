@@ -12,4 +12,4 @@ torch
 sentence_transformers
 hnswlib
 joblib<1.0.0
-numpy==1.19.2
+numpy<1.19.0
