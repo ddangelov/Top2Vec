@@ -1,3 +1,4 @@
+numpy>=1.20.0
 pandas
 gensim
 umap-learn>=0.5.1
