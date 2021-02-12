@@ -884,12 +884,15 @@ class Top2Vec:
             doc_ids_neg = list(doc_ids_neg)
 
         doc_ids_all = doc_ids + doc_ids_neg
-        for doc_id in doc_ids_all:
-            if self.document_ids is not None:
-                if doc_id not in self.document_ids:
+
+        if self.document_ids is not None:
+            for doc_id in doc_ids_all:
+                if doc_id not in self.doc_id2index:
                     raise ValueError(f"{doc_id} is not a valid document id.")
-            elif doc_id < 0 or doc_id > len(self.doc_top) - 1:
-                raise ValueError(f"{doc_id} is not a valid document id.")
+        elif min(doc_ids) < 0:
+            raise ValueError(f"{min(doc_ids)} is not a valid document id.")
+        elif max(doc_ids) > len(self.doc_top) - 1:
+            raise ValueError(f"{max(doc_ids)} is not a valid document id.")
 
     def _validate_keywords(self, keywords, keywords_neg):
         if not (isinstance(keywords, list) or isinstance(keywords, np.ndarray)):
