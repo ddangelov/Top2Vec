@@ -26,13 +26,13 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'numpy == 1.20.0',
-        'joblib < 1.0.0',
+        #'numpy == 1.20.0',
+        #'joblib < 1.0.0',
         'pandas',
         'gensim',
-        'pynndescent >= 0.4',
-        'umap-learn',
-        'hdbscan',
+        #'pynndescent >= 0.4',
+        'umap-learn >= 0.5.1',
+        'hdbscan >= 0.8.27',
         'wordcloud',
     ],
     extras_require={
