@@ -421,6 +421,9 @@ class Top2Vec:
             File where model will be saved.
         """
 
+        document_index_temp = None
+        word_index_temp = None
+
         # do not save sentence encoders and sentence transformers
         if self.embedding_model != "doc2vec":
             self.embed = None
@@ -431,6 +434,7 @@ class Top2Vec:
             self.document_index.save_index(temp.name)
             self.serialized_document_index = temp.read()
             temp.close()
+            document_index_temp = self.document_index
             self.document_index = None
 
         # serialize word index so that it can be saved
@@ -439,9 +443,13 @@ class Top2Vec:
             self.word_index.save_index(temp.name)
             self.serialized_word_index = temp.read()
             temp.close()
+            word_index_temp = self.word_index
             self.word_index = None
 
         dump(self, file)
+
+        self.document_index = document_index_temp
+        self.word_index = word_index_temp
 
     @classmethod
     def load(cls, file):
