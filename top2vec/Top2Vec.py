@@ -313,11 +313,14 @@ class Top2Vec:
             logger.info('Pre-processing documents for training')
 
             # preprocess documents
-            train_corpus = [' '.join(tokenizer(doc)) for doc in documents]
+            tokenized_corpus = [tokenizer(doc) for doc in documents]
+
+            def return_doc(doc):
+                return doc
 
             # preprocess vocabulary
-            vectorizer = CountVectorizer()
-            doc_word_counts = vectorizer.fit_transform(train_corpus)
+            vectorizer = CountVectorizer(tokenizer=return_doc, preprocessor=return_doc)
+            doc_word_counts = vectorizer.fit_transform(tokenized_corpus)
             words = vectorizer.get_feature_names()
             word_counts = np.array(np.sum(doc_word_counts, axis=0).tolist()[0])
             vocab_inds = np.where(word_counts > min_count)[0]
@@ -339,6 +342,7 @@ class Top2Vec:
             if use_embedding_model_tokenizer:
                 self.document_vectors = self._embed_documents(documents)
             else:
+                train_corpus = [' '.join(tokens) for tokens in tokenized_corpus]
                 self.document_vectors = self._embed_documents(train_corpus)
 
         else:
