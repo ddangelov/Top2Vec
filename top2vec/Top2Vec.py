@@ -367,6 +367,10 @@ class Top2Vec:
                              'cluster_selection_method': 'eom'}
 
         cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
+        
+        # save the UMAP and HDBSCAN model
+        self.umap_model = umap_model	
+        self.cluster = cluster
 
         # calculate topic vectors from dense areas of documents
         logger.info('Finding topics')
@@ -1319,6 +1323,26 @@ class Top2Vec:
             return len(self.topic_vectors_reduced)
         else:
             return len(self.topic_vectors)
+        
+    def get_umap(self):	
+        """	
+        Get the UMAP model when the model is built.	
+
+        Returns	
+        -------	
+        umap_model: umap	
+        """	
+        return self.umap_model	
+
+    def get_hdbscan_cluster(self):	
+        """	
+        Get the HDBSCAN model when the model is built.	
+
+        Returns	
+        -------	
+        cluster: HDBSCAN	
+        """	
+        return self.cluster
 
     def get_topic_sizes(self, reduced=False):
         """
