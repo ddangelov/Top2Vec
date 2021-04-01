@@ -1,6 +1,6 @@
 numpy>=1.20.0
 pandas
-gensim
+gensim==3.8.3
 umap-learn>=0.5.1
 hdbscan>=0.8.27
 wordcloud
