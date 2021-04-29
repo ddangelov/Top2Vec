@@ -17,6 +17,10 @@ import tempfile
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
 from scipy.special import softmax
+from tqdm import tqdm
+from gensim.models.callbacks import CallbackAny2Vec
+
+
 
 try:
     import hnswlib
@@ -40,6 +44,25 @@ try:
     _HAVE_TORCH = True
 except ImportError:
     _HAVE_TORCH = False
+
+
+class EpochLogger(CallbackAny2Vec):
+    '''Callback to log information about training'''
+
+    def __init__(self,numEpochs):
+        self.epoch = 0
+        self.numEpochs=numEpochs
+        self.t = tqdm(total=numEpochs)
+
+    def on_epoch_begin(self, model):
+        self.t.update(1)
+        #self.t.write("Epoch #{}/{} start".format(self.epoch,self.numEpochs))
+
+    def on_epoch_end(self, model):
+        #self.t.write("Epoch #{} end".format(self.epoch))
+        self.epoch += 1
+
+
 
 logger = logging.getLogger('top2vec')
 logger.setLevel(logging.WARNING)
@@ -123,7 +146,7 @@ class Top2Vec:
         a longer time to train. The deep-learn option will learn the best
         quality vectors but will take significant time to train. The valid
         string speed options are:
-        
+
             * fast-learn
             * learn
             * deep-learn
@@ -151,7 +174,7 @@ class Top2Vec:
     workers: int (Optional)
         The amount of worker threads to be used in training the model. Larger
         amount will lead to faster training.
-    
+
     tokenizer: callable (Optional, default None)
         Override the default tokenization method. If None then
         gensim.utils.simple_preprocess will be used.
@@ -167,7 +190,7 @@ class Top2Vec:
 
     hdbscan_args: dict (Optional, default None)
         Pass custom arguments to HDBSCAN.
-    
+
     verbose: bool (Optional, default True)
         Whether to print status data during training.
     """
@@ -274,7 +297,7 @@ class Top2Vec:
                             "min_count": min_count,
                             "window": 15,
                             "sample": 1e-5,
-                            "negative": negative,
+                             "negative": negative,
                             "hs": hs,
                             "epochs": epochs,
                             "dm": 0,
@@ -283,7 +306,7 @@ class Top2Vec:
             if workers is not None:
                 doc2vec_args["workers"] = workers
 
-            logger.info('Pre-processing documents for training')
+            logger.info('Pre-processing documents for progress training')
 
             if use_corpus_file:
                 processed = [' '.join(tokenizer(doc)) for doc in documents]
@@ -293,10 +316,14 @@ class Top2Vec:
                 doc2vec_args["corpus_file"] = temp.name
 
             else:
-                train_corpus = [TaggedDocument(tokenizer(doc), [i]) for i, doc in enumerate(documents)]
+                train_corpus = [TaggedDocument(tokenizer(doc), [i]) for i, doc in tqdm(enumerate(documents),total=len(documents))]
                 doc2vec_args["documents"] = train_corpus
 
             logger.info('Creating joint document/word embedding')
+            epoch_logger = EpochLogger(epochs)
+            doc2vec_args["callbacks"] = [epoch_logger]
+
+
             self.embedding_model = 'doc2vec'
             self.model = Doc2Vec(**doc2vec_args)
 
@@ -313,7 +340,7 @@ class Top2Vec:
             logger.info('Pre-processing documents for training')
 
             # preprocess documents
-            tokenized_corpus = [tokenizer(doc) for doc in documents]
+            tokenized_corpus = [tokenizer(doc) for doc in tqdm(documents,total=len(documents))]
 
             def return_doc(doc):
                 return doc
@@ -354,6 +381,7 @@ class Top2Vec:
         if umap_args is None:
             umap_args = {'n_neighbors': 15,
                          'n_components': 5,
+                         'verbose' : True,
                          'metric': 'cosine'}
 
         umap_model = umap.UMAP(**umap_args).fit(self._get_document_vectors(norm=False))
@@ -446,6 +474,7 @@ class Top2Vec:
             word_index_temp = self.word_index
             self.word_index = None
 
+        self.model.callbacks = None
         dump(self, file)
 
         self.document_index = document_index_temp
@@ -962,7 +991,7 @@ class Top2Vec:
         """
         Creates an index of the document vectors using hnswlib. This will
         lead to faster search times for models with a large number of
-        documents. 
+        documents.
 
         For more information on hnswlib see: https://github.com/nmslib/hnswlib
 
@@ -1191,7 +1220,7 @@ class Top2Vec:
             document_vectors = np.vstack([self.model.infer_vector(doc_words=doc,
                                                                   alpha=0.025,
                                                                   min_alpha=0.01,
-                                                                  epochs=100) for doc in docs_processed])
+                                                                  epochs=100) for doc in tqdm(docs_processed)])
             num_docs = len(documents)
             self.model.docvecs.count += num_docs
             self.model.docvecs.max_rawint += num_docs
@@ -1376,7 +1405,7 @@ class Top2Vec:
         topics_words: array of shape(num_topics, 50)
             For each topic the top 50 words are returned, in order
             of semantic similarity to topic.
-            
+
             Example:
             [['data', 'deep', 'learning' ... 'artificial'],         <Topic 0>
             ['environment', 'warming', 'climate ... 'temperature']  <Topic 1>
@@ -1385,7 +1414,7 @@ class Top2Vec:
         word_scores: array of shape(num_topics, 50)
             For each topic the cosine similarity scores of the
             top 50 words to the topic are returned.
-            
+
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],  <Topic 0>
             [0.7818', 0.7671, 0.7603 ... 0.6769]   <Topic 1>
@@ -1954,7 +1983,7 @@ class Top2Vec:
         topics_words: array of shape (num_topics, 50)
             For each topic the top 50 words are returned, in order of semantic
             similarity to topic.
-            
+
             Example:
             [['data', 'deep', 'learning' ... 'artificial'],           <Topic 0>
             ['environment', 'warming', 'climate ... 'temperature']    <Topic 1>
@@ -1963,7 +1992,7 @@ class Top2Vec:
         word_scores: array of shape (num_topics, 50)
             For each topic the cosine similarity scores of the top 50 words
             to the topic are returned.
-            
+
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],     <Topic 0>
             [0.7818', 0.7671, 0.7603 ... 0.6769]     <Topic 1>
