@@ -306,7 +306,7 @@ class Top2Vec:
             if workers is not None:
                 doc2vec_args["workers"] = workers
 
-            logger.info('Pre-processing documents for progress training')
+            logger.info('Pre-processing documents for training')
 
             if use_corpus_file:
                 processed = [' '.join(tokenizer(doc)) for doc in documents]
