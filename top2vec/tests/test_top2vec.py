@@ -21,6 +21,9 @@ top2vec_no_docs = Top2Vec(documents=newsgroups_documents, keep_documents=False, 
 # train top2vec model with corpus_file
 top2vec_corpus_file = Top2Vec(documents=newsgroups_documents, use_corpus_file=True, speed="fast-learn", workers=8)
 
+# train top2vec model with corpus_file using PCA
+top2vec_pca = Top2Vec(documents=newsgroups_documents, use_corpus_file=True, speed="fast-learn", workers=8, pca_args={"n_components": "mle", "svd_solver": "full"})
+
 # test USE
 top2vec_use = Top2Vec(documents=newsgroups_documents, embedding_model='universal-sentence-encoder')
 
@@ -42,7 +45,7 @@ top2vec_transformer_model_embedding = Top2Vec(documents=newsgroups_documents,
                                               embedding_model='distiluse-base-multilingual-cased',
                                               use_embedding_model_tokenizer=True)
 
-models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
+models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file, top2vec_pca,
           top2vec_use, top2vec_use_multilang, top2vec_transformer_multilang,
           top2vec_use_model_embedding, top2vec_transformer_model_embedding]
 

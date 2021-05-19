@@ -418,3 +418,15 @@ for word, score in zip(words, word_scores):
     facility 0.4325
     propulsion 0.4251
     aerospace 0.4226
+
+### Dimensionality Reduction
+
+By default Top2Vec will use UMAP, which can be configured using the `umap_args` parameter. The default value is:
+
+    {"n_neighbors": 15, "n_components": 5, "metric": "cosine"}
+
+If you would like to use PCA instead, you can use the `pca_args` parameter.
+
+```
+model = Top2Vec(documents, pca_args={"n_components": "mle", "svd_solver": "full"})
+```

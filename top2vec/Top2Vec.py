@@ -13,6 +13,7 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from joblib import dump, load
 from sklearn.cluster import dbscan
+from sklearn.decomposition import PCA
 import tempfile
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
@@ -165,6 +166,9 @@ class Top2Vec:
     umap_args: dict (Optional, default None)
         Pass custom arguments to UMAP.
 
+    pca_args: dict(Optional, default None)
+        Pass arguments to use PCA rather than UMAP
+
     hdbscan_args: dict (Optional, default None)
         Pass custom arguments to HDBSCAN.
     
@@ -185,6 +189,7 @@ class Top2Vec:
                  tokenizer=None,
                  use_embedding_model_tokenizer=False,
                  umap_args=None,
+                 pca_args=None,
                  hdbscan_args=None,
                  verbose=True
                  ):
@@ -351,12 +356,20 @@ class Top2Vec:
         # create 5D embeddings of documents
         logger.info('Creating lower dimension embedding of documents')
 
-        if umap_args is None:
-            umap_args = {'n_neighbors': 15,
-                         'n_components': 5,
-                         'metric': 'cosine'}
-
-        umap_model = umap.UMAP(**umap_args).fit(self._get_document_vectors(norm=False))
+        if pca_args and umap_args:
+            raise ValueError("Cannot use both PCA and UMAP")
+        if pca_args is None:
+            if umap_args is None:
+                umap_args = {"n_neighbors": 15, "n_components": 5, "metric": "cosine"}
+            dim_reduced_embeddings = (
+                umap.UMAP(**umap_args)
+                .fit(self._get_document_vectors(norm=False))
+                .embedding_
+            )
+        else:
+            dim_reduced_embeddings = PCA(**pca_args).fit_transform(
+                self._get_document_vectors(norm=False)
+            )
 
         # find dense areas of document vectors
         logger.info('Finding dense areas of documents')
@@ -366,8 +379,7 @@ class Top2Vec:
                              'metric': 'euclidean',
                              'cluster_selection_method': 'eom'}
 
-        cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
-
+        cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(dim_reduced_embeddings)
         # calculate topic vectors from dense areas of documents
         logger.info('Finding topics')
 
