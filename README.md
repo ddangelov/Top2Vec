@@ -418,3 +418,15 @@ for word, score in zip(words, word_scores):
     facility 0.4325
     propulsion 0.4251
     aerospace 0.4226
+
+### Clustering
+
+By default Top2Vec will use HDBSCAN, which can be configured using the `hdbscan_args` parameter. The default value is:
+
+    {'min_cluster_size': 15, 'metric': 'euclidean', 'cluster_selection_method': 'eom'}
+
+If you would like to use KMeans instead you can use the `kmeans_args` parameter.
+
+```
+model = Top2Vec(documents, kmeans_args = {"n_clusters": 15, "init": "k-means++"})
+```

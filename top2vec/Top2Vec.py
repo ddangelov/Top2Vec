@@ -12,7 +12,7 @@ import hdbscan
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from joblib import dump, load
-from sklearn.cluster import dbscan
+from sklearn.cluster import dbscan, KMeans
 import tempfile
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
@@ -168,6 +168,9 @@ class Top2Vec:
     hdbscan_args: dict (Optional, default None)
         Pass custom arguments to HDBSCAN.
     
+    kmeans_args: dict (Optional, default None)
+        Pass arguments to use Kmeans rather than HDBSCAN
+
     verbose: bool (Optional, default True)
         Whether to print status data during training.
     """
@@ -186,6 +189,7 @@ class Top2Vec:
                  use_embedding_model_tokenizer=False,
                  umap_args=None,
                  hdbscan_args=None,
+                 kmeans_args=None,
                  verbose=True
                  ):
 
@@ -361,12 +365,16 @@ class Top2Vec:
         # find dense areas of document vectors
         logger.info('Finding dense areas of documents')
 
-        if hdbscan_args is None:
-            hdbscan_args = {'min_cluster_size': 15,
-                             'metric': 'euclidean',
-                             'cluster_selection_method': 'eom'}
-
-        cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
+        if kmeans_args and hdbscan_args:
+            raise ValueError("Cannot use both Kmeans and HDBSCAN")
+        if kmeans_args is None:
+            if hdbscan_args is None:
+                hdbscan_args = {'min_cluster_size': 15,
+                                'metric': 'euclidean',
+                                'cluster_selection_method': 'eom'}
+            cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
+        else:
+            cluster = KMeans(**kmeans_args).fit(self._get_document_vectors(norm=False))
 
         # calculate topic vectors from dense areas of documents
         logger.info('Finding topics')
