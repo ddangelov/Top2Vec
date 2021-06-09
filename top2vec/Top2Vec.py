@@ -292,6 +292,7 @@ class Top2Vec:
                 temp.write(lines)
                 doc2vec_args["corpus_file"] = temp.name
 
+
             else:
                 train_corpus = [TaggedDocument(tokenizer(doc), [i]) for i, doc in enumerate(documents)]
                 doc2vec_args["documents"] = train_corpus
@@ -363,8 +364,8 @@ class Top2Vec:
 
         if hdbscan_args is None:
             hdbscan_args = {'min_cluster_size': 15,
-                             'metric': 'euclidean',
-                             'cluster_selection_method': 'eom'}
+                            'metric': 'euclidean',
+                            'cluster_selection_method': 'eom'}
 
         cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
 
@@ -1211,16 +1212,16 @@ class Top2Vec:
         # update index
         if self.documents_indexed:
             # update capacity of index
-            current_max = self.documents_index.get_max_elements()
+            current_max = self.document_index.get_max_elements()
             updated_max = current_max + len(documents)
-            self.documents_index.resize_index(updated_max)
+            self.document_index.resize_index(updated_max)
 
             # update index_id and doc_ids
             start_index_id = max(self.index_id2doc_id.keys()) + 1
             new_index_ids = list(range(start_index_id, start_index_id + len(doc_ids)))
             self.index_id2doc_id.update(dict(zip(new_index_ids, doc_ids)))
             self.doc_id2index_id.update(dict(zip(doc_ids, new_index_ids)))
-            self.documents_index.add_items(document_vectors, new_index_ids)
+            self.document_index.add_items(document_vectors, new_index_ids)
 
         # update topics
         self._assign_documents_to_topic(document_vectors, hierarchy=False)
