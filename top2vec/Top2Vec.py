@@ -976,6 +976,11 @@ class Top2Vec:
         if not all((isinstance(doc, str) or isinstance(doc, np.str_)) for doc in documents):
             raise ValueError("Documents need to be a list of strings.")
 
+    @staticmethod
+    def _validate_query(query):
+        if not isinstance(query, str) or isinstance(query, np.str_):
+            raise ValueError("Query needs to be a string.")
+
     def _validate_vector(self, vector):
         if not isinstance(vector, np.ndarray):
             raise ValueError("Vector needs to be a numpy array.")
@@ -1598,6 +1603,82 @@ class Top2Vec:
         self._reorder_topics(hierarchy=True)
 
         return self.hierarchy
+
+    def query_documents(self, query, num_docs, return_documents=True, use_index=False, ef=None, tokenizer=None):
+        """
+        Semantic search of documents using a query.
+
+        The most semantically similar documents to the query will be returned.
+
+        Parameters
+        ----------
+        query: string
+            Any sequence of text. This could be an actual question, a sentence,
+            a paragraph or a document.
+
+        num_docs: int
+            Number of documents to return.
+
+        return_documents: bool (Optional default True)
+            Determines if the documents will be returned. If they were not
+            saved in the model they will not be returned.
+
+        use_index: bool (Optional default False)
+            If index_documents method has been called, setting this to True
+            will speed up search for models with large number of documents.
+
+        ef: int (Optional default None)
+            Higher ef leads to more accurate but slower search. This value
+            must be higher than num_docs.
+
+            For more information see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+
+        tokenizer: callable (Optional, default None)
+
+            ** For doc2vec embedding model only **
+
+            Override the default tokenization method. If None then
+            gensim.utils.simple_preprocess will be used.
+
+        Returns
+        -------
+        documents: (Optional) array of str, shape(num_docs)
+            The documents in a list, the most similar are first.
+
+            Will only be returned if the documents were saved and if
+            return_documents is set to True.
+
+        doc_scores: array of float, shape(num_docs)
+            Semantic similarity of document to vector. The cosine similarity of
+            the document and vector.
+
+        doc_ids: array of int, shape(num_docs)
+            Unique ids of documents. If ids were not given to the model, the
+            index of the document in the model will be returned.
+        """
+
+        self._validate_query(query)
+        self._validate_num_docs(num_docs)
+
+        if self.embedding_model != "doc2vec":
+            query_vec = self._embed_documents(query)[0]
+
+        else:
+
+            # if tokenizer is not passed use default
+            if tokenizer is None:
+                tokenizer = default_tokenizer
+
+            tokenized_query = tokenizer(query)
+
+            query_vec = self.model.infer_vector(doc_words=tokenized_query,
+                                                alpha=0.025,
+                                                min_alpha=0.01,
+                                                epochs=100)
+
+        return self.search_documents_by_vector(query_vec, num_docs, return_documents=return_documents,
+                                               use_index=use_index, ef=ef)
 
     def search_documents_by_vector(self, vector, num_docs, return_documents=True, use_index=False, ef=None):
         """
