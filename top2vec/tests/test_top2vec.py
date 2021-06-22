@@ -332,6 +332,33 @@ def test_get_documents_topics(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
+def test_get_documents_topics_multiple(top2vec_model):
+    doc_ids_get = top2vec_model.document_ids[[0, 1, 5]]
+    num_topics = 2
+
+    if top2vec_model.hierarchy is not None:
+        doc_topics, doc_dist, topic_words, topic_word_scores = top2vec_model.get_documents_topics(doc_ids=doc_ids_get,
+                                                                                                  reduced=True,
+                                                                                                  num_topics=num_topics)
+
+        actual_number_topics = top2vec_model.get_num_topics(reduced=True)
+
+    else:
+        doc_topics, doc_dist, topic_words, topic_word_scores = top2vec_model.get_documents_topics(doc_ids=doc_ids_get,
+                                                                                                  num_topics=num_topics)
+
+        actual_number_topics = top2vec_model.get_num_topics(reduced=False)
+
+    assert len(doc_topics) == len(doc_dist) == len(topic_words) == len(topic_word_scores) == len(doc_ids_get)
+
+    if num_topics <= actual_number_topics:
+        assert doc_topics.shape[1] == num_topics
+        assert doc_dist.shape[1] == num_topics
+        assert topic_words.shape[1] == num_topics
+        assert topic_word_scores.shape[1] == num_topics
+
+
+@pytest.mark.parametrize('top2vec_model', models)
 def test_search_documents_by_vector(top2vec_model):
     document_vectors = top2vec_model._get_document_vectors()
     top2vec_model.search_documents_by_vector(vector=document_vectors[0], num_docs=10)

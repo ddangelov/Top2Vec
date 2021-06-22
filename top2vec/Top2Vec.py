@@ -634,7 +634,7 @@ class Top2Vec:
             self.topic_sizes.reset_index(drop=True, inplace=True)
 
     @staticmethod
-    def _calculate_documents_topic(topic_vectors, document_vectors, dist=True):
+    def _calculate_documents_topic(topic_vectors, document_vectors, dist=True, num_topics=None):
         batch_size = 10000
         doc_top = []
         if dist:
@@ -647,23 +647,47 @@ class Top2Vec:
 
             for ind in range(0, batches):
                 res = np.inner(document_vectors[current:current + batch_size], topic_vectors)
-                doc_top.extend(np.argmax(res, axis=1))
-                if dist:
-                    doc_dist.extend(np.max(res, axis=1))
+
+                if num_topics is None:
+                    doc_top.extend(np.argmax(res, axis=1))
+                    if dist:
+                        doc_dist.extend(np.max(res, axis=1))
+                else:
+                    doc_top.extend(np.flip(np.argsort(res), axis=1)[:, :num_topics])
+                    if dist:
+                        doc_dist.extend(np.flip(np.sort(res), axis=1)[:, :num_topics])
+
                 current += batch_size
 
             if extra > 0:
                 res = np.inner(document_vectors[current:current + extra], topic_vectors)
-                doc_top.extend(np.argmax(res, axis=1))
-                if dist:
-                    doc_dist.extend(np.max(res, axis=1))
+
+                if num_topics is None:
+                    doc_top.extend(np.argmax(res, axis=1))
+                    if dist:
+                        doc_dist.extend(np.max(res, axis=1))
+                else:
+                    doc_top.extend(np.flip(np.argsort(res), axis=1)[:, :num_topics])
+                    if dist:
+                        doc_dist.extend(np.flip(np.sort(res), axis=1)[:, :num_topics])
             if dist:
                 doc_dist = np.array(doc_dist)
         else:
             res = np.inner(document_vectors, topic_vectors)
-            doc_top = np.argmax(res, axis=1)
+
+            if num_topics is None:
+                doc_top = np.argmax(res, axis=1)
+                if dist:
+                    doc_dist = np.max(res, axis=1)
+            else:
+                doc_top.extend(np.flip(np.argsort(res), axis=1)[:, :num_topics])
+                if dist:
+                    doc_dist.extend(np.flip(np.sort(res), axis=1)[:, :num_topics])
+
+        if num_topics is not None:
+            doc_top = np.array(doc_top)
             if dist:
-                doc_dist = np.max(res, axis=1)
+                doc_dist = np.array(doc_dist)
 
         if dist:
             return doc_top, doc_dist
@@ -1062,7 +1086,7 @@ class Top2Vec:
         """
         self.embedding_model_path = None
 
-    def get_documents_topics(self, doc_ids, reduced=False):
+    def get_documents_topics(self, doc_ids, reduced=False, num_topics=1):
         """
         Get document topics.
 
@@ -1074,24 +1098,27 @@ class Top2Vec:
         Parameters
         ----------
         doc_ids: List of str, int
-            A unique value per document that is used for referring to documents
-            in search results. If ids were not given to the model, the index of
-            each document in the model is the id.
+            A unique value per document that is used for referring to
+            documents in search results. If ids were not given to the model,
+            the index of each document in the model is the id.
 
         reduced: bool (Optional, default False)
             Original topics are returned by default. If True the
             reduced topics will be returned.
 
+        num_topics: int (Optional, default 1)
+            The number of topics to return per document.
+
         Returns
         -------
-        topic_nums: array of int, shape(doc_ids)
-            The topic number of the document corresponding to each doc_id.
+        topic_nums: array of int, shape(len(doc_ids), num_topics)
+            The topic number(s) of the document corresponding to each doc_id.
 
-        topic_score: array of float, shape(doc_ids)
-            Semantic similarity of document to topic. The cosine similarity of
-            the document and topic vector.
+        topic_score: array of float, shape(len(doc_ids), num_topics)
+            Semantic similarity of document to topic(s). The cosine similarity
+            of the document and topic vector.
 
-        topics_words: array of shape(num_topics, 50)
+        topics_words: array of shape(len(doc_ids), num_topics, 50)
             For each topic the top 50 words are returned, in order
             of semantic similarity to topic.
 
@@ -1119,16 +1146,30 @@ class Top2Vec:
         # get document indexes from ids
         doc_indexes = self._get_document_indexes(doc_ids)
 
-        if reduced:
-            doc_topics = self.doc_top_reduced[doc_indexes]
-            doc_dist = self.doc_dist_reduced[doc_indexes]
-            topic_words = self.topic_words_reduced[doc_topics]
-            topic_word_scores = self.topic_word_scores_reduced[doc_topics]
+        if num_topics == 1:
+            if reduced:
+                doc_topics = self.doc_top_reduced[doc_indexes]
+                doc_dist = self.doc_dist_reduced[doc_indexes]
+                topic_words = self.topic_words_reduced[doc_topics]
+                topic_word_scores = self.topic_word_scores_reduced[doc_topics]
+            else:
+                doc_topics = self.doc_top[doc_indexes]
+                doc_dist = self.doc_dist[doc_indexes]
+                topic_words = self.topic_words[doc_topics]
+                topic_word_scores = self.topic_word_scores[doc_topics]
+
         else:
-            doc_topics = self.doc_top[doc_indexes]
-            doc_dist = self.doc_dist[doc_indexes]
-            topic_words = self.topic_words[doc_topics]
-            topic_word_scores = self.topic_word_scores[doc_topics]
+            if reduced:
+                topic_vectors = self.topic_vectors_reduced
+            else:
+                topic_vectors = self.topic_vectors
+
+            doc_topics, doc_dist = self._calculate_documents_topic(topic_vectors,
+                                                                   self._get_document_vectors()[doc_indexes],
+                                                                   num_topics=num_topics)
+
+            topic_words = np.array([self.topic_words[topics] for topics in doc_topics])
+            topic_word_scores = np.array([self.topic_word_scores[topics] for topics in doc_topics])
 
         return doc_topics, doc_dist, topic_words, topic_word_scores
 
