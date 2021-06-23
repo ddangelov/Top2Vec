@@ -1680,6 +1680,82 @@ class Top2Vec:
         return self.search_documents_by_vector(query_vec, num_docs, return_documents=return_documents,
                                                use_index=use_index, ef=ef)
 
+    def query_topics(self, query, num_topics, reduced=False, tokenizer=None):
+        """
+        Semantic search of topics using keywords.
+
+        These are the topics closest to the vector. Topics are ordered by
+        proximity to the vector. Successive topics in the list are less
+        semantically similar to the vector.
+
+        Parameters
+        ----------
+        query: string
+            Any sequence of text. This could be an actual question, a sentence,
+            a paragraph or a document.
+
+        num_topics: int
+            Number of documents to return.
+
+        reduced: bool (Optional, default False)
+            Original topics are searched by default. If True the
+            reduced topics will be searched.
+
+        tokenizer: callable (Optional, default None)
+
+            ** For doc2vec embedding model only **
+
+            Override the default tokenization method. If None then
+            gensim.utils.simple_preprocess will be used.
+
+        Returns
+        -------
+        topics_words: array of shape (num_topics, 50)
+            For each topic the top 50 words are returned, in order of semantic
+            similarity to topic.
+
+            Example:
+            [['data', 'deep', 'learning' ... 'artificial'],           <Topic 0>
+            ['environment', 'warming', 'climate ... 'temperature']    <Topic 1>
+            ...]
+
+        word_scores: array of shape (num_topics, 50)
+            For each topic the cosine similarity scores of the top 50 words
+            to the topic are returned.
+
+            Example:
+            [[0.7132, 0.6473, 0.5700 ... 0.3455],     <Topic 0>
+            [0.7818', 0.7671, 0.7603 ... 0.6769]     <Topic 1>
+            ...]
+
+        topic_scores: array of float, shape(num_topics)
+            For each topic the cosine similarity to the search keywords will be
+            returned.
+
+        topic_nums: array of int, shape(num_topics)
+            The unique number of every topic will be returned.
+        """
+
+        self._validate_query(query)
+
+        if self.embedding_model != "doc2vec":
+            query_vec = self._embed_documents(query)[0]
+
+        else:
+
+            # if tokenizer is not passed use default
+            if tokenizer is None:
+                tokenizer = default_tokenizer
+
+            tokenized_query = tokenizer(query)
+
+            query_vec = self.model.infer_vector(doc_words=tokenized_query,
+                                                alpha=0.025,
+                                                min_alpha=0.01,
+                                                epochs=100)
+
+        return self.search_topics_by_vector(query_vec, num_topics=num_topics, reduced=reduced)
+
     def search_documents_by_vector(self, vector, num_docs, return_documents=True, use_index=False, ef=None):
         """
         Semantic search of documents using a vector.
@@ -1730,6 +1806,8 @@ class Top2Vec:
         """
         self._validate_vector(vector)
         self._validate_num_docs(num_docs)
+
+        vector = self._l2_normalize(vector)
 
         if use_index:
             self._check_document_index_status()
@@ -1794,6 +1872,10 @@ class Top2Vec:
             the word and vector.
         """
 
+        self._validate_vector(vector)
+
+        vector = self._l2_normalize(vector)
+
         if use_index:
             self._check_word_index_status()
 
@@ -1814,6 +1896,76 @@ class Top2Vec:
         words = np.array([self._index2word(index) for index in word_indexes])
 
         return words, word_scores
+
+    def search_topics_by_vector(self, vector, num_topics, reduced=False):
+        """
+        Semantic search of topics using keywords.
+
+        These are the topics closest to the vector. Topics are ordered by
+        proximity to the vector. Successive topics in the list are less
+        semantically similar to the vector.
+
+        Parameters
+        ----------
+        vector: array of shape(vector dimension, 1)
+            The vector dimension should be the same as the vectors in
+            the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
+
+        num_topics: int
+            Number of documents to return.
+
+        reduced: bool (Optional, default False)
+            Original topics are searched by default. If True the
+            reduced topics will be searched.
+
+        Returns
+        -------
+        topics_words: array of shape (num_topics, 50)
+            For each topic the top 50 words are returned, in order of semantic
+            similarity to topic.
+
+            Example:
+            [['data', 'deep', 'learning' ... 'artificial'],           <Topic 0>
+            ['environment', 'warming', 'climate ... 'temperature']    <Topic 1>
+            ...]
+
+        word_scores: array of shape (num_topics, 50)
+            For each topic the cosine similarity scores of the top 50 words
+            to the topic are returned.
+
+            Example:
+            [[0.7132, 0.6473, 0.5700 ... 0.3455],     <Topic 0>
+            [0.7818', 0.7671, 0.7603 ... 0.6769]     <Topic 1>
+            ...]
+
+        topic_scores: array of float, shape(num_topics)
+            For each topic the cosine similarity to the search keywords will be
+            returned.
+
+        topic_nums: array of int, shape(num_topics)
+            The unique number of every topic will be returned.
+        """
+
+        self._validate_vector(vector)
+        self._validate_num_topics(num_topics, reduced)
+
+        vector = self._l2_normalize(vector)
+
+        if reduced:
+            self._validate_hierarchical_reduction()
+
+            topic_nums, topic_scores = self._search_vectors_by_vector(self.topic_vectors_reduced,
+                                                                      vector, num_topics)
+            topic_words = [self.topic_words_reduced[topic] for topic in topic_nums]
+            word_scores = [self.topic_word_scores_reduced[topic] for topic in topic_nums]
+
+        else:
+            topic_nums, topic_scores = self._search_vectors_by_vector(self.topic_vectors,
+                                                                      vector, num_topics)
+            topic_words = [self.topic_words[topic] for topic in topic_nums]
+            word_scores = [self.topic_word_scores[topic] for topic in topic_nums]
+
+        return topic_words, word_scores, topic_scores, topic_nums
 
     def search_documents_by_topic(self, topic_num, num_docs, return_documents=True, reduced=False):
         """
@@ -2102,27 +2254,12 @@ class Top2Vec:
         if keywords_neg is None:
             keywords_neg = []
 
-        self._validate_num_topics(num_topics, reduced)
         keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
         word_vecs = self._words2word_vectors(keywords)
         neg_word_vecs = self._words2word_vectors(keywords_neg)
         combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
 
-        if reduced:
-            self._validate_hierarchical_reduction()
-
-            topic_nums, topic_scores = self._search_vectors_by_vector(self.topic_vectors_reduced,
-                                                                      combined_vector, num_topics)
-            topic_words = [self.topic_words_reduced[topic] for topic in topic_nums]
-            word_scores = [self.topic_word_scores_reduced[topic] for topic in topic_nums]
-
-        else:
-            topic_nums, topic_scores = self._search_vectors_by_vector(self.topic_vectors,
-                                                                      combined_vector, num_topics)
-            topic_words = [self.topic_words[topic] for topic in topic_nums]
-            word_scores = [self.topic_word_scores[topic] for topic in topic_nums]
-
-        return topic_words, word_scores, topic_scores, topic_nums
+        return self.search_topics_by_vector(combined_vector, num_topics=num_topics, reduced=reduced)
 
     def search_documents_by_documents(self, doc_ids, num_docs, doc_ids_neg=None, return_documents=True,
                                       use_index=False, ef=None):
