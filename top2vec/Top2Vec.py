@@ -1245,6 +1245,7 @@ class Top2Vec:
             self.model.docvecs.vectors_docs_norm = None
             self._set_document_vectors(np.vstack([self._get_document_vectors(norm=False), document_vectors]))
             self.model.docvecs.init_sims()
+            document_vectors = self._l2_normalize(document_vectors)
 
         else:
             if use_embedding_model_tokenizer:
