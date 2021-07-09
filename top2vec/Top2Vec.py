@@ -543,6 +543,12 @@ class Top2Vec:
 
         return document_vectors
 
+    def _embed_query(self, query):
+        self._check_import_status()
+        self._check_model_status()
+
+        return self._l2_normalize(np.array(self.embed(query)[0]))
+
     def _set_document_vectors(self, document_vectors):
         if self.embedding_model == 'doc2vec':
             self.model.docvecs.vectors_docs = document_vectors
@@ -1663,7 +1669,7 @@ class Top2Vec:
         self._validate_num_docs(num_docs)
 
         if self.embedding_model != "doc2vec":
-            query_vec = self._embed_documents(query)[0]
+            query_vec = self._embed_query(query)
 
         else:
 
@@ -1740,7 +1746,7 @@ class Top2Vec:
         self._validate_query(query)
 
         if self.embedding_model != "doc2vec":
-            query_vec = self._embed_documents(query)[0]
+            query_vec = self._embed_query(query)
 
         else:
 
