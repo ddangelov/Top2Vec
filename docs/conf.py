@@ -29,7 +29,7 @@ copyright = '2020, Dimo Angelov'
 author = 'Dimo Angelov'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.25'
+release = '1.0.26'
 
 
 # -- General configuration ---------------------------------------------------
