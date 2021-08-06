@@ -137,7 +137,7 @@ model = Top2Vec.load("filename")
 
 For more information view the [API guide](https://top2vec.readthedocs.io/en/latest/api.html).
 
-Pretrained Models <a name="pretrained"></a>
+Pretrained Embedding Models <a name="pretrained"></a>
 -----------------
 Doc2Vec will be used by default to generate the joint word and document embeddings. However there are also pretrained `embedding_model` options for generating joint word and document embeddings:
 
