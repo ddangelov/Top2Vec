@@ -547,7 +547,7 @@ class Top2Vec:
         self._check_import_status()
         self._check_model_status()
 
-        return self._l2_normalize(np.array(self.embed(query)[0]))
+        return self._l2_normalize(np.array(self.embed([query])[0]))
 
     def _set_document_vectors(self, document_vectors):
         if self.embedding_model == 'doc2vec':
@@ -1613,7 +1613,7 @@ class Top2Vec:
 
     def query_documents(self, query, num_docs, return_documents=True, use_index=False, ef=None, tokenizer=None):
         """
-        Semantic search of documents using a query.
+        Semantic search of documents using a text query.
 
         The most semantically similar documents to the query will be returned.
 
@@ -1689,7 +1689,7 @@ class Top2Vec:
 
     def query_topics(self, query, num_topics, reduced=False, tokenizer=None):
         """
-        Semantic search of topics using keywords.
+        Semantic search of topics using text query.
 
         These are the topics closest to the vector. Topics are ordered by
         proximity to the vector. Successive topics in the list are less

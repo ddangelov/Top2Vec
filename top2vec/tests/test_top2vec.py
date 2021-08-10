@@ -504,3 +504,45 @@ def test_similar_words_index(top2vec_model):
     top2vec_model.save(temp.name)
     Top2Vec.load(temp.name)
     temp.close()
+
+
+@pytest.mark.parametrize('top2vec_model', models)
+def test_query_documents(top2vec_model):
+    num_docs = 10
+
+    if top2vec_model.documents is not None:
+        documents, document_scores, document_ids = top2vec_model.query_documents(query="what is the meaning of life?",
+                                                                                 num_docs=num_docs)
+    else:
+        document_scores, document_ids = top2vec_model.query_documents(query="what is the meaning of life?",
+                                                                      num_docs=num_docs)
+
+    # check that for each document there is a score and number
+    if top2vec_model.documents is not None:
+        assert len(documents) == len(document_scores) == len(document_ids) == num_docs
+    else:
+        assert len(document_scores) == len(document_ids) == num_docs
+
+    # check that documents are returned in decreasing order
+    assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+
+
+@pytest.mark.parametrize('top2vec_model', models)
+def test_query_topics(top2vec_model):
+    num_topics = top2vec_model.get_num_topics()
+    topic_words, word_scores, topic_scores, topic_nums = top2vec_model.query_topics(query="what is the "
+                                                                                          "meaning of life?",
+                                                                                    num_topics=num_topics)
+
+    # check that for each topic there are topic words, word scores, topic scores and score of topic
+    assert len(topic_words) == len(word_scores) == len(topic_scores) == len(topic_nums) == num_topics
+
+    # check that for each topic words have scores
+    assert len(topic_words[0]) == len(word_scores[0])
+
+    # check that topics are returned in decreasing order
+    assert all(topic_scores[i] >= topic_scores[i + 1] for i in range(len(topic_scores) - 1))
+
+    # check that topics words are returned in decreasing order
+    topic_words_scores = word_scores[0]
+    assert all(topic_words_scores[i] >= topic_words_scores[i + 1] for i in range(len(topic_words_scores) - 1))
