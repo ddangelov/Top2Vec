@@ -170,6 +170,9 @@ class Top2Vec:
     
     verbose: bool (Optional, default True)
         Whether to print status data during training.
+
+    batch_size_embed: int (Optional, default 500)
+        The batch size for embedding of documents.
     """
 
     def __init__(self,
@@ -186,7 +189,8 @@ class Top2Vec:
                  use_embedding_model_tokenizer=False,
                  umap_args=None,
                  hdbscan_args=None,
-                 verbose=True
+                 verbose=True,
+                 batch_size_embed=500
                  ):
 
         if verbose:
@@ -341,10 +345,10 @@ class Top2Vec:
 
             # embed documents
             if use_embedding_model_tokenizer:
-                self.document_vectors = self._embed_documents(documents)
+                self.document_vectors = self._embed_documents(documents, batch_size_embed)
             else:
                 train_corpus = [' '.join(tokens) for tokens in tokenized_corpus]
-                self.document_vectors = self._embed_documents(train_corpus)
+                self.document_vectors = self._embed_documents(train_corpus, batch_size_embed)
 
         else:
             raise ValueError(f"{embedding_model} is an invalid embedding model.")
@@ -519,13 +523,12 @@ class Top2Vec:
         else:
             return normalize(vectors.reshape(1, -1))[0]
 
-    def _embed_documents(self, train_corpus):
+    def _embed_documents(self, train_corpus, batch_size):
 
         self._check_import_status()
         self._check_model_status()
 
         # embed documents
-        batch_size = 500
         document_vectors = []
 
         current = 0
@@ -1184,7 +1187,7 @@ class Top2Vec:
 
         return doc_topics, doc_dist, topic_words, topic_word_scores
 
-    def add_documents(self, documents, doc_ids=None, tokenizer=None, use_embedding_model_tokenizer=False):
+    def add_documents(self, documents, doc_ids=None, tokenizer=None, use_embedding_model_tokenizer=False, batch_size_embed=500):
         """
         Update the model with new documents.
 
@@ -1212,6 +1215,9 @@ class Top2Vec:
         use_embedding_model_tokenizer: bool (Optional, default False)
             If using an embedding model other than doc2vec, use the model's
             tokenizer for document embedding.
+        
+        batch_size_embed: int (Optional, default 500)
+            The batch size for embedding of documents.
         """
         # if tokenizer is not passed use default
         if tokenizer is None:
@@ -1259,7 +1265,7 @@ class Top2Vec:
             else:
                 docs_processed = [tokenizer(doc) for doc in documents]
                 docs_training = [' '.join(doc) for doc in docs_processed]
-            document_vectors = self._embed_documents(docs_training)
+            document_vectors = self._embed_documents(docs_training, batch_size_embed)
             self._set_document_vectors(np.vstack([self._get_document_vectors(), document_vectors]))
 
         # update index
