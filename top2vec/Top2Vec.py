@@ -563,18 +563,21 @@ class Top2Vec:
         if isinstance(documents, str):
             documents = [documents]
         
-        embeddings = []
-        for index, document in enumerate(documents):
-            try:
-                sentence = Sentence(document) if document else Sentence("an empty document")
-                self.embed(sentence)
-            except RuntimeError:
-                sentence = Sentence("an empty document")
-                self.embed(sentence)
-            embedding = sentence.embedding.detach().cpu().numpy()
-            embeddings.append(embedding)
-        embeddings = np.asarray(embeddings)
-        return embeddings
+        if self.embedding_model == 'flair':
+            embeddings = []
+            for index, document in enumerate(documents):
+                try:
+                    sentence = Sentence(document) if document else Sentence("an empty document")
+                    self.embed(sentence)
+                except RuntimeError:
+                    sentence = Sentence("an empty document")
+                    self.embed(sentence)
+                embedding = sentence.embedding.detach().cpu().numpy()
+                embeddings.append(embedding)
+            embeddings = np.asarray(embeddings)
+            return embeddings
+        else:
+            return self.embed(documents)
 
     def _set_document_vectors(self, document_vectors):
         if self.embedding_model == 'doc2vec':
