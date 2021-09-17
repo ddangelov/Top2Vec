@@ -10,3 +10,5 @@ tensorflow_text
 torch
 sentence_transformers
 hnswlib
+flair
+transformers

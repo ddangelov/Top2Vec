@@ -42,9 +42,19 @@ top2vec_transformer_model_embedding = Top2Vec(documents=newsgroups_documents,
                                               embedding_model='distiluse-base-multilingual-cased',
                                               use_embedding_model_tokenizer=True)
 
+# test Flair
+top2vec_flair = Top2Vec(documents=newsgroups_documents,
+                                              embedding_model='flair')
+
+# test Flair with model emebdding
+top2vec_flair_model_embedding = Top2Vec(documents=newsgroups_documents,
+                                              embedding_model='flair',
+                                              use_embedding_model_tokenizer=True)
+
 models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
           top2vec_use, top2vec_use_multilang, top2vec_transformer_multilang,
-          top2vec_use_model_embedding, top2vec_transformer_model_embedding]
+          top2vec_use_model_embedding, top2vec_transformer_model_embedding,
+          top2vec_flair, top2vec_flair_model_embedding]
 
 
 def get_model_vocab(top2vec_model):

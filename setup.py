@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="top2vec",
     packages=["top2vec"],
-    version="1.0.26",
+    version="1.0.27",
     author="Dimo Angelov",
     author_email="dimo.angelov@gmail.com",
     description="Top2Vec learns jointly embedded topic, document and word vectors.",
@@ -42,6 +42,11 @@ setuptools.setup(
         'sentence_transformers': [
             'torch',
             'sentence_transformers',
+        ],
+        'flair': [
+            "transformers>=4.0.0",
+            "torch>=1.5.0,!=1.8",
+            "flair==0.7"
         ],
         'indexing': [
             'hnswlib',
