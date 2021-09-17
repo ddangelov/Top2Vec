@@ -26,7 +26,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'numpy >= 1.19.0',
+        'numpy >= 1.20.0',
         'pandas',
         'gensim < 4.0.0',
         'umap-learn >= 0.5.1',
