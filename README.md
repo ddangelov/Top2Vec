@@ -4,7 +4,7 @@
 [![](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
 
 
-**Update: Pre-trained Universal Sentence Encoders and BERT Sentence Transformer now available for embedding. Read [more](#pretrained).**
+**Update: Pre-trained [🤗](https://huggingface.co/) models now available for embedding. Read [more](#pretrained).**
 
 Top2Vec
 ======= 
@@ -46,7 +46,7 @@ attracted the documents to the dense area are the topic words.
 
 ### The Algorithm:
 
-#### 1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html) or [Universal Sentence Encoder](https://tfhub.dev/google/collections/universal-sentence-encoder/1) or [BERT Sentence Transformer](https://www.sbert.net/).
+#### 1. Create jointly embedded document and word vectors using [Doc2Vec](https://radimrehurek.com/gensim/models/doc2vec.html) or [Universal Sentence Encoder](https://tfhub.dev/google/collections/universal-sentence-encoder/1) or [BERT Sentence Transformer](https://www.sbert.net/) or [🤗](https://huggingface.co/).
 >Documents will be placed close to other similar documents and close to the most distinguishing words.
 
 <!--![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/doc_word_embedding.svg?sanitize=true)-->
@@ -101,6 +101,10 @@ To install pre-trained BERT sentence transformer options:
 
     pip install top2vec[sentence_transformers]
     
+To install pre-trained 🤗 transformers options:
+
+    pip install top2vec[flair]
+    
 To install indexing options:
 
     pip install top2vec[indexing]
@@ -144,6 +148,7 @@ Doc2Vec will be used by default to generate the joint word and document embeddin
   * `universal-sentence-encoder`
   * `universal-sentence-encoder-multilingual`
   * `distiluse-base-multilingual-cased`
+  * `flair`
   
 ```python
 from top2vec import Top2Vec
@@ -151,11 +156,17 @@ from top2vec import Top2Vec
 model = Top2Vec(documents, embedding_model='universal-sentence-encoder')
 ```
 
+```python
+from top2vec import Top2Vec
+
+model = Top2Vec(documents, embedding_model='flair')
+```
+
 For large data sets and data sets with very unique vocabulary doc2vec could
 produce better results. This will train a doc2vec model from scratch. This method
 is language agnostic. However multiple languages will not be aligned.
 
-Using the universal sentence encoder options will be much faster since those are
+Using the universal sentence encoder or flair options will be much faster since those are
 pre-trained and efficient models. The universal sentence encoder options are
 suggested for smaller data sets. They are also good options for large data sets
 that are in English or in languages covered by the multilingual model. It is also
@@ -166,7 +177,7 @@ for multilingual datasets and languages that are not covered by the multilingual
 universal sentence encoder. The transformer is significantly slower than
 the universal sentence encoder options. 
 
-More information on [universal-sentence-encoder](https://tfhub.dev/google/universal-sentence-encoder/4), [universal-sentence-encoder-multilingual](https://tfhub.dev/google/universal-sentence-encoder-multilingual/3), and [distiluse-base-multilingual-cased](https://www.sbert.net/docs/pretrained_models.html).
+More information on [universal-sentence-encoder](https://tfhub.dev/google/universal-sentence-encoder/4), [universal-sentence-encoder-multilingual](https://tfhub.dev/google/universal-sentence-encoder-multilingual/3), [distiluse-base-multilingual-cased](https://www.sbert.net/docs/pretrained_models.html), and [flair](https://github.com/flairNLP/flair)/[🤗](https://huggingface.co/).
 
 
 Citation
