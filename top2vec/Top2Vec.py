@@ -93,7 +93,7 @@ class Top2Vec:
 
     Parameters
     ----------
-    embedding_model: string
+    embedding_model: string or callable
         This will determine which model is used to generate the document and
         word embeddings. The valid string options are:
 
@@ -134,6 +134,11 @@ class Top2Vec:
 
         For more information on SBERT options visit:
         https://www.sbert.net/docs/pretrained_models.html
+
+        If passing a callable embedding_model note that it will not be saved
+        when saving a top2vec model. After loading such a saved top2vec model
+        the set_embedding_model method will need to be called and the same
+        embedding_model callable used during training must be passed to it.
 
     embedding_model_path: string (Optional)
         Pre-trained embedding models will be downloaded automatically by
@@ -338,7 +343,7 @@ class Top2Vec:
             if use_corpus_file:
                 temp.close()
 
-        elif embedding_model in acceptable_embedding_models:
+        elif (embedding_model in acceptable_embedding_models) or callable(embedding_model):
 
             self.embed = None
             self.embedding_model = embedding_model
@@ -459,8 +464,8 @@ class Top2Vec:
         document_index_temp = None
         word_index_temp = None
 
-        # do not save sentence encoders and sentence transformers
-        if self.embedding_model != "doc2vec":
+        # do not save sentence encoders, sentence transformers and custom embedding
+        if self.embedding_model not in ["doc2vec"]:
             self.embed = None
 
         # serialize document index so that it can be saved
@@ -889,6 +894,14 @@ class Top2Vec:
                 model = SentenceTransformer(module)
                 self.embed = model.encode
 
+            elif callable(self.embedding_model):
+                self.embed = self.embedding_model
+                self.embedding_model = "custom"
+
+            elif self.embedding_model == "custom":
+                raise ValueError("Call set_embedding_model method and pass callable"
+                                 " embedding_model used during training.")
+
         if self.verbose is False:
             logger.setLevel(logging.WARNING)
 
@@ -1103,6 +1116,23 @@ class Top2Vec:
         self.word_index.init_index(max_elements=num_vecs, ef_construction=ef_construction, M=M)
         self.word_index.add_items(word_vectors, index_ids)
         self.words_indexed = True
+
+    def set_embedding_model(self, embedding_model):
+        """
+        Set the embedding model. This is called after loading a saved Top2Vec
+        model which was trained with a passed callable embedding_model.
+
+        Parameters
+        ----------
+        embedding_model: callable
+            This must be the same embedding model used during training.
+
+        """
+
+        if not callable(embedding_model):
+            raise ValueError("embedding_model must be callable.")
+
+        self.embed = embedding_model
 
     def update_embedding_model_path(self, embedding_model_path):
         """
