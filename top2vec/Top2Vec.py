@@ -148,6 +148,9 @@ class Top2Vec:
         Warning: the model at embedding_model_path must match the
         embedding_model parameter type.
 
+    embedding_batch_size: int (default=32)
+        Batch size for documents being embedded.
+
     documents: List of str
         Input corpus, should be a list of strings.
 
@@ -221,6 +224,7 @@ class Top2Vec:
                  min_count=50,
                  embedding_model='doc2vec',
                  embedding_model_path=None,
+                 embedding_batch_size=32,
                  speed='learn',
                  use_corpus_file=False,
                  document_ids=None,
@@ -380,10 +384,10 @@ class Top2Vec:
 
             # embed documents
             if use_embedding_model_tokenizer:
-                self.document_vectors = self._embed_documents(documents)
+                self.document_vectors = self._embed_documents(documents, embedding_batch_size)
             else:
                 train_corpus = [' '.join(tokens) for tokens in tokenized_corpus]
-                self.document_vectors = self._embed_documents(train_corpus)
+                self.document_vectors = self._embed_documents(train_corpus, embedding_batch_size)
 
         else:
             raise ValueError(f"{embedding_model} is an invalid embedding model.")
@@ -558,27 +562,31 @@ class Top2Vec:
         else:
             return normalize(vectors.reshape(1, -1))[0]
 
-    def _embed_documents(self, train_corpus):
+    def _embed_documents(self, train_corpus, batch_size):
 
         self._check_import_status()
         self._check_model_status()
 
         # embed documents
-        batch_size = 500
         document_vectors = []
 
-        current = 0
-        batches = int(len(train_corpus) / batch_size)
-        extra = len(train_corpus) % batch_size
+        if (self.embedding_model in use_models) or self.embedding_model == "custom":
 
-        for ind in range(0, batches):
-            document_vectors.append(self.embed(train_corpus[current:current + batch_size]))
-            current += batch_size
+            current = 0
+            batches = int(len(train_corpus) / batch_size)
+            extra = len(train_corpus) % batch_size
 
-        if extra > 0:
-            document_vectors.append(self.embed(train_corpus[current:current + extra]))
+            for ind in range(0, batches):
+                document_vectors.append(self.embed(train_corpus[current:current + batch_size]))
+                current += batch_size
 
-        document_vectors = self._l2_normalize(np.array(np.vstack(document_vectors)))
+            if extra > 0:
+                document_vectors.append(self.embed(train_corpus[current:current + extra]))
+
+            document_vectors = self._l2_normalize(np.array(np.vstack(document_vectors)))
+
+        else:
+            document_vectors = self.embed(train_corpus, batch_size=batch_size)
 
         return document_vectors
 
@@ -1246,7 +1254,12 @@ class Top2Vec:
 
         return doc_topics, doc_dist, topic_words, topic_word_scores
 
-    def add_documents(self, documents, doc_ids=None, tokenizer=None, use_embedding_model_tokenizer=False):
+    def add_documents(self,
+                      documents,
+                      doc_ids=None,
+                      tokenizer=None,
+                      use_embedding_model_tokenizer=False,
+                      embedding_batch_size=32):
         """
         Update the model with new documents.
 
@@ -1274,6 +1287,9 @@ class Top2Vec:
         use_embedding_model_tokenizer: bool (Optional, default False)
             If using an embedding model other than doc2vec, use the model's
             tokenizer for document embedding.
+
+        embedding_batch_size: int (default=32)
+            Batch size for documents being embedded.
         """
         # if tokenizer is not passed use default
         if tokenizer is None:
@@ -1321,7 +1337,7 @@ class Top2Vec:
             else:
                 docs_processed = [tokenizer(doc) for doc in documents]
                 docs_training = [' '.join(doc) for doc in docs_processed]
-            document_vectors = self._embed_documents(docs_training)
+            document_vectors = self._embed_documents(docs_training, embedding_batch_size)
             self._set_document_vectors(np.vstack([self._get_document_vectors(), document_vectors]))
 
         # update index
