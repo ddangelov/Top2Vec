@@ -47,10 +47,41 @@ sh = logging.StreamHandler()
 sh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger.addHandler(sh)
 
+use_models = ["universal-sentence-encoder-multilingual",
+              "universal-sentence-encoder",
+              "universal-sentence-encoder-large",
+              "universal-sentence-encoder-multilingual-large"]
 
-def default_tokenizer(doc):
-    """Tokenize documents for training and remove too long/short words"""
-    return simple_preprocess(strip_tags(doc), deacc=True)
+use_model_urls = {
+    "universal-sentence-encoder-multilingual": "https://tfhub.dev/google/universal-sentence-encoder-multilingual/3",
+    "universal-sentence-encoder": "https://tfhub.dev/google/universal-sentence-encoder/4",
+    "universal-sentence-encoder-large": "https://tfhub.dev/google/universal-sentence-encoder-large/5",
+    "universal-sentence-encoder-multilingual-large": "https://tfhub.dev/google/universal-sentence-encoder"
+                                                     "-multilingual-large/3 "
+}
+
+sbert_models = ["distiluse-base-multilingual-cased",
+                "all-MiniLM-L6-v2",
+                "paraphrase-multilingual-MiniLM-L12-v2"]
+
+acceptable_embedding_models = use_models + sbert_models
+
+
+def default_tokenizer(document):
+    """Tokenize a document for training and remove too long/short words
+
+    Parameters
+    ----------
+    document: List of str
+        Input document.
+
+    Returns
+    -------
+    tokenized_document: List of str
+        List of tokens.
+
+    """
+    return simple_preprocess(strip_tags(document), deacc=True)
 
 
 class Top2Vec:
@@ -68,8 +99,12 @@ class Top2Vec:
 
             * doc2vec
             * universal-sentence-encoder
+            * universal-sentence-encoder-large
             * universal-sentence-encoder-multilingual
+            * universal-sentence-encoder-multilingual-large
             * distiluse-base-multilingual-cased
+            * all-MiniLM-L6-v2
+            * paraphrase-multilingual-MiniLM-L12-v2
 
         For large data sets and data sets with very unique vocabulary doc2vec
         could produce better results. This will train a doc2vec model from
@@ -83,19 +118,21 @@ class Top2Vec:
         covered by the multilingual model. It is also suggested for data sets
         that are multilingual.
 
-        For more information on universal-sentence-encoder visit:
-        https://tfhub.dev/google/universal-sentence-encoder/4
+        For more information on universal-sentence-encoder options visit:
+        https://tfhub.dev/google/collections/universal-sentence-encoder/1
 
-        For more information on universal-sentence-encoder-multilingual visit:
-        https://tfhub.dev/google/universal-sentence-encoder-multilingual/3
+        The SBERT pre-trained sentence transformer options are
+        distiluse-base-multilingual-cased,
+        paraphrase-multilingual-MiniLM-L12-v2, and all-MiniLM-L6-v2.
 
-        The distiluse-base-multilingual-cased pre-trained sentence transformer
-        is suggested for multilingual datasets and languages that are not
+        The distiluse-base-multilingual-cased and
+        paraphrase-multilingual-MiniLM-L12-v2 are suggested for multilingual
+        datasets and languages that are not
         covered by the multilingual universal sentence encoder. The
         transformer is significantly slower than the universal sentence
-        encoder options.
+        encoder options(except for the large options).
 
-        For more informati ond istiluse-base-multilingual-cased visit:
+        For more information on SBERT options visit:
         https://www.sbert.net/docs/pretrained_models.html
 
     embedding_model_path: string (Optional)
@@ -155,6 +192,8 @@ class Top2Vec:
     tokenizer: callable (Optional, default None)
         Override the default tokenization method. If None then
         gensim.utils.simple_preprocess will be used.
+
+        Tokenizer must take a document and return a list of tokens.
 
     use_embedding_model_tokenizer: bool (Optional, default False)
         If using an embedding model other than doc2vec, use the model's
@@ -235,10 +274,6 @@ class Top2Vec:
             self.doc_id2index = dict(zip(self.document_ids, list(range(0, len(self.document_ids)))))
             self.doc_id_type = np.int_
 
-        acceptable_embedding_models = ["universal-sentence-encoder-multilingual",
-                                       "universal-sentence-encoder",
-                                       "distiluse-base-multilingual-cased"]
-
         self.embedding_model_path = embedding_model_path
 
         if embedding_model == 'doc2vec':
@@ -291,7 +326,6 @@ class Top2Vec:
                 temp = tempfile.NamedTemporaryFile(mode='w+t')
                 temp.write(lines)
                 doc2vec_args["corpus_file"] = temp.name
-
 
             else:
                 train_corpus = [TaggedDocument(tokenizer(doc), [i]) for i, doc in enumerate(documents)]
@@ -835,22 +869,20 @@ class Top2Vec:
             if self.verbose is False:
                 logger.setLevel(logging.DEBUG)
 
-            if self.embedding_model != "distiluse-base-multilingual-cased":
+            if self.embedding_model in use_models:
                 if self.embedding_model_path is None:
                     logger.info(f'Downloading {self.embedding_model} model')
-                    if self.embedding_model == "universal-sentence-encoder-multilingual":
-                        module = "https://tfhub.dev/google/universal-sentence-encoder-multilingual/3"
-                    else:
-                        module = "https://tfhub.dev/google/universal-sentence-encoder/4"
+                    module = use_model_urls[self.embedding_model]
+
                 else:
                     logger.info(f'Loading {self.embedding_model} model at {self.embedding_model_path}')
                     module = self.embedding_model_path
                 self.embed = hub.load(module)
 
-            else:
+            elif self.embedding_model in sbert_models:
                 if self.embedding_model_path is None:
                     logger.info(f'Downloading {self.embedding_model} model')
-                    module = 'distiluse-base-multilingual-cased'
+                    module = self.embedding_model
                 else:
                     logger.info(f'Loading {self.embedding_model} model at {self.embedding_model_path}')
                     module = self.embedding_model_path
