@@ -853,12 +853,12 @@ class Top2Vec:
                               "Call index_word_vectors method before setting use_index=True.")
 
     def _check_import_status(self):
-        if self.embedding_model != 'distiluse-base-multilingual-cased':
+        if self.embedding_model in use_models:
             if not _HAVE_TENSORFLOW:
                 raise ImportError(f"{self.embedding_model} is not available.\n\n"
                                   "Try: pip install top2vec[sentence_encoders]\n\n"
                                   "Alternatively try: pip install tensorflow tensorflow_hub tensorflow_text")
-        else:
+        elif self.embedding_model in sbert_models:
             if not _HAVE_TORCH:
                 raise ImportError(f"{self.embedding_model} is not available.\n\n"
                                   "Try: pip install top2vec[sentence_transformers]\n\n"
