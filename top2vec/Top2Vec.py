@@ -84,6 +84,80 @@ def default_tokenizer(document):
     return simple_preprocess(strip_tags(document), deacc=True)
 
 
+def get_chunks(tokens, chunk_length, max_num_chunks, chunk_overlap_ratio):
+    """Split a document into sequential chunks
+
+    Parameters
+    ----------
+    tokens: List of str
+        Input document tokens.
+
+    chunk_length: int
+        Length of each document chunk.
+
+    max_num_chunks: int (Optional, default None)
+        Limit the number of document chunks
+
+    chunk_overlap_ratio: float
+        Fraction of overlapping tokens between sequential chunks.
+
+    Returns
+    -------
+    chunked_document: List of str
+        List of document chunks.
+
+    """
+    num_tokens = len(tokens)
+    if num_tokens == 0:
+        return [""]
+
+    num_chunks = int(np.ceil(num_tokens / chunk_length))
+
+    if max_num_chunks is not None:
+        num_chunks = min(num_chunks, max_num_chunks)
+
+    return [" ".join(tokens[i:i + chunk_length])
+            for i in list(range(0, num_tokens, int(chunk_length * (1 - chunk_overlap_ratio))))[0:num_chunks]]
+
+
+def get_random_chunks(tokens, chunk_length, chunk_len_coverage_ratio, max_num_chunks):
+    """Split a document into chunks starting at random positions
+
+    Parameters
+    ----------
+    tokens: List of str
+        Input document tokens.
+
+    chunk_length: int
+        Length of each document chunk.
+
+    chunk_len_coverage_ratio: float
+        Proportion of token length that will be covered by chunks. Default
+        value of 1.0 means chunk lengths will add up to number of tokens.
+        This does not mean all tokens will be covered.
+
+    max_num_chunks: int (Optional, default None)
+        Limit the number of document chunks
+
+    Returns
+    -------
+    chunked_document: List of str
+        List of document chunks.
+
+    """
+    num_tokens = len(tokens)
+    if num_tokens == 0:
+        return [""]
+
+    num_chunks = int(np.ceil(num_tokens * chunk_len_coverage_ratio / chunk_length))
+
+    if max_num_chunks is not None:
+        num_chunks = min(num_chunks, max_num_chunks)
+
+    starts = np.random.choice(range(0, num_tokens), size=num_chunks)
+    return [" ".join(tokens[i:i + chunk_length]) for i in starts]
+
+
 class Top2Vec:
     """
     Top2Vec
@@ -93,6 +167,13 @@ class Top2Vec:
 
     Parameters
     ----------
+    documents: List of str
+        Input corpus, should be a list of strings.
+
+    min_count: int (Optional, default 50)
+        Ignores all words with total frequency lower than this. For smaller
+        corpora a smaller min_count will be necessary.
+
     embedding_model: string or callable
         This will determine which model is used to generate the document and
         word embeddings. The valid string options are:
@@ -151,12 +232,62 @@ class Top2Vec:
     embedding_batch_size: int (default=32)
         Batch size for documents being embedded.
 
-    documents: List of str
-        Input corpus, should be a list of strings.
+    split_documents: bool (default False)
+        If set to True, documents will be split into parts before embedding.
+        After embedding the multiple document part embeddings will be averaged
+        to create a single embedding per document. This is useful when documents
+        are very large or when the embedding model has a token limit.
 
-    min_count: int (Optional, default 50)
-        Ignores all words with total frequency lower than this. For smaller
-        corpora a smaller min_count will be necessary.
+        Document chunking or a senticizer can be used for document splitting.
+
+    document_chunker: string or callable (default 'sequential')
+        This will break the document into chunks. The valid string options are:
+
+            * sequential
+            * random
+
+        The sequential chunker will split the document into chunks of specified
+        length and ratio of overlap. This is the recommended method.
+
+        The random chunking option will take random chunks of specified length
+        from the document. These can overlap and should be thought of as
+        sampling chunks with replacement from the document.
+
+        If a callable is passed it must take as input a list of tokens of
+        a document and return a list of strings representing the resulting
+        document chunks.
+
+        Only one of document_chunker or sentincizer should be used.
+
+    chunk_length: int (default 100)
+        The number of tokens per document chunk if using the document chunker
+        string options.
+
+    max_num_chunks: int (Optional)
+        The maximum number of chunks generated per document if using the
+        document chunker string options.
+
+    chunk_overlap_ratio: float (default 0.5)
+        Only applies to the 'sequential' document chunker.
+
+        Fraction of overlapping tokens between sequential chunks. A value of
+        0 will result i no overlap, where as 0.5 will overlap half of the
+        previous chunk.
+
+    chunk_len_coverage_ratio: float (default 1.0)
+        Only applies to the 'random' document chunker option.
+
+        Proportion of token length that will be covered by chunks. Default
+        value of 1.0 means chunk lengths will add up to number of tokens of
+        the document. This does not mean all tokens will be covered since
+        chunks can be overlapping.
+
+    sentencizer: callable (Optional)
+        A sentincizer callable can be passed. The input should be a string
+        representing the document and the output should be a list of strings
+        representing the document sentence chunks.
+
+        Only one of document_chunker or sentincizer should be used.
 
     speed: string (Optional, default 'learn')
 
@@ -225,6 +356,13 @@ class Top2Vec:
                  embedding_model='doc2vec',
                  embedding_model_path=None,
                  embedding_batch_size=32,
+                 split_documents=False,
+                 document_chunker='sequential',
+                 chunk_length=100,
+                 max_num_chunks=None,
+                 chunk_overlap_ratio=0.5,
+                 chunk_len_coverage_ratio=1.0,
+                 sentencizer=None,
                  speed='learn',
                  use_corpus_file=False,
                  document_ids=None,
@@ -284,6 +422,31 @@ class Top2Vec:
             self.doc_id_type = np.int_
 
         self.embedding_model_path = embedding_model_path
+
+        # validate document splitting
+        use_sentencizer = False
+        custom_chunker = False
+        if split_documents:
+            if document_chunker == 'sequential':
+                document_chunker = get_chunks
+                document_chunker_args = {"chunk_length": chunk_length,
+                                         "max_num_chunks": max_num_chunks,
+                                         "chunk_overlap_ratio": chunk_overlap_ratio}
+
+            elif document_chunker == 'random':
+                document_chunker = get_random_chunks
+                document_chunker_args = {"chunk_length": chunk_length,
+                                         "max_num_chunks": max_num_chunks,
+                                         "chunk_len_coverage_ratio": chunk_len_coverage_ratio}
+
+            elif callable(document_chunker):
+                custom_chunker = True
+            elif sentencizer is None:
+                raise ValueError(f"{document_chunker} is an invalid document chunker.")
+            elif callable(sentencizer):
+                use_sentencizer = True
+            else:
+                raise ValueError(f"{sentencizer} is invalid. Document sentencizer must be callable.")
 
         if embedding_model == 'doc2vec':
 
@@ -383,11 +546,47 @@ class Top2Vec:
             self.word_vectors = self._l2_normalize(np.array(self.embed(self.vocab)))
 
             # embed documents
-            if use_embedding_model_tokenizer:
-                self.document_vectors = self._embed_documents(documents, embedding_batch_size)
+
+            # split documents
+            if split_documents:
+                if use_sentencizer:
+                    chunk_id = 0
+                    chunked_docs = []
+                    chunked_doc_ids = []
+                    for doc in documents:
+                        doc_chunks = sentencizer(doc)
+                        doc_chunk_ids = [chunk_id] * len(doc_chunks)
+                        chunk_id += 1
+                        chunked_docs.extend(doc_chunks)
+                        chunked_doc_ids.extend(doc_chunk_ids)
+
+                else:
+                    chunk_id = 0
+                    chunked_docs = []
+                    chunked_doc_ids = []
+                    for tokens in tokenized_corpus:
+                        if custom_chunker:
+                            doc_chunks = document_chunker(tokens)
+                        else:
+                            doc_chunks = document_chunker(tokens, **document_chunker_args)
+                        doc_chunk_ids = [chunk_id] * len(doc_chunks)
+                        chunk_id += 1
+                        chunked_docs.extend(doc_chunks)
+                        chunked_doc_ids.extend(doc_chunk_ids)
+
+                chunked_doc_ids = np.array(chunked_doc_ids)
+                document_chunk_vectors = self._embed_documents(chunked_docs, embedding_batch_size)
+                self.document_vectors = self._l2_normalize(
+                    np.vstack([document_chunk_vectors[np.where(chunked_doc_ids == label)[0]]
+                              .mean(axis=0) for label in set(chunked_doc_ids)]))
+
+            # original documents
             else:
-                train_corpus = [' '.join(tokens) for tokens in tokenized_corpus]
-                self.document_vectors = self._embed_documents(train_corpus, embedding_batch_size)
+                if use_embedding_model_tokenizer:
+                    self.document_vectors = self._embed_documents(documents, embedding_batch_size)
+                else:
+                    train_corpus = [' '.join(tokens) for tokens in tokenized_corpus]
+                    self.document_vectors = self._embed_documents(train_corpus, embedding_batch_size)
 
         else:
             raise ValueError(f"{embedding_model} is an invalid embedding model.")
