@@ -507,6 +507,11 @@ class Top2Vec:
             self.embedding_model = 'doc2vec'
             self.model = Doc2Vec(**doc2vec_args)
 
+            self.word_vectors = self.model.wv.get_normed_vectors()
+            self.word_indexes = self.model.wv.key_to_index
+            self.vocab = list(self.model.wv.key_to_index.keys())
+            self.document_vectors = self.model.dv.get_normed_vectors()
+
             if use_corpus_file:
                 temp.close()
 
@@ -599,7 +604,7 @@ class Top2Vec:
                          'n_components': 5,
                          'metric': 'cosine'}
 
-        umap_model = umap.UMAP(**umap_args).fit(self._get_document_vectors(norm=False))
+        umap_model = umap.UMAP(**umap_args).fit(self.document_vectors)
 
         # find dense areas of document vectors
         logger.info('Finding dense areas of documents')
@@ -625,7 +630,7 @@ class Top2Vec:
 
         # assign documents to topic
         self.doc_top, self.doc_dist = self._calculate_documents_topic(self.topic_vectors,
-                                                                      self._get_document_vectors())
+                                                                      self.document_vectors)
 
         # calculate topic sizes
         self.topic_sizes = self._calculate_topic_sizes(hierarchy=False)
@@ -717,12 +722,7 @@ class Top2Vec:
 
             temp = tempfile.NamedTemporaryFile(mode='w+b')
             temp.write(top2vec_model.serialized_document_index)
-
-            if top2vec_model.embedding_model == 'doc2vec':
-                document_vectors = top2vec_model.model.docvecs.vectors_docs
-            else:
-                document_vectors = top2vec_model.document_vectors
-
+            document_vectors = top2vec_model.document_vectors
             top2vec_model.document_index = hnswlib.Index(space='ip',
                                                          dim=document_vectors.shape[1])
             top2vec_model.document_index.load_index(temp.name, max_elements=document_vectors.shape[0])
@@ -739,12 +739,7 @@ class Top2Vec:
 
             temp = tempfile.NamedTemporaryFile(mode='w+b')
             temp.write(top2vec_model.serialized_word_index)
-
-            if top2vec_model.embedding_model == 'doc2vec':
-                word_vectors = top2vec_model.model.wv.vectors
-            else:
-                word_vectors = top2vec_model.word_vectors
-
+            word_vectors = top2vec_model.word_vectors
             top2vec_model.word_index = hnswlib.Index(space='ip',
                                                      dim=word_vectors.shape[1])
             top2vec_model.word_index.load_index(temp.name, max_elements=word_vectors.shape[0])
@@ -795,44 +790,12 @@ class Top2Vec:
 
         return self._l2_normalize(np.array(self.embed([query])[0]))
 
-    def _set_document_vectors(self, document_vectors):
-        if self.embedding_model == 'doc2vec':
-            self.model.docvecs.vectors_docs = document_vectors
-        else:
-            self.document_vectors = document_vectors
-
-    def _get_document_vectors(self, norm=True):
-
-        if self.embedding_model == 'doc2vec':
-
-            if norm:
-                self.model.docvecs.init_sims()
-                return self.model.docvecs.vectors_docs_norm
-            else:
-                return self.model.docvecs.vectors_docs
-        else:
-            return self.document_vectors
-
-    def _index2word(self, index):
-        if self.embedding_model == 'doc2vec':
-            return self.model.wv.index2word[index]
-        else:
-            return self.vocab[index]
-
-    def _get_word_vectors(self):
-        if self.embedding_model == 'doc2vec':
-            self.model.wv.init_sims()
-            return self.model.wv.vectors_norm
-        else:
-            return self.word_vectors
-
     def _create_topic_vectors(self, cluster_labels):
-
         unique_labels = set(cluster_labels)
         if -1 in unique_labels:
             unique_labels.remove(-1)
         self.topic_vectors = self._l2_normalize(
-            np.vstack([self._get_document_vectors(norm=False)[np.where(cluster_labels == label)[0]]
+            np.vstack([self.document_vectors[np.where(cluster_labels == label)[0]]
                       .mean(axis=0) for label in unique_labels]))
 
     def _deduplicate_topics(self):
@@ -950,12 +913,12 @@ class Top2Vec:
         topic_words = []
         topic_word_scores = []
 
-        res = np.inner(topic_vectors, self._get_word_vectors())
+        res = np.inner(topic_vectors, self.word_vectors)
         top_words = np.flip(np.argsort(res, axis=1), axis=1)
         top_scores = np.flip(np.sort(res, axis=1), axis=1)
 
         for words, scores in zip(top_words, top_scores):
-            topic_words.append([self._index2word(i) for i in words[0:50]])
+            topic_words.append([self.vocab[i] for i in words[0:50]])
             topic_word_scores.append(scores[0:50])
 
         topic_words = np.array(topic_words)
@@ -1019,17 +982,11 @@ class Top2Vec:
 
     def _words2word_vectors(self, keywords):
 
-        return self._get_word_vectors()[[self._word2index(word) for word in keywords]]
-
-    def _word2index(self, word):
-        if self.embedding_model == 'doc2vec':
-            return self.model.wv.vocab[word].index
-        else:
-            return self.word_indexes[word]
+        return self.word_vectors[[self.word_indexes[word] for word in keywords]]
 
     def _get_combined_vec(self, vecs, vecs_neg):
 
-        combined_vector = np.zeros(self._get_document_vectors().shape[1], dtype=np.float64)
+        combined_vector = np.zeros(self.document_vectors.shape[1], dtype=np.float64)
         for vec in vecs:
             combined_vector += vec
         for vec in vecs_neg:
@@ -1199,11 +1156,7 @@ class Top2Vec:
         keywords_lower = [keyword.lower() for keyword in keywords]
         keywords_neg_lower = [keyword.lower() for keyword in keywords_neg]
 
-        if self.embedding_model == 'doc2vec':
-            vocab = self.model.wv.vocab
-        else:
-            vocab = self.vocab
-
+        vocab = self.vocab
         for word in keywords_lower + keywords_neg_lower:
             if word not in vocab:
                 raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched.")
@@ -1242,7 +1195,7 @@ class Top2Vec:
     def _validate_vector(self, vector):
         if not isinstance(vector, np.ndarray):
             raise ValueError("Vector needs to be a numpy array.")
-        vec_size = self._get_document_vectors().shape[1]
+        vec_size = self.document_vectors.shape[1]
         if not vector.shape[0] == vec_size:
             raise ValueError(f"Vector needs to be of {vec_size} dimensions.")
 
@@ -1273,7 +1226,7 @@ class Top2Vec:
 
         self._check_hnswlib_status()
 
-        document_vectors = self._get_document_vectors()
+        document_vectors = self.document_vectors
         vec_dim = document_vectors.shape[1]
         num_vecs = document_vectors.shape[0]
 
@@ -1313,7 +1266,7 @@ class Top2Vec:
         """
         self._check_hnswlib_status()
 
-        word_vectors = self._get_word_vectors()
+        word_vectors = self.word_vectors
         vec_dim = word_vectors.shape[1]
         num_vecs = word_vectors.shape[0]
 
@@ -1445,7 +1398,7 @@ class Top2Vec:
                 topic_vectors = self.topic_vectors
 
             doc_topics, doc_dist = self._calculate_documents_topic(topic_vectors,
-                                                                   self._get_document_vectors()[doc_indexes],
+                                                                   self.document_vectors[doc_indexes],
                                                                    num_topics=num_topics)
 
             topic_words = np.array([self.topic_words[topics] for topics in doc_topics])
@@ -1522,13 +1475,9 @@ class Top2Vec:
                                                                   alpha=0.025,
                                                                   min_alpha=0.01,
                                                                   epochs=100) for doc in docs_processed])
-            num_docs = len(documents)
-            self.model.docvecs.count += num_docs
-            self.model.docvecs.max_rawint += num_docs
-            self.model.docvecs.vectors_docs_norm = None
-            self._set_document_vectors(np.vstack([self._get_document_vectors(norm=False), document_vectors]))
-            self.model.docvecs.init_sims()
+
             document_vectors = self._l2_normalize(document_vectors)
+            self.document_vectors = np.vstack([self.document_vectors, document_vectors])
 
         else:
             if use_embedding_model_tokenizer:
@@ -1537,7 +1486,7 @@ class Top2Vec:
                 docs_processed = [tokenizer(doc) for doc in documents]
                 docs_training = [' '.join(doc) for doc in docs_processed]
             document_vectors = self._embed_documents(docs_training, embedding_batch_size)
-            self._set_document_vectors(np.vstack([self._get_document_vectors(), document_vectors]))
+            self.document_vectors = np.vstack([self.document_vectors, document_vectors])
 
         # update index
         if self.documents_indexed:
@@ -1611,14 +1560,7 @@ class Top2Vec:
             self.doc_id2index = dict(zip(keys, values))
 
         # delete document vectors
-        self._set_document_vectors(np.delete(self._get_document_vectors(norm=False), doc_indexes, 0))
-
-        if self.embedding_model == 'doc2vec':
-            num_docs = len(doc_indexes)
-            self.model.docvecs.count -= num_docs
-            self.model.docvecs.max_rawint -= num_docs
-            self.model.docvecs.vectors_docs_norm = None
-            self.model.docvecs.init_sims()
+        self.document_vectors = np.delete(self.document_vectors, doc_indexes, 0)
 
         # update topics
         self._unassign_documents_from_topic(doc_indexes, hierarchy=False)
@@ -1804,7 +1746,7 @@ class Top2Vec:
         hierarchy = [[i] for i in range(self.topic_vectors.shape[0])]
 
         count = 0
-        interval = max(int(self._get_document_vectors().shape[0] / 50000), 1)
+        interval = max(int(self.document_vectors.shape[0] / 50000), 1)
 
         while num_topics_current > num_topics:
 
@@ -1837,7 +1779,7 @@ class Top2Vec:
             # update topics sizes
             if count % interval == 0:
                 doc_top = self._calculate_documents_topic(topic_vectors=top_vecs,
-                                                          document_vectors=self._get_document_vectors(),
+                                                          document_vectors=self.document_vectors,
                                                           dist=False)
                 topic_sizes = pd.Series(doc_top).value_counts()
                 top_sizes = [topic_sizes[i] for i in range(0, len(topic_sizes))]
@@ -1865,9 +1807,9 @@ class Top2Vec:
 
         # re-calculate topic vectors from clusters
         doc_top = self._calculate_documents_topic(topic_vectors=top_vecs,
-                                                  document_vectors=self._get_document_vectors(),
+                                                  document_vectors=self.document_vectors,
                                                   dist=False)
-        self.topic_vectors_reduced = self._l2_normalize(np.vstack([self._get_document_vectors()
+        self.topic_vectors_reduced = self._l2_normalize(np.vstack([self.document_vectors
                                                                    [np.where(doc_top == label)[0]]
                                                                   .mean(axis=0) for label in set(doc_top)]))
 
@@ -1875,7 +1817,7 @@ class Top2Vec:
 
         # assign documents to topic
         self.doc_top_reduced, self.doc_dist_reduced = self._calculate_documents_topic(self.topic_vectors_reduced,
-                                                                                      self._get_document_vectors())
+                                                                                      self.document_vectors)
         # find topic words and scores
         self.topic_words_reduced, self.topic_word_scores_reduced = self._find_topic_words_and_scores(
             topic_vectors=self.topic_vectors_reduced)
@@ -2108,7 +2050,7 @@ class Top2Vec:
             doc_scores = np.array([1 - score for score in doc_scores])
             doc_indexes = self._get_document_indexes(doc_ids)
         else:
-            doc_indexes, doc_scores = self._search_vectors_by_vector(self._get_document_vectors(),
+            doc_indexes, doc_scores = self._search_vectors_by_vector(self.document_vectors,
                                                                      vector, num_docs)
             doc_ids = self._get_document_ids(doc_indexes)
 
@@ -2174,10 +2116,10 @@ class Top2Vec:
             word_scores = np.array([1 - score for score in word_scores])
 
         else:
-            word_indexes, word_scores = self._search_vectors_by_vector(self._get_word_vectors(),
+            word_indexes, word_scores = self._search_vectors_by_vector(self.word_vectors,
                                                                        vector, num_words)
 
-        words = np.array([self._index2word(index) for index in word_indexes])
+        words = np.array([self.vocab[index] for index in word_indexes])
 
         return words, word_scores
 
@@ -2400,7 +2342,7 @@ class Top2Vec:
             doc_scores = np.array([doc[1] for doc in sim_docs])
         else:
             combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
-            doc_indexes, doc_scores = self._search_vectors_by_vector(self._get_document_vectors(),
+            doc_indexes, doc_scores = self._search_vectors_by_vector(self.document_vectors,
                                                                      combined_vector, num_docs)
 
         doc_ids = self._get_document_ids(doc_indexes)
@@ -2464,7 +2406,7 @@ class Top2Vec:
         neg_word_vecs = self._words2word_vectors(keywords_neg)
         combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
 
-        num_res = min(num_words + len(keywords) + len(keywords_neg), self._get_word_vectors().shape[0])
+        num_res = min(num_words + len(keywords) + len(keywords_neg), self.word_vectors.shape[0])
 
         # if use_index:
         words, word_scores = self.search_words_by_vector(vector=combined_vector,
@@ -2612,7 +2554,7 @@ class Top2Vec:
 
         if use_index:
             self._check_document_index_status()
-            document_vectors = self._get_document_vectors()
+            document_vectors = self.document_vectors
             doc_vecs = [document_vectors[ind] for ind in doc_indexes]
             doc_vecs_neg = [document_vectors[ind] for ind in doc_indexes_neg]
             combined_vector = self._get_combined_vec(doc_vecs, doc_vecs_neg)
@@ -2631,11 +2573,11 @@ class Top2Vec:
             combined_vector = self._get_combined_vec(doc_vecs, doc_vecs_neg)
 
             num_res = min(num_docs + len(doc_indexes) + len(doc_indexes_neg),
-                          self._get_document_vectors().shape[0])
+                          self.document_vectors.shape[0])
 
             # don't return documents that were searched
             search_doc_indexes = list(doc_indexes) + list(doc_indexes_neg)
-            doc_indexes, doc_scores = self._search_vectors_by_vector(self._get_document_vectors(),
+            doc_indexes, doc_scores = self._search_vectors_by_vector(self.document_vectors,
                                                                      combined_vector, num_res)
             res_indexes = [index for index, doc_ind in enumerate(doc_indexes)
                            if doc_ind not in search_doc_indexes][:num_docs]
