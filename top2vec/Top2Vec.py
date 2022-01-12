@@ -57,7 +57,7 @@ use_model_urls = {
     "universal-sentence-encoder": "https://tfhub.dev/google/universal-sentence-encoder/4",
     "universal-sentence-encoder-large": "https://tfhub.dev/google/universal-sentence-encoder-large/5",
     "universal-sentence-encoder-multilingual-large": "https://tfhub.dev/google/universal-sentence-encoder"
-                                                     "-multilingual-large/3 "
+                                                     "-multilingual-large/3"
 }
 
 sbert_models = ["distiluse-base-multilingual-cased",
