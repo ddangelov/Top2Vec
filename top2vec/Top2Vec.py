@@ -932,8 +932,9 @@ class Top2Vec:
             doc_top_new, doc_dist_new = self._calculate_documents_topic(self.topic_vectors_reduced,
                                                                         document_vectors,
                                                                         dist=True)
-            self.doc_top_reduced = np.append(self.doc_top_reduced, doc_top_new)
-            self.doc_dist_reduced = np.append(self.doc_dist_reduced, doc_dist_new)
+
+            self.doc_top_reduced = np.array(list(self.doc_top_reduced) + list(doc_top_new))
+            self.doc_dist_reduced = np.array(list(self.doc_dist_reduced) + list(doc_dist_new))
 
             topic_sizes_new = pd.Series(doc_top_new).value_counts()
             for top in topic_sizes_new.index.tolist():
@@ -942,8 +943,8 @@ class Top2Vec:
             self._reorder_topics(hierarchy)
         else:
             doc_top_new, doc_dist_new = self._calculate_documents_topic(self.topic_vectors, document_vectors, dist=True)
-            self.doc_top = np.append(self.doc_top, doc_top_new)
-            self.doc_dist = np.append(self.doc_dist, doc_dist_new)
+            self.doc_top = np.array(list(self.doc_top) + list(doc_top_new))
+            self.doc_dist = np.array(list(self.doc_dist) + list(doc_dist_new))
 
             topic_sizes_new = pd.Series(doc_top_new).value_counts()
             for top in topic_sizes_new.index.tolist():
@@ -1450,13 +1451,13 @@ class Top2Vec:
         # add documents
         self._validate_documents(documents)
         if self.documents is not None:
-            self.documents = np.append(self.documents, documents)
+            self.documents = np.array((list(self.documents) + list(documents)), dtype="object")
 
         # add document ids
         if self.document_ids_provided is True:
             self._validate_document_ids_add_doc(documents, doc_ids)
             doc_ids_len = len(self.document_ids)
-            self.document_ids = np.append(self.document_ids, doc_ids)
+            self.document_ids = np.array(list(self.document_ids) + list(doc_ids))
             self.doc_id2index.update(dict(zip(doc_ids, list(range(doc_ids_len, doc_ids_len + len(doc_ids))))))
 
         elif doc_ids is None:
@@ -1464,7 +1465,7 @@ class Top2Vec:
             start_id = max(self.document_ids) + 1
             doc_ids = list(range(start_id, start_id + num_docs))
             doc_ids_len = len(self.document_ids)
-            self.document_ids = np.append(self.document_ids, doc_ids)
+            self.document_ids = np.array(list(self.document_ids) + list(doc_ids))
             self.doc_id2index.update(dict(zip(doc_ids, list(range(doc_ids_len, doc_ids_len + len(doc_ids))))))
         else:
             raise ValueError("doc_ids cannot be used because they were not provided to model during training.")
