@@ -32,16 +32,18 @@ def find_elbow_index(values: ArrayLike, metric: str = __EUCLIDEAN_STR) -> Option
     Returns
     -------
     int, optional
-        The index of the farthest point from the comparison slope
-        when all provided data has been sorted in descending order.
+        The index of the point with the greatest perpendicular
+        distance from the comparison line when all provided data
+        has been sorted in descending order.
         Will return None if provided a None value or empty list.
 
     Notes
     -----
     The comparison slope is created by assuming a linear descent
     from the largest to the smallest provided value. The elbow
-    can then be thought of as a value which diverges the most
-    and can then be used as a cut-off value.
+    is the farthest perpendicular distance from the line.
+    This can then be thought of as a value which diverges the most
+    from a linear decrease and can then be used as a cut-off value.
     """
     if values is None:
         return None

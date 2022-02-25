@@ -16,6 +16,8 @@ def find_closest_items(
 ) -> List[Tuple[NDArray[np.int64], NDArray[np.float64]]]:
     """Finds the closest embeddings based on provided vector(s) from the same space.
 
+    Parameters
+    ----------
     vectors: ArrayLike
         Something which can be interpreted as a 1D or 2D numpy array of
         floats. Will be used as the points to compute distance from.
@@ -62,15 +64,6 @@ def find_closest_items(
     elbow_indices = np.apply_along_axis(
         find_elbow_index, arr=similarity_scores, axis=1, metric=elbow_metric
     )
-    """
-        # Turns out that I'm iterating through anyways, so I don't need to do this
-        if maxN is not None:
-            # Is there a better way to do this?
-            vmin = np.vectorize(min)
-            cutoff_indices = vmin(elbow_indices, maxN)
-        else:
-            cutoff_indices = elbow_indices
-    """
     relevant_indices = np.flip(np.argsort(similarity_scores), axis=1)
     # Now I reshape the individual vectors
     # NumPy doesn't support jagged arrays, so now is time to iterate
