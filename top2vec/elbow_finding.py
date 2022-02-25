@@ -15,9 +15,7 @@ __MANHATTAN_STR = "manhattan"
 __UNIFORM_STR = "uniform"
 
 
-def find_elbow_index(
-    values: ArrayLike, metric: Optional[str] = __EUCLIDEAN_STR
-) -> Optional[int]:
+def find_elbow_index(values: ArrayLike, metric: str = __EUCLIDEAN_STR) -> Optional[int]:
     """Finds the "elbow" in a series of descending real values.
 
     Example uses include selecting the number of topics and determining
@@ -27,6 +25,9 @@ def find_elbow_index(
     ----------
     values: ArrayLike
         A 1d array (or list) of real values.
+    metric: str
+        Which distance metric to use when comparing with the line.
+        One of ("euclidean", "manhattan", "uniform").
 
     Returns
     -------
@@ -34,9 +35,6 @@ def find_elbow_index(
         The index of the farthest point from the comparison slope
         when all provided data has been sorted in descending order.
         Will return None if provided a None value or empty list.
-    metric: Optional[str]
-        Which distance metric to use when comparing with the line.
-        One of ("euclidean", "manhattan", "uniform").
 
     Notes
     -----
@@ -83,7 +81,7 @@ def get_distances_from_line(
     values: ArrayLike,
     comparison_slope: float,
     comparison_y_intercept: float,
-    metric: Optional[str] = __EUCLIDEAN_STR,
+    metric: str = __EUCLIDEAN_STR,
 ) -> NDArray[np.float64]:
     """Finds the shortest distance for all provided values from a provided line.
 
@@ -98,7 +96,7 @@ def get_distances_from_line(
         The slope of the line to compare values with.
     comparison_y_intercept : float
         The y intercept of the line to compare values with.
-    metric: Optional[str]
+    metric: str
         Which distance metric to use when comparing with the line.
         One of ("euclidean", "manhattan", "uniform").
 
@@ -130,6 +128,7 @@ def get_distances_from_line(
     perp_slope = comparison_slope * -1
     # only compute this once
     divisor = comparison_slope - perp_slope
+    # TODO: look at np.vectorize
     for x in to_examine:
         instance_y = values[x]
         # special case: slope of 0
