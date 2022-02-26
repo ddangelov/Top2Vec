@@ -492,7 +492,7 @@ def test_similar_words_index(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_similar_words_index(top2vec_model):
+def test_save_and_load(top2vec_model):
     temp = tempfile.NamedTemporaryFile(mode='w+b')
     top2vec_model.save(temp.name)
     Top2Vec.load(temp.name)
