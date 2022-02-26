@@ -4,7 +4,7 @@ from typing import Tuple, List, Optional
 import sklearn.metrics
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
-
+import scipy.sparse
 from top2vec.elbow_finding import find_elbow_index
 
 
@@ -35,7 +35,7 @@ def find_closest_items(
 
     Returns
     -------
-    NDArray[np.float64]
+    List[Tuple[NDArray[np.int64], NDArray[np.float64]]]
         A list of tuples where index 0 is a numpy array of the indices of similar vectors and
         index 1 is a numpy array of their cosine similarity scores.
         Tuple i will correspond to the provided comparison_vectors i.
@@ -79,15 +79,51 @@ def find_closest_items(
     return result
 
 
-def describe_topics(
-    topic_vectors: NDArray[np.float64],
-    vocabulary_embedding: NDArray[np.float64],
-    vocabulary: ArrayLike,
-    maxTerms: int = 100,
+def describe_closest_items(
+    vectors: NDArray[np.float64],
+    embedding: NDArray[np.float64],
+    embedding_vocabulary: ArrayLike,
+    maxN: int = 100,
     elbow_metric: str = "euclidean",
 ) -> List[Tuple[NDArray, NDArray[np.float64]]]:
-    """Finds the most descriptive terms for a topic or set of topics using cosine
+    """Finds the most similar embedded vectors for a vector or set of vectors using cosine
     similarity and an elbow finding heuristic.
+
+    Providing the topic vectors as `vectors`, the term embeddings as `embeding`
+    and the term vocabulary as `embedding_vocabulary` will result in a description
+    of topics in a human readable format. Doing the same with document vectors
+    will result in the model's representation of a document x term matrix.
+
+    Parameters
+    ----------
+    vectors: ArrayLike
+        Something which can be interpreted as a 1D or 2D numpy array of
+        floats. Will be used as the points to compute distance from.
+    embedding: NDarray
+        A 2D numpy array of floats.
+        Will be compared to vectors and saved if "close enough".
+    embedding_vocabulary: ArrayLike
+        Something which can be interpreted as a 1D numpy array of
+        strings. Index 0 is the human readable description of
+        embedding index 0.
+    maxN: Optional[int]
+        A maximum number of points to consider similar based on the
+        elbow finding heuristic. The number of returned similarity
+        scores will be the minimum of the elbow cut-off and maxN
+        if provided.
+    elbow_metric: str
+        Which distance metric to use when computing the cut-off for
+        close enough.
+
+
+    Returns
+    -------
+    List[Tuple[NDArray, NDArray[np.float64]]]
+        A list of tuples where index 0 is a numpy array of the similar embedded vectors'
+        names (according to vocabulary) and index 1 is a numpy array of their cosine
+        similarity scores.
+        Tuple i will correspond to the provided vector i.
+
 
     Raises
     ------
@@ -97,21 +133,19 @@ def describe_topics(
     -----
     This will be much more efficient if vocabulary reduction has already been performed.
     """
-    # TODO: Generecize this function description. This can describe topics but it can also
-    # be used to describe document to topic mappings or even document term mappings
     try:
-        vocab_len = vocabulary.shape[0]
-        vocab_array = vocabulary
+        vocab_len = embedding_vocabulary.shape[0]
+        vocab_array = embedding_vocabulary
     except AttributeError:
         # we have a list
-        vocab_len = len(vocabulary)
-        vocab_array = np.array(vocabulary)
-    if vocab_len != vocabulary_embedding.shape[0]:
+        vocab_len = len(embedding_vocabulary)
+        vocab_array = np.array(embedding_vocabulary)
+    if vocab_len != embedding.shape[0]:
         raise ValueError(
-            f"Vocabulary size ({len(vocabulary)}) != vocabulary embedding size ({vocabulary_embedding.shape[0]})"
+            f"Vocabulary size ({vocab_len}) != vocabulary embedding size ({embedding.shape[0]})"
         )
     closest_terms = find_closest_items(
-        topic_vectors, vocabulary_embedding, maxN=maxTerms, elbow_metric=elbow_metric
+        vectors, embedding, maxN=maxN, elbow_metric=elbow_metric
     )
     results = []
     for indices, scores in closest_terms:
@@ -159,7 +193,6 @@ def generate_similarity_matrix(
         all columns [j0, j1, ..., jn] which were deemed to be
         close enough to vector i based on the elbow finding heuristic.
     """
-    # TODO: Give option to make a sparse matrix
     try:
         vector_array = vectors
         num_vectors = vectors.shape[0]
@@ -179,3 +212,18 @@ def generate_similarity_matrix(
     for index, (indices, scores) in enumerate(similarity_values):
         res_matrix[index][indices] = scores
     return res_matrix
+
+
+def generate_csr_similarity_matrix(
+    vectors: ArrayLike,
+    comparison_embeddings: ArrayLike,
+    maxN: int = 100,
+    elbow_metric: str = "euclidean",
+) -> scipy.sparse.csr_matrix:
+    # Easy mode is to just use the NumpyArray constructor,
+    return scipy.sparse.csr_matrix(
+        generate_similarity_matrix(
+            vectors, comparison_embeddings, maxN=maxN, elbow_metric=elbow_metric
+        )
+    )
+    # but we should also do this without instantiating a temporary array

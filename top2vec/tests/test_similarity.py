@@ -1,9 +1,10 @@
 import pytest
 import numpy as np
 from top2vec.similarity import (
-    describe_topics,
+    describe_closest_items,
     find_closest_items,
     generate_similarity_matrix,
+    generate_csr_similarity_matrix,
 )
 
 
@@ -57,7 +58,7 @@ def test_find_closest_items():
         find_closest_items([1, 2, 3], test_embedding)
 
 
-def test_describe_topics():
+def test_describe_closest_items():
     test_embedding = np.array(
         [
             [0, 1],
@@ -80,13 +81,13 @@ def test_describe_topics():
     b = test_embedding[0]
 
     with pytest.raises(ValueError):
-        describe_topics(test_vectors, test_embedding, [])
+        describe_closest_items(test_vectors, test_embedding, [])
     with pytest.raises(ValueError):
-        describe_topics(test_vectors, test_embedding[:2], test_vocabulary)
+        describe_closest_items(test_vectors, test_embedding[:2], test_vocabulary)
     with pytest.raises(ValueError):
-        describe_topics([], test_embedding, test_vocabulary)
+        describe_closest_items([], test_embedding, test_vocabulary)
 
-    full_run = describe_topics(test_vectors, test_embedding, test_vocabulary)
+    full_run = describe_closest_items(test_vectors, test_embedding, test_vocabulary)
     assert len(full_run) == test_vectors.shape[0]
     # Two items with cosine similarity of 1
     assert full_run[0][0].shape == (2,)
@@ -108,8 +109,8 @@ def test_describe_topics():
     assert full_run[2][1].shape == (0,)
 
     # But what if we give it a max value?
-    full_run = describe_topics(
-        test_vectors, test_embedding, test_vocabulary, maxTerms=1
+    full_run = describe_closest_items(
+        test_vectors, test_embedding, test_vocabulary, maxN=1
     )
     assert len(full_run) == test_vectors.shape[0]
     # Two items with cosine similarity of 1
@@ -132,8 +133,8 @@ def test_describe_topics():
     assert full_run[2][1].shape == (0,)
 
     # Should be identical
-    runA = describe_topics(test_vectors[0], test_embedding, test_vocabulary)
-    runB = describe_topics([2, 1], test_embedding, test_vocabulary)
+    runA = describe_closest_items(test_vectors[0], test_embedding, test_vocabulary)
+    runB = describe_closest_items([2, 1], test_embedding, test_vocabulary)
 
     assert len(runA) == len(runB)
     for idx in range(len(runA)):
@@ -142,7 +143,7 @@ def test_describe_topics():
         assert compare_numpy_arrays(runA[idx][0], runB[idx][0])
         assert compare_numpy_arrays(runA[idx][1], runB[idx][1])
 
-    runB = describe_topics(test_vectors[0], test_embedding, test_vocabulary_list)
+    runB = describe_closest_items(test_vectors[0], test_embedding, test_vocabulary_list)
     assert len(runA) == len(runB)
     for idx in range(len(runA)):
         assert len(runA[idx]) == 2
@@ -194,3 +195,47 @@ def test_generate_similarity_matrix():
         expected_array,
         round=True,
     )
+
+
+def test_generate_csr_similarity_matrix():
+    # This is going to be simple.
+    # For each thing I'm going to generate a csr, then ensure it is in fact
+    # the same as the numpy array that made it
+    test_term_embedding_list = [
+        [0, 1],
+        [2, 1],
+        [1, 0.5],
+        [1, 0],
+    ]
+    test_term_embedding_array = np.array(test_term_embedding_list)
+    test_topic_vectors_list = [
+        [2, 1],
+        [-1, 2],
+        [0, 0],
+    ]
+    test_topic_vectors_array = np.array(test_topic_vectors_list)
+    # The happy case
+    a = test_topic_vectors_array[1]
+    b = test_term_embedding_array[0]
+    expected_array = np.array(
+        [
+            [0, 1, 1, 0],
+            [np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)), 0, 0, 0],
+            [0, 0, 0, 0],
+        ]
+    )
+    sparse = generate_csr_similarity_matrix(
+        test_topic_vectors_array, test_term_embedding_array
+    )
+    assert compare_numpy_arrays(
+        sparse.toarray(),
+        expected_array,
+        round=True,
+    )
+    assert not compare_numpy_arrays(sparse.toarray(), np.zeros((3, 4)))
+
+    # Weirder cases
+    sparse = generate_csr_similarity_matrix(
+        test_topic_vectors_list, test_term_embedding_array
+    )
+    assert compare_numpy_arrays(sparse.toarray(), expected_array, round=True)
