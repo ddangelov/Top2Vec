@@ -79,6 +79,19 @@ def find_closest_items(
     return result
 
 
+def __verify_np_array(vectors: ArrayLike) -> Tuple[int, NDArray]:
+    """Translate an ArrayLike into a numpy array (if necessary)
+    and determine how many elements it has.
+    """
+    try:
+        vector_array = vectors
+        num_vectors = vectors.shape[0]
+    except AttributeError:
+        vector_array = np.array(vectors)
+        num_vectors = vector_array.shape[0]
+    return num_vectors, vector_array
+
+
 def describe_closest_items(
     vectors: NDArray[np.float64],
     embedding: NDArray[np.float64],
@@ -133,13 +146,7 @@ def describe_closest_items(
     -----
     This will be much more efficient if vocabulary reduction has already been performed.
     """
-    try:
-        vocab_len = embedding_vocabulary.shape[0]
-        vocab_array = embedding_vocabulary
-    except AttributeError:
-        # we have a list
-        vocab_len = len(embedding_vocabulary)
-        vocab_array = np.array(embedding_vocabulary)
+    vocab_len, vocab_array = __verify_np_array(embedding_vocabulary)
     if vocab_len != embedding.shape[0]:
         raise ValueError(
             f"Vocabulary size ({vocab_len}) != vocabulary embedding size ({embedding.shape[0]})"
@@ -193,18 +200,8 @@ def generate_similarity_matrix(
         all columns [j0, j1, ..., jn] which were deemed to be
         close enough to vector i based on the elbow finding heuristic.
     """
-    try:
-        vector_array = vectors
-        num_vectors = vectors.shape[0]
-    except AttributeError:
-        vector_array = np.array(vectors)
-        num_vectors = vector_array.shape[0]
-    try:
-        embeddings_array = comparison_embeddings
-        num_embeddings = embeddings_array.shape[0]
-    except AttributeError:
-        embeddings_array = np.array(comparison_embeddings)
-        num_embeddings = embeddings_array.shape[0]
+    num_vectors, vector_array = __verify_np_array(vectors)
+    num_embeddings, embeddings_array = __verify_np_array(comparison_embeddings)
     similarity_values = find_closest_items(
         vector_array, embeddings_array, maxN=maxN, elbow_metric=elbow_metric
     )
@@ -220,10 +217,72 @@ def generate_csr_similarity_matrix(
     maxN: int = 100,
     elbow_metric: str = "euclidean",
 ) -> scipy.sparse.csr_matrix:
-    # Easy mode is to just use the NumpyArray constructor,
-    return scipy.sparse.csr_matrix(
-        generate_similarity_matrix(
-            vectors, comparison_embeddings, maxN=maxN, elbow_metric=elbow_metric
-        )
+    """As with `generate_similarity_matrix`, but a sparse output.
+
+    Translates from a series of vectors and a set of embeddings to compare
+    into a CSR matrix. Uses the elbow finding heuristic to determine what is
+    "similar enough" to keep.
+
+    Providing a set of topic vectors and the corresponding term embeddings
+    will generate a topic x term matrix which is used in other NLP algorithms.
+    Similarly, providing a set of document vectors and the corresponding
+    topic vectors in the same space will generate a document x topic matrix.
+
+    Parameters
+    ----------
+    vectors: ArrayLike
+        Something which can be interpreted as a 1D or 2D numpy array of
+        floats. Will be used as the points to compute distance from.
+    comparison_embedding: ArrayLike
+        Something which can be interpreted as a 2D numpy array of floats.
+        Will be compared to vectors and saved if "close enough".
+    maxN: int
+        A maximum number of points to consider similar to a provided
+        vector. Can be used to limit topic sizes.
+    elbow_metric: str
+        Which distance metric to use when computing the cut-off for
+        close enough.
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix
+        A matrix with N rows and M columns.
+        N is equal to the number of provided vectors and M is equal
+        to the number of provided embeddings.
+        The ith row will have values of the cosine similarity for
+        all columns [j0, j1, ..., jn] which were deemed to be
+        close enough to vector i based on the elbow finding heuristic.
+
+    Notes
+    -----
+    Assuming that *most* rows will have at least one value,
+    therefore we are doing CSR instad of CSC.
+
+    See Also
+    --------
+    :func:generate_similarity_matrix
+    """
+    num_vectors, vector_array = __verify_np_array(vectors)
+    num_embeddings, embeddings_array = __verify_np_array(comparison_embeddings)
+    similarity_values = find_closest_items(
+        vector_array, embeddings_array, maxN=maxN, elbow_metric=elbow_metric
     )
-    # but we should also do this without instantiating a temporary array
+
+    res_shape = (num_vectors, num_embeddings)
+
+    res_rows = []
+    res_cols = []
+    res_values = []
+
+    for index, (col_indices, values) in enumerate(similarity_values):
+        res_rows.append(np.full((len(col_indices)), fill_value=index))
+        res_cols.append(col_indices)
+        res_values.append(values)
+
+    return scipy.sparse.csc_matrix(
+        (
+            np.concatenate(res_values),
+            (np.concatenate(res_rows), np.concatenate(res_cols)),
+        ),
+        shape=res_shape,
+    )
