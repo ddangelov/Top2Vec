@@ -28,7 +28,7 @@ setuptools.setup(
     install_requires=[
         "numpy >= 1.20.0, < 1.22",
         "pandas",
-        "gensim < 4.0.0",
+        "gensim >= 4.0.0",
         "umap-learn >= 0.5.1",
         "hdbscan >= 0.8.27",
         "wordcloud",
