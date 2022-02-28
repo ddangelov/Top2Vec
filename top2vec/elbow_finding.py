@@ -44,6 +44,12 @@ def find_elbow_index(values: ArrayLike, metric: str = __EUCLIDEAN_STR) -> Option
     is the farthest perpendicular distance from the line.
     This can then be thought of as a value which diverges the most
     from a linear decrease and can then be used as a cut-off value.
+
+    It is imposible to detect if anything diverges when given
+    2 or fewer points, so index zero will be returned.
+
+    This can behave poorly compared to human intuition when values
+    cross the comparison line in a sort of S-curve.
     """
     if values is None:
         return None
@@ -51,13 +57,14 @@ def find_elbow_index(values: ArrayLike, metric: str = __EUCLIDEAN_STR) -> Option
     sorted_values = -np.sort(-np.array(values))
     if sorted_values.size == 0:
         return None
-    if sorted_values.size == 1:
+    elif sorted_values.size <= 2:
         return 0
     if len(sorted_values.shape) != 1:
         raise ValueError("Elbow finding must be a 1-D Array")
     slope = (sorted_values[-1] - sorted_values[0]) / (sorted_values.size - 1)
     y_intercept = sorted_values[0]
-
+    # TODO: is it more efficient to do a np.concat 0, [actual values], 0
+    # and avoid computing the two values we know will be zero?
     distances = get_distances_from_line(
         sorted_values, slope, y_intercept, metric=metric
     )

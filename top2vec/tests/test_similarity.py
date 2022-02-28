@@ -3,6 +3,8 @@ import numpy as np
 from top2vec.similarity import (
     describe_closest_items,
     find_closest_items,
+    find_closest_items_to_average,
+    find_similar_in_embedding,
     generate_similarity_matrix,
     generate_csr_similarity_matrix,
 )
@@ -22,7 +24,7 @@ def compare_numpy_arrays(array_a, array_b, round=False):
         return False
     # Thanks a bunch, floating point numbers
     if round:
-        return (abs(array_a - array_b) < 0.00000001).all()
+        return (array_a.round(decimals=5) == array_b.round(decimals=5)).all()
     else:
         return (array_a == array_b).all()
 
@@ -43,6 +45,8 @@ def test_find_closest_items():
     ]
     test_vectors = np.array(test_vectors_list)
 
+    assert find_closest_items(None, test_embedding) == []
+
     res = find_closest_items(test_vectors, test_embedding)
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -56,6 +60,356 @@ def test_find_closest_items():
     # We should have problems if we give items that aren't in the same space
     with pytest.raises(ValueError):
         find_closest_items([1, 2, 3], test_embedding)
+    with pytest.raises(ValueError):
+        find_closest_items([1, 2, 3], np.array([2, 3, 4]))
+
+    # Now test when we ignore some indices
+    test_embedding = np.array(
+        [
+            [0, 1],
+            [2, 1],
+            [1, 0.5],
+            [1, 0],
+            [4, 2],
+            [8, 4],
+            [1, -1],
+        ]
+    )
+    # NOTE: This appears to behave poorly when we have values which cross the
+    # expected line in a sort of
+
+    res = find_closest_items(test_vectors, test_embedding, ignore_indices=None)
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    assert compare_numpy_arrays(res[0][0], np.array([5, 4, 2, 1]))
+    assert compare_numpy_arrays(res[0][1], np.array([1.0, 1.0, 1.0, 1.0]), round=True)
+
+    res = find_closest_items(test_vectors, test_embedding, ignore_indices=None, topn=2)
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    assert compare_numpy_arrays(
+        res[0][0],
+        np.array(
+            [
+                5,
+                4,
+            ]
+        ),
+    )
+    assert compare_numpy_arrays(
+        res[0][1],
+        np.array(
+            [
+                1.0,
+                1.0,
+            ]
+        ),
+        round=True,
+    )
+
+    test_embedding = np.array(
+        [
+            [0, 1],
+            [2, 1],
+            [1, 0.5],
+            [1, 0],
+            [4, 2],
+            [8, 4],
+            [1, -1],
+            [1, -1.1],
+        ]
+    )
+    # What about if we ignore everything?
+    res = find_closest_items(
+        test_vectors, test_embedding, ignore_indices=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    )
+    for indices, scores in res:
+        assert len(indices) == 0
+        assert len(scores) == 0
+    # Also can't determine closest if given 2 or fewer comparison points
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=[
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+        ],
+    )
+    for indices, scores in res:
+        assert len(indices) == 0
+        assert len(scores) == 0
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=[
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+        ],
+    )
+    for indices, scores in res:
+        assert len(indices) == 0
+        assert len(scores) == 0
+
+    # Now real tests
+    res = find_closest_items(test_vectors, test_embedding, ignore_indices=[4, 5])
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    assert compare_numpy_arrays(res[0][0], np.array([2, 1]))
+    assert compare_numpy_arrays(res[0][1], np.array([1.0, 1.0]), round=True)
+
+    res = find_closest_items(test_vectors, test_embedding, ignore_indices=[1, 2])
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    assert compare_numpy_arrays(res[0][0], np.array([5, 4]))
+    assert compare_numpy_arrays(res[0][1], np.array([1.0, 1.0]), round=True)
+    res = find_closest_items(test_vectors, test_embedding, ignore_indices=[1])
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    assert compare_numpy_arrays(res[0][0], np.array([5, 4, 2]))
+    assert compare_numpy_arrays(res[0][1], np.array([1.0, 1.0, 1.0]), round=True)
+    res = find_closest_items(
+        test_vectors, test_embedding, ignore_indices=np.array([1, 4])
+    )
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    assert compare_numpy_arrays(res[0][0], np.array([5, 2]))
+    assert compare_numpy_arrays(res[0][1], np.array([1.0, 1.0]), round=True)
+
+    a = test_vectors[1]
+    b0 = test_embedding[0]
+    b3 = test_embedding[3]
+    cosine0 = np.dot(a, b0) / (np.linalg.norm(a) * np.linalg.norm(b0))
+    cosine3 = np.dot(a, b3) / (np.linalg.norm(a) * np.linalg.norm(b3))
+    res = find_closest_items(test_vectors, test_embedding, ignore_indices=[1, 2])
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    assert compare_numpy_arrays(res[1][0], np.array([0]))
+    assert compare_numpy_arrays(res[1][1], np.array([cosine0]), round=True)
+    res = find_closest_items(
+        test_vectors, test_embedding, ignore_indices=[0, 1, 2, 4, 5]
+    )
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    # Our indices should be based on the same array we passed in
+    assert compare_numpy_arrays(res[1][0], np.array([3]))
+    assert compare_numpy_arrays(res[1][1], np.array([cosine3]), round=True)
+
+    # 0 vectors shouldn't be similar to anything
+    assert len(res[2][0]) == 0
+    assert len(res[2][1]) == 0
+
+
+def test_find_closest_items_with_averages():
+    test_embedding = np.array(
+        [
+            [0, 1],
+            [2, 1],
+            [1, 0.5],
+            [1, 0],
+            [4, 2],
+            [8, 4],
+            [1, -1],
+        ]
+    )
+
+    with pytest.raises(ValueError):
+        find_closest_items_to_average(test_embedding)
+
+    def test_helper(vecs, embedding, ignore_indices, expected_indices, expected_scores):
+        pvecs = vecs
+        nvecs = np.array(vecs) * -1
+        result_tuples = []
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding, positive=pvecs, ignore_positive_indices=ignore_indices
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding,
+                positive=pvecs,
+                negative=[],
+                ignore_positive_indices=ignore_indices,
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding, positive=pvecs, ignore_negative_indices=ignore_indices
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding,
+                positive=pvecs,
+                ignore_positive_indices=ignore_indices,
+                ignore_negative_indices=ignore_indices,
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding,
+                positive=[],
+                negative=nvecs,
+                ignore_positive_indices=ignore_indices,
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding, negative=nvecs, ignore_positive_indices=ignore_indices
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding, negative=nvecs, ignore_negative_indices=ignore_indices
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding,
+                positive=pvecs,
+                negative=nvecs,
+                ignore_positive_indices=ignore_indices,
+                ignore_negative_indices=ignore_indices,
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding,
+                positive=pvecs,
+                negative=nvecs,
+                ignore_positive_indices=ignore_indices,
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding,
+                positive=pvecs,
+                negative=nvecs,
+                ignore_negative_indices=ignore_indices,
+            )
+        )
+        result_tuples.append(
+            find_closest_items_to_average(
+                embedding,
+                positive=pvecs,
+                negative=nvecs,
+                ignore_positive_indices=ignore_indices,
+                ignore_negative_indices=ignore_indices,
+            )
+        )
+
+        for indices, scores in result_tuples:
+            assert len(indices) == len(expected_indices)
+            assert len(scores) == len(expected_scores)
+            assert len(indices) == len(scores)
+            assert compare_numpy_arrays(indices, expected_indices)
+            assert compare_numpy_arrays(scores, expected_scores, round=True)
+
+    test_helper(
+        [[4, 2]],
+        test_embedding,
+        [],
+        np.array([5, 4, 2, 1]),
+        np.array([1.0, 1.0, 1.0, 1.0]),
+    )
+    test_helper(
+        [[4, 2]], test_embedding, [4, 5], np.array([2, 1]), np.array([1.0, 1.0])
+    )
+    # Make sure duplicates don't cause problems
+    test_helper(
+        [[4, 2], [4, 2], [4, 2]],
+        test_embedding,
+        [4, 5],
+        np.array([2, 1]),
+        np.array([1.0, 1.0]),
+    )
+    # Easy case: parallel vectors should return identical values
+    test_helper(
+        [[2, 1], [4, 2]], test_embedding, [4, 5], np.array([2, 1]), np.array([1.0, 1.0])
+    )
+    test_helper(
+        [[2, 1], [4, 2], [6, 3]],
+        test_embedding,
+        [2, 1],
+        np.array([5, 4]),
+        np.array([1.0, 1.0]),
+    )
+
+    # Slightly different case: providing two orthogonal vectors which average
+    # to our value
+    test_helper(
+        [[2, 0], [0, 1]],
+        test_embedding,
+        [2, 1],
+        np.array([5, 4]),
+        np.array([1.0, 1.0]),
+    )
+    test_helper(
+        [[2, 0], [0, 1], [200, 0], [0, 100], [200000, 0], [0, 100000]],
+        test_embedding,
+        [2, 1],
+        np.array([5, 4]),
+        np.array([1.0, 1.0]),
+    )
+
+
+def test_find_similar_in_embedding():
+    # This is just a wrapper around find_closest_items_to_average
+    test_embedding = np.array(
+        [
+            [0, 1],
+            [2, 1],
+            [1, 0.5],
+            [1, 0],
+            [4, 2],
+            [8, 4],
+            [0, 0],
+            [-2, -1],
+        ]
+    )
+    with pytest.raises(ValueError):
+        find_similar_in_embedding(None)
+    with pytest.raises(TypeError):
+        find_similar_in_embedding(None, positive_indices=[1])
+    scores, indices = find_similar_in_embedding(test_embedding, positive_indices=[1])
+    assert len(scores) == len(indices) == 3
+    compare_numpy_arrays(indices, np.array([5, 4, 2]))
+    compare_numpy_arrays(scores, np.array([1.0, 1.0, 1.0]), round=True)
+
+    scores, indices = find_similar_in_embedding(
+        test_embedding, positive_indices=[1], topn=2
+    )
+    assert len(scores) == len(indices) == 2
+    compare_numpy_arrays(indices, np.array([5, 4]))
+    compare_numpy_arrays(scores, np.array([1.0, 1.0]), round=True)
+
+    scores, indices = find_similar_in_embedding(test_embedding, positive_indices=[4, 5])
+    assert len(scores) == len(indices) == 2
+    compare_numpy_arrays(indices, np.array([2, 1]))
+    compare_numpy_arrays(scores, np.array([1.0, 1.0]), round=True)
+
+    scores, indices = find_similar_in_embedding(
+        test_embedding, positive_indices=[4, 5], negative_indices=[]
+    )
+    assert len(scores) == len(indices) == 2
+    compare_numpy_arrays(indices, np.array([2, 1]))
+    compare_numpy_arrays(scores, np.array([1.0, 1.0]), round=True)
+
+    scores, indices = find_similar_in_embedding(
+        test_embedding, positive_indices=[], negative_indices=[7]
+    )
+    assert len(scores) == len(indices) == 4
+    compare_numpy_arrays(indices, np.array([5, 4, 2, 1]))
+    compare_numpy_arrays(scores, np.array([1.0, 1.0, 1.0, 1.0]), round=True)
 
 
 def test_describe_closest_items():
@@ -84,8 +438,7 @@ def test_describe_closest_items():
         describe_closest_items(test_vectors, test_embedding, [])
     with pytest.raises(ValueError):
         describe_closest_items(test_vectors, test_embedding[:2], test_vocabulary)
-    with pytest.raises(ValueError):
-        describe_closest_items([], test_embedding, test_vocabulary)
+    assert describe_closest_items([], test_embedding, test_vocabulary) == []
 
     full_run = describe_closest_items(test_vectors, test_embedding, test_vocabulary)
     assert len(full_run) == test_vectors.shape[0]
@@ -110,7 +463,7 @@ def test_describe_closest_items():
 
     # But what if we give it a max value?
     full_run = describe_closest_items(
-        test_vectors, test_embedding, test_vocabulary, maxN=1
+        test_vectors, test_embedding, test_vocabulary, topn=1
     )
     assert len(full_run) == test_vectors.shape[0]
     # Two items with cosine similarity of 1

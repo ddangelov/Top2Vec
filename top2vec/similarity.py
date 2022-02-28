@@ -7,12 +7,44 @@ from numpy.typing import NDArray, ArrayLike
 import scipy.sparse
 from top2vec.elbow_finding import find_elbow_index
 
+# import gensim.matutils
+
+
+def __ensure_np_array(vectors: ArrayLike) -> Tuple[int, NDArray]:
+    """Translate an ArrayLike into a numpy array (if necessary)
+    and determine how many elements it has.
+    """
+    if vectors is None:
+        return 0, None
+    try:
+        vector_array = vectors
+        num_vectors = vectors.shape[0]
+    except AttributeError:
+        vector_array = np.array(vectors)
+        num_vectors = vector_array.shape[0]
+    return num_vectors, vector_array
+
+
+def __ensure_2d_np_array(vectors: ArrayLike) -> Tuple[int, NDArray]:
+    """Translate an ArrayLike into a numpy array (if necessary)
+    and determine how many rows it has.
+    """
+    num_rows, vector_array = __ensure_np_array(vectors)
+    # Special case: an empty 2D array is treated as having one row
+    if vector_array is not None:
+        if vector_array.size == 0:
+            return 0, np.array([[]])
+        elif len(vector_array.shape) == 1:
+            return 1, vector_array.reshape(1, -1)
+    return num_rows, vector_array
+
 
 def find_closest_items(
     comparison_vectors: ArrayLike,
-    embedding: NDArray,
+    comparison_embedding: NDArray,
     elbow_metric: str = "euclidean",
-    maxN: Optional[int] = None,
+    topn: Optional[int] = None,
+    ignore_indices: Optional[ArrayLike] = None,
 ) -> List[Tuple[NDArray[np.int64], NDArray[np.float64]]]:
     """Finds the closest embeddings based on provided vector(s) from the same space.
 
@@ -24,14 +56,19 @@ def find_closest_items(
     comparison_embedding: NDarray
         A 2D numpy array of floats.
         Will be compared to vectors and saved if "close enough".
-    maxN: Optional[int]
+    topn: Optional[int]
         A maximum number of points to consider similar based on the
         elbow finding heuristic. The number of returned similarity
-        scores will be the minimum of the elbow cut-off and maxN
+        scores will be the minimum of the elbow cut-off and topn
         if provided.
-    elbow_metric: str
+    elbow_metric: str (Optional, default `'euclidean'`)
         Which distance metric to use when computing the cut-off for
         close enough.
+    ignore_indices: Optional[ArrayLike]
+        An array-like structure of indices to ignore when computing
+        the elbow-threshold as well as for return values.
+        Prevents you from getting the same thing out that you put in
+        if comparison_vectors and embedding are the same data.
 
     Returns
     -------
@@ -40,63 +77,214 @@ def find_closest_items(
         index 1 is a numpy array of their cosine similarity scores.
         Tuple i will correspond to the provided comparison_vectors i.
     """
-    try:
-        if len(comparison_vectors.shape) == 1:
-            vectors = comparison_vectors.reshape(1, -1)
-        else:
-            vectors = comparison_vectors
-    except AttributeError:
-        # Provided a list rather than an array
-        tmp_vectors = np.array(comparison_vectors)
-        if len(tmp_vectors.shape) == 1:
-            vectors = tmp_vectors.reshape(1, -1)
-        else:
-            vectors = tmp_vectors
-    if len(embedding.shape) != 2:
+    num_vectors, vectors = __ensure_2d_np_array(comparison_vectors)
+    if num_vectors == 0:
+        return []
+    if len(comparison_embedding.shape) != 2:
         raise ValueError(
-            f"Embedding must be 2D Array, provided {len(embedding.shape)}D"
+            f"Embedding must be 2D Array, provided {len(comparison_embedding.shape)}D"
         )
+    num_ignore, ignore_indices_array = __ensure_np_array(ignore_indices)
     # This parallelizes nicely
     similarity_scores = 1 - sklearn.metrics.pairwise_distances(
-        vectors, embedding, metric="cosine"
+        vectors, comparison_embedding, metric="cosine"
     )
     # Need to broadcast this for each if we are multiple vectors at once
-    elbow_indices = np.apply_along_axis(
-        find_elbow_index, arr=similarity_scores, axis=1, metric=elbow_metric
-    )
+    if num_ignore > 0:
+        # Need to ensure we ignore things correctly for finding an elbow
+        fancy_indices = np.setdiff1d(
+            np.arange(comparison_embedding.shape[0]), ignore_indices_array
+        )
+        elbow_indices = np.apply_along_axis(
+            find_elbow_index,
+            arr=similarity_scores[:, fancy_indices],
+            axis=1,
+            metric=elbow_metric,
+        )
+    else:
+        elbow_indices = np.apply_along_axis(
+            find_elbow_index, arr=similarity_scores, axis=1, metric=elbow_metric
+        )
     relevant_indices = np.flip(np.argsort(similarity_scores), axis=1)
     # Now I reshape the individual vectors
     # NumPy doesn't support jagged arrays, so now is time to iterate
     result = []
     for row in range(relevant_indices.shape[0]):
-        if maxN is not None:
-            cutoff = min(elbow_indices[row], maxN)
+        if topn is not None:
+            cutoff = min(elbow_indices[row], topn)
         else:
             cutoff = elbow_indices[row]
-        item_indices = relevant_indices[row, :cutoff]
+        if num_ignore > 0:
+            item_indices = np.setdiff1d(
+                relevant_indices[row], ignore_indices_array, assume_unique=True
+            )[:cutoff]
+        else:
+            item_indices = relevant_indices[row, :cutoff]
         item_scores = similarity_scores[row, item_indices]
         result.append((item_indices, item_scores))
     return result
 
 
-def __verify_np_array(vectors: ArrayLike) -> Tuple[int, NDArray]:
-    """Translate an ArrayLike into a numpy array (if necessary)
-    and determine how many elements it has.
+def find_closest_items_to_average(
+    comparison_embedding: NDArray,
+    positive: Optional[ArrayLike] = None,
+    ignore_positive_indices: Optional[ArrayLike] = None,
+    negative: Optional[ArrayLike] = None,
+    ignore_negative_indices: Optional[ArrayLike] = None,
+    topn: Optional[int] = 100,
+    elbow_metric: str = "euclidean",
+) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
+    """Find the top-N most similar vectors while also using an elbow-finding heuristic.
+    Positive vectors contribute positively towards the similarity, negative vectors negatively.
+
+    This method computes cosine similarity between a simple mean of the projection
+    weight vectors of the given vectors and each vector in the model provided embedding.
+    It then returns the min(topn, elbow) closest indices.
+
+    Parameters
+    ----------
+    comparison_embedding: NDarray
+        A 2D numpy array of floats.
+        Will be compared to vectors and saved if "close enough".
+    positive : Optional[ArayLike]
+        Zero or more vectors that contribute positively.
+    ignore_positive_indices: Optional[ArrayLike]
+        The set of indices which represent `positive` values if
+        the vectors being examined are from the same array as `comparison_embedding`.
+    negative : Optional[ArayLike]
+        Zero or more vectors that contribute negatively.
+    ignore_negative_indices: Optional[ArrayLike]
+        The set of indices which represent `negative` values if
+        the vectors being examined are from the same array as `comparison_embedding`.
+    topn: Optional[int]
+        A maximum number of points to consider similar based on the
+        elbow finding heuristic. The number of returned similarity
+        scores will be the minimum of the elbow cut-off and topn
+        if provided.
+    elbow_metric: str (Optional, default `'euclidean'`)
+        Which distance metric to use when computing the cut-off for
+        close enough.
+
+    Returns
+    -------
+    Tuple[NDArray[np.int64], NDArray[np.float64]]
+        A tuple where index 0 is a numpy array of the indices of similar vectors and
+        index 1 is a numpy array of their cosine similarity scores.
+
+    Notes
+    -----
+    Providing `ignore_*_indices` will prevent any of those being returned
+    in the final output.
+    This is generally intended for saying "find me words like X which are not exactly X".
+
+    See Also
+    --------
+    gensim.models.keyedvectors.KeyedVectors.most_similar
     """
-    try:
-        vector_array = vectors
-        num_vectors = vectors.shape[0]
-    except AttributeError:
-        vector_array = np.array(vectors)
-        num_vectors = vector_array.shape[0]
-    return num_vectors, vector_array
+
+    n_positive, positive_array = __ensure_2d_np_array(positive)
+    n_negative, negative_array = __ensure_2d_np_array(negative)
+
+    if (n_positive + n_negative) == 0:
+        raise ValueError("Must provide positive and/or negative to compute similarity.")
+
+    vector_list = []
+    if n_positive != 0:
+        vector_list.append(positive_array)
+    if n_negative != 0:
+        vector_list.append(negative_array * -1)
+    # mean_vector = gensim.matutils.unitvec(
+    #     np.array(np.vstack(vector_list)).mean(axis=0)
+    # ).astype(np.float64)
+    # Cosine similarity doesn't care about magnitude
+    mean_vector = np.array(np.vstack(vector_list)).mean(axis=0)
+
+    n_positive_indices, positive_indices = __ensure_np_array(ignore_positive_indices)
+    n_negative_indices, negative_indices = __ensure_np_array(ignore_negative_indices)
+    if n_positive_indices != 0 and n_negative_indices != 0:
+        # need to make sure we don't have duplicates
+        ignore_indices = np.union1d(positive_indices, negative_indices)
+    elif n_positive_indices != 0:
+        ignore_indices = positive_indices
+    elif n_negative_indices != 0:
+        ignore_indices = negative_indices
+    else:
+        ignore_indices = None
+
+    return find_closest_items(
+        mean_vector,
+        comparison_embedding=comparison_embedding,
+        ignore_indices=ignore_indices,
+        topn=topn,
+        elbow_metric=elbow_metric,
+    )[0]
+
+
+def find_similar_in_embedding(
+    embedding,
+    positive_indices: Optional[ArrayLike] = None,
+    negative_indices: Optional[ArrayLike] = None,
+    topn: Optional[int] = 100,
+    elbow_metric: str = "euclidean",
+) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
+    """Find the top-N most similar vectors within an embedding while also using
+    an elbow-finding heuristic.
+    Positive vectors contribute positively towards the similarity, negative vectors negatively.
+
+    Parameters
+    ----------
+    embedding: NDarray
+        A 2D numpy array of floats to find similar vectors within.
+    positive_indices: Optional[ArrayLike]
+        The set of indices which represent positive values.
+    negative_indices: Optional[ArrayLike]
+        The set of indices which represent disssimlar values.
+    topn: Optional[int]
+        A maximum number of points to consider similar based on the
+        elbow finding heuristic. The number of returned similarity
+        scores will be the minimum of the elbow cut-off and topn
+        if provided.
+    elbow_metric: str (Optional, default `'euclidean'`)
+        Which distance metric to use when computing the cut-off for
+        close enough.
+
+    Returns
+    -------
+    Tuple[NDArray[np.int64], NDArray[np.float64]]
+        A tuple where index 0 is a numpy array of the indices of similar vectors and
+        index 1 is a numpy array of their cosine similarity scores.
+
+    See Also
+    --------
+    find_closest_items_to_average
+        Allows for commparing to vectors which aren't present in the embedding.
+    """
+    n_positive_indices, positive_indices = __ensure_np_array(positive_indices)
+    n_negative_indices, negative_indices = __ensure_np_array(negative_indices)
+    if n_positive_indices > 0:
+        positive_vectors = embedding[positive_indices]
+    else:
+        positive_vectors = None
+    if n_negative_indices > 0:
+        negative_vectors = embedding[negative_indices]
+    else:
+        negative_vectors = None
+    return find_closest_items_to_average(
+        embedding,
+        positive=positive_vectors,
+        ignore_positive_indices=positive_indices,
+        negative=negative_vectors,
+        ignore_negative_indices=negative_indices,
+        topn=topn,
+        elbow_metric=elbow_metric,
+    )
 
 
 def describe_closest_items(
     vectors: NDArray[np.float64],
     embedding: NDArray[np.float64],
     embedding_vocabulary: ArrayLike,
-    maxN: int = 100,
+    topn: int = 100,
     elbow_metric: str = "euclidean",
 ) -> List[Tuple[NDArray, NDArray[np.float64]]]:
     """Finds the most similar embedded vectors for a vector or set of vectors using cosine
@@ -119,12 +307,13 @@ def describe_closest_items(
         Something which can be interpreted as a 1D numpy array of
         strings. Index 0 is the human readable description of
         embedding index 0.
-    maxN: Optional[int]
+    topn: Optional[int] (Optional, default `100`)
         A maximum number of points to consider similar based on the
         elbow finding heuristic. The number of returned similarity
-        scores will be the minimum of the elbow cut-off and maxN
+        scores will be the minimum of the elbow cut-off and topn
         if provided.
-    elbow_metric: str
+        Pass `None` to only use the elbow-finding value.
+    elbow_metric: str (Optional, default `'euclidean'`)
         Which distance metric to use when computing the cut-off for
         close enough.
 
@@ -146,13 +335,13 @@ def describe_closest_items(
     -----
     This will be much more efficient if vocabulary reduction has already been performed.
     """
-    vocab_len, vocab_array = __verify_np_array(embedding_vocabulary)
+    vocab_len, vocab_array = __ensure_np_array(embedding_vocabulary)
     if vocab_len != embedding.shape[0]:
         raise ValueError(
             f"Vocabulary size ({vocab_len}) != vocabulary embedding size ({embedding.shape[0]})"
         )
     closest_terms = find_closest_items(
-        vectors, embedding, maxN=maxN, elbow_metric=elbow_metric
+        vectors, embedding, topn=topn, elbow_metric=elbow_metric
     )
     results = []
     for indices, scores in closest_terms:
@@ -163,7 +352,7 @@ def describe_closest_items(
 def generate_similarity_matrix(
     vectors: ArrayLike,
     comparison_embeddings: ArrayLike,
-    maxN: int = 100,
+    topn: Optional[int] = 100,
     elbow_metric: str = "euclidean",
 ) -> NDArray[np.float64]:
     """Translates from a series of vectors and a set of embeddings to compare
@@ -183,10 +372,11 @@ def generate_similarity_matrix(
     comparison_embedding: ArrayLike
         Something which can be interpreted as a 2D numpy array of floats.
         Will be compared to vectors and saved if "close enough".
-    maxN: int
+    topn: int (Optional, default `100`)
         A maximum number of points to consider similar to a provided
         vector. Can be used to limit topic sizes.
-    elbow_metric: str
+        Pass `None` to only use the elbow-finding value.
+    elbow_metric: str (Optional, default `'euclidean'`)
         Which distance metric to use when computing the cut-off for
         close enough.
 
@@ -200,10 +390,10 @@ def generate_similarity_matrix(
         all columns [j0, j1, ..., jn] which were deemed to be
         close enough to vector i based on the elbow finding heuristic.
     """
-    num_vectors, vector_array = __verify_np_array(vectors)
-    num_embeddings, embeddings_array = __verify_np_array(comparison_embeddings)
+    num_vectors, vector_array = __ensure_np_array(vectors)
+    num_embeddings, embeddings_array = __ensure_np_array(comparison_embeddings)
     similarity_values = find_closest_items(
-        vector_array, embeddings_array, maxN=maxN, elbow_metric=elbow_metric
+        vector_array, embeddings_array, topn=topn, elbow_metric=elbow_metric
     )
     res_matrix = np.zeros((num_vectors, num_embeddings))
     for index, (indices, scores) in enumerate(similarity_values):
@@ -214,7 +404,7 @@ def generate_similarity_matrix(
 def generate_csr_similarity_matrix(
     vectors: ArrayLike,
     comparison_embeddings: ArrayLike,
-    maxN: int = 100,
+    topn: Optional[int] = 100,
     elbow_metric: str = "euclidean",
 ) -> scipy.sparse.csr_matrix:
     """As with `generate_similarity_matrix`, but a sparse output.
@@ -236,10 +426,11 @@ def generate_csr_similarity_matrix(
     comparison_embedding: ArrayLike
         Something which can be interpreted as a 2D numpy array of floats.
         Will be compared to vectors and saved if "close enough".
-    maxN: int
+    topn: int
         A maximum number of points to consider similar to a provided
         vector. Can be used to limit topic sizes.
-    elbow_metric: str
+        Pass `None` to only use the elbow-finding value for size.
+    elbow_metric: str (Optional, default `'euclidean'`)
         Which distance metric to use when computing the cut-off for
         close enough.
 
@@ -262,10 +453,10 @@ def generate_csr_similarity_matrix(
     --------
     :func:generate_similarity_matrix
     """
-    num_vectors, vector_array = __verify_np_array(vectors)
-    num_embeddings, embeddings_array = __verify_np_array(comparison_embeddings)
+    num_vectors, vector_array = __ensure_np_array(vectors)
+    num_embeddings, embeddings_array = __ensure_np_array(comparison_embeddings)
     similarity_values = find_closest_items(
-        vector_array, embeddings_array, maxN=maxN, elbow_metric=elbow_metric
+        vector_array, embeddings_array, topn=topn, elbow_metric=elbow_metric
     )
 
     res_shape = (num_vectors, num_embeddings)

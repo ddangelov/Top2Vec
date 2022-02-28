@@ -163,9 +163,11 @@ def test_find_elbow_index():
                 assert find_elbow_index(instance, metric) == expected
                 assert find_elbow_index(np.array(instance), metric) == expected
 
-    # Anything of size 1 will return the first
+    # Anything of size 1 or 2 will return the first
     elbow_index_helper([2], 0)
     elbow_index_helper([0.022], 0)
+    elbow_index_helper([2, 8908980], 0)
+    elbow_index_helper([0.022, 123123.1233], 0)
 
     # If everything is equal we should get the first value
     elbow_index_helper([5, 4, 3, 2, 1], 0)

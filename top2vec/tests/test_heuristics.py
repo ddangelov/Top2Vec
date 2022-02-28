@@ -45,44 +45,44 @@ models = [top2vec_use_model_embedding, top2vec_use_multilang, top2vec_use]
 
 @pytest.mark.parametrize("top2vec_model", models)
 def test_topic_descriptions(top2vec_model: Top2Vec):
-    # Is maxN respected?
-    maxN = 100
+    # Is topn respected?
+    topn = 100
     topic_descriptions = describe_closest_items(
         top2vec_model.topic_vectors,
         top2vec_model.word_vectors,
         top2vec_model.vocab,
-        maxN=maxN,
+        topn=topn,
     )
     topic_lens = [len(words) for (words, scores) in topic_descriptions]
     for topic_len in topic_lens:
-        assert topic_len <= maxN
+        assert topic_len <= topn
 
-    maxN = 1000
+    topn = 1000
     topic_descriptions = describe_closest_items(
         top2vec_model.topic_vectors,
         top2vec_model.word_vectors,
         top2vec_model.vocab,
-        maxN=maxN,
+        topn=topn,
     )
     topic_lens = [len(words) for (words, scores) in topic_descriptions]
     for topic_len in topic_lens:
-        assert topic_len <= maxN
+        assert topic_len <= topn
 
 
 @pytest.mark.parametrize("top2vec_model", models)
 def test_document_descriptions(top2vec_model: Top2Vec):
     # Make sure we don't run out of memory
     maxDocs = 50
-    maxN = 1000
+    topn = 1000
     document_descriptions = describe_closest_items(
         top2vec_model.document_vectors[:50],
         top2vec_model.word_vectors,
         top2vec_model.vocab,
-        maxN=maxN,
+        topn=topn,
     )
     doc_lens = [len(words) for (words, scores) in document_descriptions]
     for doc_len in doc_lens:
-        assert doc_len <= maxN
+        assert doc_len <= topn
     assert len(doc_lens) == min(len(top2vec_model.document_vectors), maxDocs)
     percent_contained_per_doc = []
     for document_index in range(len(document_descriptions)):
@@ -111,18 +111,18 @@ def test_document_topic_composition(top2vec_model: Top2Vec):
     # Theory is that MOST documents should be composed of a single topic
     # However in this case our USE has almost 100 topics despite there
     # being only 20 newsgroups. Therefore there is some duplication
-    maxN = 100
+    topn = 100
     document_topics = find_closest_items(
-        top2vec_model.document_vectors, top2vec_model.topic_vectors, maxN=maxN
+        top2vec_model.document_vectors, top2vec_model.topic_vectors, topn=topn
     )
     # Another potential heuristic: look for the first major jump
     num_topics_per_doc = [len(scores) for indices, scores in document_topics]
     for num_topics in num_topics_per_doc:
-        assert num_topics <= maxN
+        assert num_topics <= topn
 
     # Now let's see if the doc x topic matrix looks good
     docTopicMatrix = generate_similarity_matrix(
-        top2vec_model.document_vectors, top2vec_model.topic_vectors, maxN=maxN
+        top2vec_model.document_vectors, top2vec_model.topic_vectors, topn=topn
     )
     numZeroes = np.count_nonzero(docTopicMatrix == 0)
     sparsity = numZeroes / (docTopicMatrix.size)
@@ -130,7 +130,7 @@ def test_document_topic_composition(top2vec_model: Top2Vec):
     assert sparsity > 0.8
 
     sparse_matrix = generate_csr_similarity_matrix(
-        top2vec_model.document_vectors, top2vec_model.topic_vectors, maxN=maxN
+        top2vec_model.document_vectors, top2vec_model.topic_vectors, topn=topn
     )
     assert sparse_matrix.size == np.count_nonzero(docTopicMatrix)
     # TODO: Is there other stuff I want to test here?
@@ -138,12 +138,12 @@ def test_document_topic_composition(top2vec_model: Top2Vec):
 
 def test_USE_topic_descriptions():
     assert top2vec_use_model_embedding.get_num_topics() == 80
-    maxN = 1000
+    topn = 1000
     topic_descriptions = describe_closest_items(
         top2vec_use_model_embedding.topic_vectors,
         top2vec_use_model_embedding.word_vectors,
         top2vec_use_model_embedding.vocab,
-        maxN=maxN,
+        topn=topn,
     )
     topic_lens = [len(words) for (words, scores) in topic_descriptions]
 
@@ -151,7 +151,7 @@ def test_USE_topic_descriptions():
     space_topic = None
 
     for topic_len in topic_lens:
-        assert topic_len <= maxN
+        assert topic_len <= topn
 
     for words, scores in topic_descriptions:
         if "spacecraft" in words[:10]:
