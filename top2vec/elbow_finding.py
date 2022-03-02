@@ -13,6 +13,7 @@ from numpy.typing import NDArray, ArrayLike
 __EUCLIDEAN_STR = "euclidean"
 __MANHATTAN_STR = "manhattan"
 __UNIFORM_STR = "uniform"
+__RAW_Y_STR = "raw-y"
 
 
 def find_elbow_index(values: ArrayLike, metric: str = __EUCLIDEAN_STR) -> Optional[int]:
@@ -86,6 +87,11 @@ def __uniform_distance(x1: float, y1: float, x2: float, y2: float) -> float:
     return max(abs(x1 - x2), abs(y1 - y2))
 
 
+def __raw_y_distance(x1: float, y1: float, x2: float, y2: float) -> float:
+    """Calculate the y difference (non-absolute)"""
+    return y2 - y1
+
+
 def get_distances_from_line(
     values: ArrayLike,
     comparison_slope: float,
@@ -122,6 +128,8 @@ def get_distances_from_line(
         dist_fun = __manhattan_distance
     elif metric == __UNIFORM_STR:
         dist_fun = __uniform_distance
+    elif metric == __RAW_Y_STR:
+        dist_fun = __raw_y_distance
     else:
         raise ValueError(
             f"Illegal metric - '{metric}'.\
