@@ -85,6 +85,11 @@ def find_closest_items(
         A list of tuples where index 0 is a numpy array of the indices of similar vectors and
         index 1 is a numpy array of their cosine similarity scores.
         Tuple i will correspond to the provided comparison_vectors i.
+
+    Notes
+    -----
+    Due to the way that elbow finding works this returns unintuitive results if the
+    first value is vastly different than all following values.
     """
     num_vectors, vectors = __ensure_2d_np_array(comparison_vectors)
     if num_vectors == 0:
