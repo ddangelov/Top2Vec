@@ -40,11 +40,12 @@ def __ensure_2d_np_array(vectors: ArrayLike) -> Tuple[int, NDArray]:
 def find_closest_items(
     comparison_vectors: ArrayLike,
     comparison_embedding: NDArray,
-    elbow_metric: str = "manhattan",
-    first_elbow: bool = True,
     topn: Optional[int] = None,
     ignore_indices: Optional[ArrayLike] = None,
+    elbow_metric: str = "manhattan",
+    first_elbow: bool = True,
     require_positive: bool = True,
+    max_first_delta: Optional[float] = 0.33,
 ) -> List[Tuple[NDArray[np.int64], NDArray[np.float64]]]:
     """Finds the closest embeddings based on provided vector(s) from the same space.
 
@@ -61,6 +62,11 @@ def find_closest_items(
         elbow finding heuristic. The number of returned similarity
         scores will be the minimum of the elbow cut-off and topn
         if provided.
+    ignore_indices: Optional[ArrayLike]
+        An array-like structure of indices to ignore when computing
+        the elbow-threshold as well as for return values.
+        Prevents you from getting the same thing out that you put in
+        if comparison_vectors and embedding are the same data.
     elbow_metric: str (Optional, default `'manhattan'`)
         Which distance metric to use when computing the cut-off for
         close enough.
@@ -73,11 +79,12 @@ def find_closest_items(
         The distance from the line for that first point will be 0,
         which won't be an elbow.
         If True then only values which are greater than 0 will be returned.
-    ignore_indices: Optional[ArrayLike]
-        An array-like structure of indices to ignore when computing
-        the elbow-threshold as well as for return values.
-        Prevents you from getting the same thing out that you put in
-        if comparison_vectors and embedding are the same data.
+    max_first_delta: Optional[float] = 0.33
+        Use index 0 as elbow if this value is exceeded as percent of total
+        variation.
+        Due to the way that elbow finding works this returns unintuitive
+        results if the first value is vastly different than all following values
+        unless this is set.
 
     Returns
     -------
@@ -85,11 +92,6 @@ def find_closest_items(
         A list of tuples where index 0 is a numpy array of the indices of similar vectors and
         index 1 is a numpy array of their cosine similarity scores.
         Tuple i will correspond to the provided comparison_vectors i.
-
-    Notes
-    -----
-    Due to the way that elbow finding works this returns unintuitive results if the
-    first value is vastly different than all following values.
     """
     num_vectors, vectors = __ensure_2d_np_array(comparison_vectors)
     if num_vectors == 0:
@@ -103,7 +105,10 @@ def find_closest_items(
     similarity_scores = 1 - sklearn.metrics.pairwise_distances(
         vectors, comparison_embedding, metric="cosine"
     )
+    relevant_indices = np.flip(np.argsort(similarity_scores), axis=1)
     # Need to broadcast this for each if we are multiple vectors at once
+    # TODO: Decide whether or not the values should be dropped for finding an elbow
+    # If the only thing that is similar is itself then nothing should be returned
     if num_ignore > 0:
         # Need to ensure we ignore things correctly for finding an elbow
         fancy_indices = np.setdiff1d(
@@ -115,6 +120,7 @@ def find_closest_items(
             axis=1,
             metric=elbow_metric,
             first_elbow=first_elbow,
+            max_first_delta=max_first_delta,
         )
     else:
         elbow_indices = np.apply_along_axis(
@@ -123,17 +129,16 @@ def find_closest_items(
             axis=1,
             metric=elbow_metric,
             first_elbow=first_elbow,
+            max_first_delta=max_first_delta,
         )
-    relevant_indices = np.flip(np.argsort(similarity_scores), axis=1)
     # Now I reshape the individual vectors
     # NumPy doesn't support jagged arrays, so now is time to iterate
     result = []
-    # An elbow index of 0 indicates we have nothing
+    # An elbow index of -1 indicates we have nothing
     # Otherwise we want the elbow index to be INCLUSIVE
     # An elbow index of values.size should be impossible as by
     # definition it will have the same distance as 0
-    # NOTE: indices is None doesn't work here
-    elbow_indices[(elbow_indices != None) & (elbow_indices != 0)] += 1
+    elbow_indices += 1
     for row in range(relevant_indices.shape[0]):
         if topn is not None:
             cutoff = min(elbow_indices[row], topn)
@@ -164,6 +169,7 @@ def find_closest_items_to_average(
     elbow_metric: str = "manhattan",
     first_elbow: bool = True,
     require_positive: bool = True,
+    max_first_delta: Optional[float] = 0.33,
 ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
     """Find the top-N most similar vectors while also using an elbow-finding heuristic.
     Positive vectors contribute positively towards the similarity, negative vectors negatively.
@@ -200,6 +206,12 @@ def find_closest_items_to_average(
         return an elbow from the first portion above/below the line.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
+    max_first_delta: Optional[float] = 0.33
+        Use index 0 as elbow if this value is exceeded as percent of total
+        variation.
+        Due to the way that elbow finding works this returns unintuitive
+        results if the first value is vastly different than all following values
+        unless this is set.
 
     Returns
     -------
@@ -255,6 +267,7 @@ def find_closest_items_to_average(
         elbow_metric=elbow_metric,
         first_elbow=first_elbow,
         require_positive=require_positive,
+        max_first_delta=max_first_delta,
     )[0]
 
 
@@ -266,6 +279,7 @@ def find_similar_in_embedding(
     elbow_metric: str = "manhattan",
     first_elbow: bool = True,
     require_positive: bool = True,
+    max_first_delta: Optional[float] = 0.33,    
 ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
     """Find the top-N most similar vectors within an embedding while also using
     an elbow-finding heuristic.
@@ -292,6 +306,12 @@ def find_similar_in_embedding(
         return an elbow from the first portion above/below the line.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
+    max_first_delta: Optional[float] = 0.33
+        Use index 0 as elbow if this value is exceeded as percent of total
+        variation.
+        Due to the way that elbow finding works this returns unintuitive
+        results if the first value is vastly different than all following values
+        unless this is set.
 
     Returns
     -------
@@ -324,6 +344,7 @@ def find_similar_in_embedding(
         elbow_metric=elbow_metric,
         first_elbow=first_elbow,
         require_positive=require_positive,
+        max_first_delta=max_first_delta
     )
 
 
@@ -335,6 +356,7 @@ def describe_closest_items(
     elbow_metric: str = "manhattan",
     first_elbow: bool = True,
     require_positive: bool = True,
+    max_first_delta: Optional[float] = 0.33,    
 ) -> List[Tuple[NDArray, NDArray[np.float64]]]:
     """Finds the most similar embedded vectors for a vector or set of vectors using cosine
     similarity and an elbow finding heuristic.
@@ -370,6 +392,12 @@ def describe_closest_items(
         return an elbow from the first portion above/below the line.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
+    max_first_delta: Optional[float] = 0.33
+        Use index 0 as elbow if this value is exceeded as percent of total
+        variation.
+        Due to the way that elbow finding works this returns unintuitive
+        results if the first value is vastly different than all following values
+        unless this is set.
 
     Returns
     -------
@@ -400,6 +428,7 @@ def describe_closest_items(
         elbow_metric=elbow_metric,
         first_elbow=first_elbow,
         require_positive=require_positive,
+        max_first_delta=max_first_delta
     )
     results = []
     for indices, scores in closest_terms:
@@ -414,6 +443,7 @@ def generate_similarity_matrix(
     elbow_metric: str = "manhattan",
     first_elbow: bool = True,
     require_positive: bool = True,
+    max_first_delta: Optional[float] = 0.33,    
 ) -> NDArray[np.float64]:
     """Translates from a series of vectors and a set of embeddings to compare
     into a matrix. Uses the elbow finding heuristic to determine what is
@@ -444,6 +474,12 @@ def generate_similarity_matrix(
         return an elbow from the first portion above/below the line.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
+    max_first_delta: Optional[float] = 0.33
+        Use index 0 as elbow if this value is exceeded as percent of total
+        variation.
+        Due to the way that elbow finding works this returns unintuitive
+        results if the first value is vastly different than all following values
+        unless this is set.
 
     Returns
     -------
@@ -464,6 +500,7 @@ def generate_similarity_matrix(
         elbow_metric=elbow_metric,
         first_elbow=first_elbow,
         require_positive=require_positive,
+        max_first_delta=max_first_delta
     )
     res_matrix = np.zeros((num_vectors, num_embeddings))
     for index, (indices, scores) in enumerate(similarity_values):
@@ -478,6 +515,7 @@ def generate_csr_similarity_matrix(
     elbow_metric: str = "manhattan",
     first_elbow: bool = True,
     require_positive: bool = True,
+    max_first_delta: Optional[float] = 0.33,    
 ) -> scipy.sparse.csr_matrix:
     """As with `generate_similarity_matrix`, but a sparse output.
 
@@ -510,6 +548,12 @@ def generate_csr_similarity_matrix(
         return an elbow from the first portion above/below the line.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
+    max_first_delta: Optional[float] = 0.33
+        Use index 0 as elbow if this value is exceeded as percent of total
+        variation.
+        Due to the way that elbow finding works this returns unintuitive
+        results if the first value is vastly different than all following values
+        unless this is set.
 
     Returns
     -------
@@ -539,6 +583,7 @@ def generate_csr_similarity_matrix(
         elbow_metric=elbow_metric,
         first_elbow=first_elbow,
         require_positive=require_positive,
+        max_first_delta=max_first_delta
     )
 
     res_shape = (num_vectors, num_embeddings)
@@ -548,9 +593,11 @@ def generate_csr_similarity_matrix(
     res_values = []
 
     for index, (col_indices, values) in enumerate(similarity_values):
-        res_rows.append(np.full((len(col_indices)), fill_value=index))
-        res_cols.append(col_indices)
-        res_values.append(values)
+        # are we empty?
+        if len(col_indices) > 0:
+            res_rows.append(np.full((len(col_indices)), fill_value=index))
+            res_cols.append(col_indices)
+            res_values.append(values)
 
     return scipy.sparse.csc_matrix(
         (

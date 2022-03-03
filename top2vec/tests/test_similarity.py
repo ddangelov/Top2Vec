@@ -136,7 +136,7 @@ def test_find_closest_items():
     for indices, scores in res:
         assert len(indices) == 0
         assert len(scores) == 0
-    # Also can't determine closest if given 2 or fewer comparison points
+    # Elbow finding returns index 0 if given 2 or fewer comparison points
     res = find_closest_items(
         test_vectors,
         test_embedding,
@@ -149,10 +149,13 @@ def test_find_closest_items():
             5,
             6,
         ],
+        require_positive=True,
     )
-    for indices, scores in res:
-        assert len(indices) == 0
-        assert len(scores) == 0
+    # When we don't require positive
+    assert len(res[0][0]) == len(res[0][1]) == 1
+    assert len(res[1][0]) == len(res[1][1]) == 0
+    assert len(res[2][0]) == len(res[2][1]) == 0
+
     res = find_closest_items(
         test_vectors,
         test_embedding,
@@ -164,11 +167,29 @@ def test_find_closest_items():
             4,
             5,
         ],
+        require_positive=False,
     )
-    for indices, scores in res:
-        assert len(indices) == 0
-        assert len(scores) == 0
-
+    # When we don't require positive
+    assert len(res[0][0]) == len(res[0][1]) == 1
+    assert len(res[1][0]) == len(res[1][1]) == 1
+    assert len(res[2][0]) == len(res[2][1]) == 0
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=[
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+        ],
+        require_positive=True,
+    )
+    # When we don't require positive
+    assert len(res[0][0]) == len(res[0][1]) == 1
+    assert len(res[1][0]) == len(res[1][1]) == 0
+    assert len(res[2][0]) == len(res[2][1]) == 0
     # Now real tests
     res = find_closest_items(test_vectors, test_embedding, ignore_indices=[4, 5])
     for indices, scores in res:
@@ -207,6 +228,7 @@ def test_find_closest_items():
             2,
         ],
         require_positive=False,
+        max_first_delta=None,
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -230,6 +252,7 @@ def test_find_closest_items():
         test_embedding,
         ignore_indices=[0, 1, 2, 4, 5],
         require_positive=False,
+        max_first_delta=None,
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -488,6 +511,10 @@ def test_find_similar_in_embedding():
     compare_numpy_arrays(
         scores, np.array([1.0, 1.0, 1.0, 1.0, cosines[1][0]]), round=True
     )
+
+    # TODO: we should get an identical value when running find_similar
+    # and find_embedding
+    # Currently the elbow is computed while IGNORING the similar items
 
 
 def test_describe_closest_items():

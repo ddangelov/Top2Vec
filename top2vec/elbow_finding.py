@@ -5,6 +5,7 @@ Will eventually be rolled directly into Top2Vec.
 Author: Shawn
 License: BSD 3 clause
 """
+import logging
 from typing import Optional
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
@@ -15,16 +16,13 @@ __MANHATTAN_STR = "manhattan"
 __UNIFORM_STR = "uniform"
 __RAW_Y_STR = "raw-y"
 
-# NOTE: it is possibe to be given really bad data
-# where most items are 0 or negative
-# Should we filter and only examine positive scores?
-
 
 def find_elbow_index(
     values: ArrayLike,
     metric: str = __MANHATTAN_STR,
     first_elbow: bool = True,
-) -> Optional[int]:
+    max_first_delta: Optional[float] = 0.33,
+) -> int:
     """Finds the "elbow" in a series of descending real values.
 
     Example uses include selecting the number of topics and determining
@@ -42,14 +40,23 @@ def find_elbow_index(
         graph.
         Elbow finding can behave poorly compared to human intuition
         when values cross the comparison line in a sort of S-curve.
+    max_first_delta_percent: Optional[float] (Optional default .33)
+        Max value allowed for (y[1] - y[0]) / (y[0] - y[-1]).
+        Some data sets have a single close value and
+        then lots of bad ones and return unintuitive results
+        as the distance from the line for index 0 is always 0.
+        The default of 0.33 says that if 33% or more of the total
+        change happens between 0 and 1 we will say the elbow is
+        index 0.
 
     Returns
     -------
-    int, optional
+    int
         The index of the point with the greatest perpendicular
         distance from the comparison line when all provided data
         has been sorted in descending order.
-        Will return None if provided a None value or empty list.
+        Will return -1 if provided a None value, empty list,
+        or zero vector.
 
     Notes
     -----
@@ -63,16 +70,23 @@ def find_elbow_index(
     2 or fewer points, so index zero will be returned.
     """
     if values is None:
-        return None
+        return -1
     # Make sure the provided values are a sorted numpy array
     sorted_values = -np.sort(-np.array(values))
-    if sorted_values.size == 0:
-        return None
-    elif sorted_values.size <= 2:
-        return 0
     if len(sorted_values.shape) != 1:
         raise ValueError("Elbow finding must be a 1-D Array")
-    slope = (sorted_values[-1] - sorted_values[0]) / (sorted_values.size - 1)
+    if sorted_values.size == 0 or np.count_nonzero(sorted_values) == 0:
+        return -1
+    elif sorted_values.size <= 2:
+        return 0
+    rise = sorted_values[-1] - sorted_values[0]
+    if max_first_delta is not None:
+        # determine percent of total drop contained between bin 0 and 1
+        percent_delta = (sorted_values[1] - sorted_values[0]) / rise
+        if percent_delta >= max_first_delta:
+            return 0
+
+    slope = rise / (sorted_values.size - 1)
     y_intercept = sorted_values[0]
     # TODO: is it more efficient to do a np.concat 0, [actual values], 0
     # and avoid computing the two values we know will be zero?

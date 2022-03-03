@@ -179,8 +179,13 @@ def test_get_distances_from_line_uniform():
 
 def test_find_elbow_index():
     # Tell me what the farthest shortest distance from the line is!
-    assert find_elbow_index([]) is None
-    assert find_elbow_index(None) is None
+    assert find_elbow_index([]) == -1
+    assert find_elbow_index(None) == -1
+    assert find_elbow_index([0, 0, 0, 0]) == -1
+    assert find_elbow_index([0]) == -1
+    assert find_elbow_index([0, 0]) == -1
+    assert find_elbow_index([1]) == 0
+    assert find_elbow_index([1, 111111111]) == 0
     with pytest.raises(ValueError):
         find_elbow_index([[1, 2, 22]])
 
