@@ -7,8 +7,6 @@ from numpy.typing import NDArray, ArrayLike
 import scipy.sparse
 from top2vec.elbow_finding import find_elbow_index
 
-# import gensim.matutils
-
 
 def __ensure_np_array(vectors: ArrayLike) -> Tuple[int, NDArray]:
     """Translate an ArrayLike into a numpy array (if necessary)
@@ -42,9 +40,11 @@ def __ensure_2d_np_array(vectors: ArrayLike) -> Tuple[int, NDArray]:
 def find_closest_items(
     comparison_vectors: ArrayLike,
     comparison_embedding: NDArray,
-    elbow_metric: str = "euclidean",
+    elbow_metric: str = "manhattan",
+    first_elbow: bool = True,
     topn: Optional[int] = None,
     ignore_indices: Optional[ArrayLike] = None,
+    require_positive: bool = True,
 ) -> List[Tuple[NDArray[np.int64], NDArray[np.float64]]]:
     """Finds the closest embeddings based on provided vector(s) from the same space.
 
@@ -61,9 +61,18 @@ def find_closest_items(
         elbow finding heuristic. The number of returned similarity
         scores will be the minimum of the elbow cut-off and topn
         if provided.
-    elbow_metric: str (Optional, default `'euclidean'`)
+    elbow_metric: str (Optional, default `'manhattan'`)
         Which distance metric to use when computing the cut-off for
         close enough.
+    first_elbow: bool (Optional, default True)
+        If the curve forms an S around the linear descent line only
+        return an elbow from the first portion above/below the line.
+    require_positive: bool (Optional, default True)
+        It is possibe to have bad data where there is only one point
+        which is actually similar and the rest are orthogonal or worse.
+        The distance from the line for that first point will be 0,
+        which won't be an elbow.
+        If True then only values which are greater than 0 will be returned.
     ignore_indices: Optional[ArrayLike]
         An array-like structure of indices to ignore when computing
         the elbow-threshold as well as for return values.
@@ -100,15 +109,26 @@ def find_closest_items(
             arr=similarity_scores[:, fancy_indices],
             axis=1,
             metric=elbow_metric,
+            first_elbow=first_elbow,
         )
     else:
         elbow_indices = np.apply_along_axis(
-            find_elbow_index, arr=similarity_scores, axis=1, metric=elbow_metric
+            find_elbow_index,
+            arr=similarity_scores,
+            axis=1,
+            metric=elbow_metric,
+            first_elbow=first_elbow,
         )
     relevant_indices = np.flip(np.argsort(similarity_scores), axis=1)
     # Now I reshape the individual vectors
     # NumPy doesn't support jagged arrays, so now is time to iterate
     result = []
+    # An elbow index of 0 indicates we have nothing
+    # Otherwise we want the elbow index to be INCLUSIVE
+    # An elbow index of values.size should be impossible as by
+    # definition it will have the same distance as 0
+    # NOTE: indices is None doesn't work here
+    elbow_indices[(elbow_indices != None) & (elbow_indices != 0)] += 1
     for row in range(relevant_indices.shape[0]):
         if topn is not None:
             cutoff = min(elbow_indices[row], topn)
@@ -121,6 +141,10 @@ def find_closest_items(
         else:
             item_indices = relevant_indices[row, :cutoff]
         item_scores = similarity_scores[row, item_indices]
+        if require_positive and item_scores[item_scores <= 0].size > 0:
+            new_cutoff = np.argmax(item_scores <= 0)
+            item_indices = item_indices[:new_cutoff]
+            item_scores = item_scores[:new_cutoff]
         result.append((item_indices, item_scores))
     return result
 
@@ -132,7 +156,9 @@ def find_closest_items_to_average(
     negative: Optional[ArrayLike] = None,
     ignore_negative_indices: Optional[ArrayLike] = None,
     topn: Optional[int] = 100,
-    elbow_metric: str = "euclidean",
+    elbow_metric: str = "manhattan",
+    first_elbow: bool = True,
+    require_positive: bool = True,
 ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
     """Find the top-N most similar vectors while also using an elbow-finding heuristic.
     Positive vectors contribute positively towards the similarity, negative vectors negatively.
@@ -161,9 +187,14 @@ def find_closest_items_to_average(
         elbow finding heuristic. The number of returned similarity
         scores will be the minimum of the elbow cut-off and topn
         if provided.
-    elbow_metric: str (Optional, default `'euclidean'`)
+    elbow_metric: str (Optional, default `'manhattan'`)
         Which distance metric to use when computing the cut-off for
         close enough.
+    first_elbow: bool (Optional, default True)
+        If the curve forms an S around the linear descent line only
+        return an elbow from the first portion above/below the line.
+    require_positive: bool (Optional, default True)
+        If True then only scores which are greater than 0 will be returned.
 
     Returns
     -------
@@ -217,6 +248,8 @@ def find_closest_items_to_average(
         ignore_indices=ignore_indices,
         topn=topn,
         elbow_metric=elbow_metric,
+        first_elbow=first_elbow,
+        require_positive=require_positive,
     )[0]
 
 
@@ -225,7 +258,9 @@ def find_similar_in_embedding(
     positive_indices: Optional[ArrayLike] = None,
     negative_indices: Optional[ArrayLike] = None,
     topn: Optional[int] = 100,
-    elbow_metric: str = "euclidean",
+    elbow_metric: str = "manhattan",
+    first_elbow: bool = True,
+    require_positive: bool = True,
 ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
     """Find the top-N most similar vectors within an embedding while also using
     an elbow-finding heuristic.
@@ -244,9 +279,14 @@ def find_similar_in_embedding(
         elbow finding heuristic. The number of returned similarity
         scores will be the minimum of the elbow cut-off and topn
         if provided.
-    elbow_metric: str (Optional, default `'euclidean'`)
+    elbow_metric: str (Optional, default `'manhattan'`)
         Which distance metric to use when computing the cut-off for
         close enough.
+    first_elbow: bool (Optional, default True)
+        If the curve forms an S around the linear descent line only
+        return an elbow from the first portion above/below the line.
+    require_positive: bool (Optional, default True)
+        If True then only scores which are greater than 0 will be returned.
 
     Returns
     -------
@@ -277,6 +317,8 @@ def find_similar_in_embedding(
         ignore_negative_indices=negative_indices,
         topn=topn,
         elbow_metric=elbow_metric,
+        first_elbow=first_elbow,
+        require_positive=require_positive,
     )
 
 
@@ -285,7 +327,9 @@ def describe_closest_items(
     embedding: NDArray[np.float64],
     embedding_vocabulary: ArrayLike,
     topn: int = 100,
-    elbow_metric: str = "euclidean",
+    elbow_metric: str = "manhattan",
+    first_elbow: bool = True,
+    require_positive: bool = True,
 ) -> List[Tuple[NDArray, NDArray[np.float64]]]:
     """Finds the most similar embedded vectors for a vector or set of vectors using cosine
     similarity and an elbow finding heuristic.
@@ -313,10 +357,14 @@ def describe_closest_items(
         scores will be the minimum of the elbow cut-off and topn
         if provided.
         Pass `None` to only use the elbow-finding value.
-    elbow_metric: str (Optional, default `'euclidean'`)
+    elbow_metric: str (Optional, default `'manhattan'`)
         Which distance metric to use when computing the cut-off for
         close enough.
-
+    first_elbow: bool (Optional, default True)
+        If the curve forms an S around the linear descent line only
+        return an elbow from the first portion above/below the line.
+    require_positive: bool (Optional, default True)
+        If True then only scores which are greater than 0 will be returned.
 
     Returns
     -------
@@ -341,7 +389,12 @@ def describe_closest_items(
             f"Vocabulary size ({vocab_len}) != vocabulary embedding size ({embedding.shape[0]})"
         )
     closest_terms = find_closest_items(
-        vectors, embedding, topn=topn, elbow_metric=elbow_metric
+        vectors,
+        embedding,
+        topn=topn,
+        elbow_metric=elbow_metric,
+        first_elbow=first_elbow,
+        require_positive=require_positive,
     )
     results = []
     for indices, scores in closest_terms:
@@ -353,7 +406,9 @@ def generate_similarity_matrix(
     vectors: ArrayLike,
     comparison_embeddings: ArrayLike,
     topn: Optional[int] = 100,
-    elbow_metric: str = "euclidean",
+    elbow_metric: str = "manhattan",
+    first_elbow: bool = True,
+    require_positive: bool = True,
 ) -> NDArray[np.float64]:
     """Translates from a series of vectors and a set of embeddings to compare
     into a matrix. Uses the elbow finding heuristic to determine what is
@@ -376,9 +431,14 @@ def generate_similarity_matrix(
         A maximum number of points to consider similar to a provided
         vector. Can be used to limit topic sizes.
         Pass `None` to only use the elbow-finding value.
-    elbow_metric: str (Optional, default `'euclidean'`)
+    elbow_metric: str (Optional, default `'manhattan'`)
         Which distance metric to use when computing the cut-off for
         close enough.
+    first_elbow: bool (Optional, default True)
+        If the curve forms an S around the linear descent line only
+        return an elbow from the first portion above/below the line.
+    require_positive: bool (Optional, default True)
+        If True then only scores which are greater than 0 will be returned.
 
     Returns
     -------
@@ -393,7 +453,12 @@ def generate_similarity_matrix(
     num_vectors, vector_array = __ensure_np_array(vectors)
     num_embeddings, embeddings_array = __ensure_np_array(comparison_embeddings)
     similarity_values = find_closest_items(
-        vector_array, embeddings_array, topn=topn, elbow_metric=elbow_metric
+        vector_array,
+        embeddings_array,
+        topn=topn,
+        elbow_metric=elbow_metric,
+        first_elbow=first_elbow,
+        require_positive=require_positive,
     )
     res_matrix = np.zeros((num_vectors, num_embeddings))
     for index, (indices, scores) in enumerate(similarity_values):
@@ -405,7 +470,9 @@ def generate_csr_similarity_matrix(
     vectors: ArrayLike,
     comparison_embeddings: ArrayLike,
     topn: Optional[int] = 100,
-    elbow_metric: str = "euclidean",
+    elbow_metric: str = "manhattan",
+    first_elbow: bool = True,
+    require_positive: bool = True,
 ) -> scipy.sparse.csr_matrix:
     """As with `generate_similarity_matrix`, but a sparse output.
 
@@ -430,9 +497,14 @@ def generate_csr_similarity_matrix(
         A maximum number of points to consider similar to a provided
         vector. Can be used to limit topic sizes.
         Pass `None` to only use the elbow-finding value for size.
-    elbow_metric: str (Optional, default `'euclidean'`)
+    elbow_metric: str (Optional, default `'manhattan'`)
         Which distance metric to use when computing the cut-off for
         close enough.
+    first_elbow: bool (Optional, default True)
+        If the curve forms an S around the linear descent line only
+        return an elbow from the first portion above/below the line.
+    require_positive: bool (Optional, default True)
+        If True then only scores which are greater than 0 will be returned.
 
     Returns
     -------
@@ -456,7 +528,12 @@ def generate_csr_similarity_matrix(
     num_vectors, vector_array = __ensure_np_array(vectors)
     num_embeddings, embeddings_array = __ensure_np_array(comparison_embeddings)
     similarity_values = find_closest_items(
-        vector_array, embeddings_array, topn=topn, elbow_metric=elbow_metric
+        vector_array,
+        embeddings_array,
+        topn=topn,
+        elbow_metric=elbow_metric,
+        first_elbow=first_elbow,
+        require_positive=require_positive,
     )
 
     res_shape = (num_vectors, num_embeddings)
