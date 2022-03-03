@@ -279,7 +279,7 @@ def find_similar_in_embedding(
     elbow_metric: str = "manhattan",
     first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,    
+    max_first_delta: Optional[float] = 0.33,
 ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
     """Find the top-N most similar vectors within an embedding while also using
     an elbow-finding heuristic.
@@ -344,7 +344,7 @@ def find_similar_in_embedding(
         elbow_metric=elbow_metric,
         first_elbow=first_elbow,
         require_positive=require_positive,
-        max_first_delta=max_first_delta
+        max_first_delta=max_first_delta,
     )
 
 
@@ -356,7 +356,7 @@ def describe_closest_items(
     elbow_metric: str = "manhattan",
     first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,    
+    max_first_delta: Optional[float] = 0.33,
 ) -> List[Tuple[NDArray, NDArray[np.float64]]]:
     """Finds the most similar embedded vectors for a vector or set of vectors using cosine
     similarity and an elbow finding heuristic.
@@ -428,7 +428,7 @@ def describe_closest_items(
         elbow_metric=elbow_metric,
         first_elbow=first_elbow,
         require_positive=require_positive,
-        max_first_delta=max_first_delta
+        max_first_delta=max_first_delta,
     )
     results = []
     for indices, scores in closest_terms:
@@ -443,7 +443,7 @@ def generate_similarity_matrix(
     elbow_metric: str = "manhattan",
     first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,    
+    max_first_delta: Optional[float] = 0.33,
 ) -> NDArray[np.float64]:
     """Translates from a series of vectors and a set of embeddings to compare
     into a matrix. Uses the elbow finding heuristic to determine what is
@@ -500,7 +500,7 @@ def generate_similarity_matrix(
         elbow_metric=elbow_metric,
         first_elbow=first_elbow,
         require_positive=require_positive,
-        max_first_delta=max_first_delta
+        max_first_delta=max_first_delta,
     )
     res_matrix = np.zeros((num_vectors, num_embeddings))
     for index, (indices, scores) in enumerate(similarity_values):
@@ -515,7 +515,7 @@ def generate_csr_similarity_matrix(
     elbow_metric: str = "manhattan",
     first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,    
+    max_first_delta: Optional[float] = 0.33,
 ) -> scipy.sparse.csr_matrix:
     """As with `generate_similarity_matrix`, but a sparse output.
 
@@ -583,7 +583,7 @@ def generate_csr_similarity_matrix(
         elbow_metric=elbow_metric,
         first_elbow=first_elbow,
         require_positive=require_positive,
-        max_first_delta=max_first_delta
+        max_first_delta=max_first_delta,
     )
 
     res_shape = (num_vectors, num_embeddings)
