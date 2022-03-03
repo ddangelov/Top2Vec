@@ -15,8 +15,16 @@ __MANHATTAN_STR = "manhattan"
 __UNIFORM_STR = "uniform"
 __RAW_Y_STR = "raw-y"
 
+# NOTE: it is possibe to be given really bad data
+# where most items are 0 or negative
+# Should we filter and only examine positive scores?
 
-def find_elbow_index(values: ArrayLike, metric: str = __EUCLIDEAN_STR) -> Optional[int]:
+
+def find_elbow_index(
+    values: ArrayLike,
+    metric: str = __MANHATTAN_STR,
+    first_elbow: bool = True,
+) -> Optional[int]:
     """Finds the "elbow" in a series of descending real values.
 
     Example uses include selecting the number of topics and determining
@@ -26,9 +34,14 @@ def find_elbow_index(values: ArrayLike, metric: str = __EUCLIDEAN_STR) -> Option
     ----------
     values: ArrayLike
         A 1d array (or list) of real values.
-    metric: str
+    metric: str (Optional default "manhattan")
         Which distance metric to use when comparing with the line.
         One of ("euclidean", "manhattan", "uniform").
+    first_elbow: bool (Optional default True)
+        If true only the first elbow will be examined in the
+        graph.
+        Elbow finding can behave poorly compared to human intuition
+        when values cross the comparison line in a sort of S-curve.
 
     Returns
     -------
@@ -48,9 +61,6 @@ def find_elbow_index(values: ArrayLike, metric: str = __EUCLIDEAN_STR) -> Option
 
     It is imposible to detect if anything diverges when given
     2 or fewer points, so index zero will be returned.
-
-    This can behave poorly compared to human intuition when values
-    cross the comparison line in a sort of S-curve.
     """
     if values is None:
         return None
@@ -67,7 +77,7 @@ def find_elbow_index(values: ArrayLike, metric: str = __EUCLIDEAN_STR) -> Option
     # TODO: is it more efficient to do a np.concat 0, [actual values], 0
     # and avoid computing the two values we know will be zero?
     distances = get_distances_from_line(
-        sorted_values, slope, y_intercept, metric=metric
+        sorted_values, slope, y_intercept, metric=metric, first_elbow=first_elbow
     )
     return distances.argmax()
 
@@ -96,7 +106,8 @@ def get_distances_from_line(
     values: ArrayLike,
     comparison_slope: float,
     comparison_y_intercept: float,
-    metric: str = __EUCLIDEAN_STR,
+    metric: str = __MANHATTAN_STR,
+    first_elbow: bool = True,
 ) -> NDArray[np.float64]:
     """Finds the shortest distance for all provided values from a provided line.
 
@@ -111,9 +122,15 @@ def get_distances_from_line(
         The slope of the line to compare values with.
     comparison_y_intercept : float
         The y intercept of the line to compare values with.
-    metric: str
+    metric: str (Optional default "manhattan")
         Which distance metric to use when comparing with the line.
         One of ("euclidean", "manhattan", "uniform").
+    first_elbow: bool (default True)
+        If true: computation will stop if y values change sign
+        relative to the provided line.
+        Only values prior to the sign flip will be returned.
+        Intended to ensure that the elbow discovered is the first
+        within a graph.
 
     Returns
     -------
@@ -146,6 +163,7 @@ def get_distances_from_line(
     # only compute this once
     divisor = comparison_slope - perp_slope
     # TODO: look at np.vectorize
+    was_positive_y = None
     for x in to_examine:
         instance_y = values[x]
         # special case: slope of 0
@@ -157,6 +175,21 @@ def get_distances_from_line(
 
             comparison_x = (instance_y_intercept - comparison_y_intercept) / divisor
             comparison_y = comparison_slope * comparison_x + comparison_y_intercept
+            if first_elbow:
+                # NOTE: Depending on how this is parallelized (if at all)
+                # it may make sense to have the bail-out in the calling
+                # function
+                # Rather than computing the true y-delta we are
+                # going to re-use the closest point on the line
+                # The sign of the delta should still be the same.
+                y_dist = instance_y - comparison_y
+                if y_dist != 0:
+                    if was_positive_y is None:
+                        was_positive_y = y_dist > 0
+                    elif (was_positive_y and y_dist < 0) or (
+                        not was_positive_y and y_dist > 0
+                    ):
+                        break
 
             distances[x] = dist_fun(x, instance_y, comparison_x, comparison_y)
     return np.array(distances)

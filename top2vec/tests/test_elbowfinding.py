@@ -98,9 +98,30 @@ def distances_from_line_helper(metric, expected_distance):
         np.array([0, 0, expected_distance, 0, 0]),
     )
     # Should be symmetrical
+    # This flips around the line, so we need to say we want everything
     assert compare_numpy_arrays(
-        get_distances_from_line([5, 4, 2, 3, 1], slope, y_int, metric),
+        get_distances_from_line(
+            [5, 4, 2, 3, 1], slope, y_int, metric, first_elbow=False
+        ),
         np.array([0, 0, expected_distance, expected_distance, 0]),
+    )
+    assert compare_numpy_arrays(
+        get_distances_from_line(
+            [5, 4, 2, 3, 1], slope, y_int, metric, first_elbow=True
+        ),
+        np.array([0, 0, expected_distance, 0, 0]),
+    )
+    assert compare_numpy_arrays(
+        get_distances_from_line(
+            [8, 7, 7, 5, 4, 2, 3, 1], slope, 8, metric, first_elbow=True
+        ),
+        np.array([0, 0, expected_distance, 0, 0, 0, 0, 0]),
+    )
+    assert compare_numpy_arrays(
+        get_distances_from_line(
+            [8, 7, 7, 5, 4, 4, 1, 1], slope, 8, metric, first_elbow=True
+        ),
+        np.array([0, 0, expected_distance, 0, 0, expected_distance, 0, 0]),
     )
 
     # What if we did a numpy array rather than just a list of numbers?
@@ -117,8 +138,18 @@ def distances_from_line_helper(metric, expected_distance):
         np.array([0, 0, expected_distance, 0, 0]),
     )
     assert compare_numpy_arrays(
-        get_distances_from_line(np.array([5, 4, 2, 3, 1]), slope, y_int, metric),
+        get_distances_from_line(
+            np.array([5, 4, 2, 3, 1]), slope, y_int, metric, first_elbow=False
+        ),
         np.array([0, 0, expected_distance, expected_distance, 0]),
+    )
+
+    # But now what about when we are given something that flips across the line?
+    assert compare_numpy_arrays(
+        get_distances_from_line(
+            np.array([5, 4, 2, 3, 1]), slope, y_int, metric, first_elbow=True
+        ),
+        np.array([0, 0, expected_distance, 0, 0]),
     )
 
     # What about the slope of zero? Should be the same for all metrics.
@@ -180,3 +211,48 @@ def test_find_elbow_index():
 
     # What if we have equidistent points?
     elbow_index_helper([5, 4, 2, 1, 1, 0], 2)
+
+    elbow_index_helper([7, 7, 5, 4, 4, 4, 1, 1], 1)
+
+    # Now a very bad graph with many elbows
+    flipper = [
+        8,
+        7,
+        7,
+        7,
+        7,
+        7,
+        5,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        -1,
+        -1,
+    ]
+    assert find_elbow_index(flipper, first_elbow=True) == 1
+    assert find_elbow_index(flipper, first_elbow=False) == 7
+
+    flipper2 = flipper
+    flipper2[0] = 7
+    assert find_elbow_index(flipper2, first_elbow=True) == 5
+    assert find_elbow_index(flipper2, first_elbow=False) == 7
