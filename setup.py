@@ -48,7 +48,9 @@ setuptools.setup(
         ],
         "dev": [
             "black",
+            "black-nb",
             "flake8",
+            "ipython",
             "pytest",
             "wheel",
         ],
