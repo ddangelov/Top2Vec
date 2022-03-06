@@ -6,7 +6,7 @@ Author: Shawn
 License: BSD 3 clause
 """
 import logging
-from typing import Optional
+from typing import Optional, NamedTuple
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
 
@@ -17,13 +17,30 @@ __UNIFORM_STR = "uniform"
 __RAW_Y_STR = "raw-y"
 
 
+def __edge_cases(sorted_values: ArrayLike, max_first_delta: Optional[float] = 0.33):
+    """Handle edge cases prior to finding cut-off index"""
+    if len(sorted_values.shape) != 1:
+        raise ValueError("Values must be a 1-D Array")
+    if sorted_values.size == 0 or np.count_nonzero(sorted_values) == 0:
+        return -1
+    elif sorted_values.size <= 2:
+        return 0
+    rise = sorted_values[-1] - sorted_values[0]
+    if max_first_delta is not None:
+        # determine percent of total drop contained between bin 0 and 1
+        percent_delta = (sorted_values[1] - sorted_values[0]) / rise
+        if percent_delta >= max_first_delta:
+            return 0
+    return None
+
+
 def find_elbow_index(
     values: ArrayLike,
     metric: str = __MANHATTAN_STR,
     first_elbow: bool = True,
     max_first_delta: Optional[float] = 0.33,
 ) -> int:
-    """Finds the "elbow" in a series of descending real values.
+    """Finds the elbow index (inclusive) in a series of descending real values.
 
     Example uses include selecting the number of topics and determining
     when there is a jump in a distance metric.
@@ -73,27 +90,108 @@ def find_elbow_index(
         return -1
     # Make sure the provided values are a sorted numpy array
     sorted_values = -np.sort(-np.array(values))
-    if len(sorted_values.shape) != 1:
-        raise ValueError("Elbow finding must be a 1-D Array")
-    if sorted_values.size == 0 or np.count_nonzero(sorted_values) == 0:
-        return -1
-    elif sorted_values.size <= 2:
-        return 0
+    edge_case_index = __edge_cases(
+        sorted_values=sorted_values, max_first_delta=max_first_delta
+    )
+    if edge_case_index is not None:
+        return edge_case_index
     rise = sorted_values[-1] - sorted_values[0]
-    if max_first_delta is not None:
-        # determine percent of total drop contained between bin 0 and 1
-        percent_delta = (sorted_values[1] - sorted_values[0]) / rise
-        if percent_delta >= max_first_delta:
-            return 0
 
     slope = rise / (sorted_values.size - 1)
     y_intercept = sorted_values[0]
-    # TODO: is it more efficient to do a np.concat 0, [actual values], 0
-    # and avoid computing the two values we know will be zero?
-    distances = get_distances_from_line(
+    distances_tuple = get_distances_from_line(
         sorted_values, slope, y_intercept, metric=metric, first_elbow=first_elbow
     )
-    return distances.argmax()
+    elbow = distances_tuple.distances.argmax()
+    return elbow
+
+
+def elbow_and_derivative_heuristic(
+    values: ArrayLike,
+    metric: str = __MANHATTAN_STR,
+    first_elbow: bool = True,
+    max_first_delta: Optional[float] = 0.33,
+) -> int:
+    """Finds a cutoff value based on distance from curve multiplied by
+    shifted second derivative of values.
+
+    This rewards points which are far from the curve which also have large
+    changes in slope.
+    """
+    if values is None:
+        return -1
+    # Make sure the provided values are a sorted numpy array
+    sorted_values = -np.sort(-np.array(values))
+    edge_case_index = __edge_cases(
+        sorted_values=sorted_values, max_first_delta=max_first_delta
+    )
+    if edge_case_index is not None:
+        return edge_case_index
+
+    rise = sorted_values[-1] - sorted_values[0]
+    slope = rise / (sorted_values.size - 1)
+    y_intercept = sorted_values[0]
+    distances_tuple = get_distances_from_line(
+        sorted_values, slope, y_intercept, metric=metric, first_elbow=first_elbow
+    )
+    # We want to have the 2nd derivative slid one to the left, that way it will have a high value at
+    # the point where things change a lot
+    slid_second_derivative = _get_shifted_second_derivative(
+        sorted_values, distances_tuple.is_truncated, distances_tuple.truncation_index
+    )
+    # Now multiply these together and find the max
+    scores = (
+        distances_tuple.distances[: distances_tuple.truncation_index + 1]
+        * slid_second_derivative
+    )
+    return scores.argmax()
+
+
+def _get_shifted_second_derivative(
+    sorted_values: NDArray[np.float64], is_truncated: bool, truncation_index: int
+):
+    """Get the absolute value of the 2nd derivative slid one to the left so that it will have
+    a high value at the point where things change a lot."""
+    if truncation_index > sorted_values.size:
+        raise ValueError("truncation_index must be less than sorted_values.size")
+    if is_truncated:
+        first_derivative = np.hstack(
+            (
+                [0],
+                sorted_values[1 : truncation_index + 2]
+                - sorted_values[: truncation_index + 1],
+            )
+        )
+        second_derivative = np.abs(
+            np.hstack(
+                (
+                    [0],
+                    first_derivative[1 : truncation_index + 2]
+                    - first_derivative[: truncation_index + 1],
+                )
+            )
+        )
+        print(f"First der: {first_derivative}")
+        print(f"Unshifted 2nd Der: {second_derivative}")
+        # trim first and second derivative
+        first_derivative = first_derivative[:-1]
+        slid_second_derivative = second_derivative[1:]
+    else:
+        first_derivative = np.hstack(
+            (
+                [0],
+                sorted_values[1:] - sorted_values[:-1],
+            )
+        )
+        second_derivative = np.abs(
+            np.hstack(([0], first_derivative[1:] - first_derivative[:-1]))
+        )
+        print(f"First der: {first_derivative}")
+        print(f"Unshifted 2nd Der: {second_derivative}")
+        # trim second derivative
+        slid_second_derivative = np.hstack((second_derivative[1:], [0]))
+    print(f"Shifted 2nd Der:   {slid_second_derivative}")
+    return slid_second_derivative
 
 
 def __euclidean_distance(x1: float, y1: float, x2: float, y2: float) -> float:
@@ -116,13 +214,39 @@ def __raw_y_distance(x1: float, y1: float, x2: float, y2: float) -> float:
     return y2 - y1
 
 
+class LineDistances(NamedTuple):
+    """Represents multiple data points about distance from a line.
+
+    Attributes
+    ----------
+    distances: NdArray[np.float64]
+        The shortest distance between value[index i] and any point
+        along the provided line.
+    is_truncated: bool
+        If true: `first_elbow` was True and the values curve crossed
+        the provided line at least once.
+    truncation_index: int
+        Last index before values curve first crosses line.
+        All values after this in `distances` will be 0.
+    first_elbow_above_line: bool
+        Was the value curve above (or equal to) the provided line?
+        Generally can be thought of as inclusive for
+        whether to keep an elbow point.
+    """
+
+    distances: NDArray[np.float64]
+    is_truncated: bool
+    truncation_index: int
+    first_elbow_above_line: bool
+
+
 def get_distances_from_line(
     values: ArrayLike,
     comparison_slope: float,
     comparison_y_intercept: float,
     metric: str = __MANHATTAN_STR,
     first_elbow: bool = True,
-) -> NDArray[np.float64]:
+) -> LineDistances:
     """Finds the shortest distance for all provided values from a provided line.
 
     Handles if the shortest distance to the line actually happens between
@@ -148,11 +272,9 @@ def get_distances_from_line(
 
     Returns
     -------
-    NDArray[np.float64]
-        A 1d array of the shortest euclidean distance for each
-        value to the provided line.
+    LineDistances
+        The distances as well as additional metadata.
     """
-    # This is all 2d, so euclidean seems like it should be the best by default
     if metric == __EUCLIDEAN_STR:
         dist_fun = __euclidean_distance
     elif metric == __MANHATTAN_STR:
@@ -167,43 +289,56 @@ def get_distances_from_line(
            Must be one of [{__EUCLIDEAN_STR}, {__MANHATTAN_STR}, {__UNIFORM_STR}]"
         )
     try:
-        distances = np.zeros(values.size)
-        to_examine = range(values.size)
+        n_elements = values.size
     except AttributeError:
         # handed a list rather than a numpy array
-        distances = np.zeros(len(values))
-        to_examine = range(len(values))
+        n_elements = len(values)
+    distances = np.zeros(n_elements)
+    to_examine = range(n_elements)
+
     perp_slope = comparison_slope * -1
     # only compute this once
     divisor = comparison_slope - perp_slope
     # TODO: look at np.vectorize
     was_positive_y = None
+    truncation_index = n_elements - 1
     for x in to_examine:
         instance_y = values[x]
         # special case: slope of 0
         if divisor == 0:
-            distances[x] = abs(instance_y - comparison_y_intercept)
+            comparison_x = x
+            comparison_y = comparison_y_intercept
         else:
             # Which y value are we computing distance for
             instance_y_intercept = instance_y - perp_slope * x
 
             comparison_x = (instance_y_intercept - comparison_y_intercept) / divisor
             comparison_y = comparison_slope * comparison_x + comparison_y_intercept
+
+        # Rather than computing the true y-delta we are
+        # going to re-use the closest point on the line
+        # The sign of the delta should still be the same.
+        y_dist = instance_y - comparison_y
+        if y_dist != 0:
+            if was_positive_y is None:
+                was_positive_y = y_dist > 0
+
             if first_elbow:
                 # NOTE: Depending on how this is parallelized (if at all)
                 # it may make sense to have the bail-out in the calling
                 # function
-                # Rather than computing the true y-delta we are
-                # going to re-use the closest point on the line
-                # The sign of the delta should still be the same.
-                y_dist = instance_y - comparison_y
-                if y_dist != 0:
-                    if was_positive_y is None:
-                        was_positive_y = y_dist > 0
-                    elif (was_positive_y and y_dist < 0) or (
-                        not was_positive_y and y_dist > 0
-                    ):
-                        break
+                if was_positive_y is None:
+                    was_positive_y = y_dist > 0
+                elif (was_positive_y and y_dist < 0) or (
+                    not was_positive_y and y_dist > 0
+                ):
+                    truncation_index = x - 1
+                    break
 
-            distances[x] = dist_fun(x, instance_y, comparison_x, comparison_y)
-    return np.array(distances)
+        distances[x] = dist_fun(x, instance_y, comparison_x, comparison_y)
+    return LineDistances(
+        distances,
+        truncation_index != n_elements - 1,
+        truncation_index,
+        was_positive_y is None or was_positive_y,
+    )
