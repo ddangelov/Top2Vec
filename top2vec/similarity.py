@@ -7,9 +7,6 @@ from numpy.typing import NDArray, ArrayLike
 import scipy.sparse
 from top2vec.cutoff_heuristics import ELBOW_HEURISTIC_STR, find_cutoff
 
-# TODO: Run profiling and think if there is a better way to
-# do the distance computation
-
 
 class VectorSimilarityScores(NamedTuple):
     """Represents multiple data points about distance from a line.
@@ -98,9 +95,6 @@ def find_closest_items(
             Pass custom arguments to the cutoff heuristic.
             See `top2vec.cutoff_heurstics.find_cutoff` for more information.
 
-            elbow_metric: str (Optional, default `'manhattan'`)
-                Which distance metric to use when computing the cut-off for
-                close enough.
             first_elbow: bool (Optional, default True)
                 If the curve forms an S around the linear descent line only
                 return an elbow from the first portion above/below the line.
@@ -137,7 +131,6 @@ def find_closest_items(
 
     if cutoff_args is None:
         cutoff_args = {
-            "distance_metric": "manhattan",
             "first_elbow": True,
             "max_first_delta": 0.33,
             "below_line_exclusive": True,

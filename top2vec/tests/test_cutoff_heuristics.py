@@ -8,59 +8,7 @@ from top2vec.cutoff_heuristics import (
     get_distances_from_line,
     _get_shifted_second_derivative,
     LineDistances,
-    __euclidean_distance,
-    __manhattan_distance,
-    __uniform_distance,
 )
-
-
-# Make sure our metrics work the way we think
-def test_euclidean_distance():
-    assert __euclidean_distance(0, 0, 0, 0) == 0
-    assert __euclidean_distance(2, 2, 2.5, 2.5) == (2 * ((2.5 - 2.0) ** 2)) ** 0.5
-    assert __euclidean_distance(1, 1, 2.5, 2.5) == (2 * ((2.5 - 1.0) ** 2)) ** 0.5
-    assert __euclidean_distance(0, 0, 2.5, 2.5) == (2 * (2.5**2)) ** 0.5
-    assert __euclidean_distance(-2.5, -2.5, 2.5, 2.5) == (2 * (5**2)) ** 0.5
-    assert __euclidean_distance(-2.5, 0, 2.5, 2.5) == ((5**2) + (2.5**2)) ** 0.5
-    assert __euclidean_distance(0, -2.5, 2.5, 2.5) == ((5**2) + (2.5**2)) ** 0.5
-    assert __euclidean_distance(2.5, 2.5, 2, 2) == (2 * ((2.5 - 2.0) ** 2)) ** 0.5
-    assert __euclidean_distance(2.5, 2.5, 1, 1) == (2 * ((2.5 - 1.0) ** 2)) ** 0.5
-    assert __euclidean_distance(2.5, 2.5, 0, 0) == (2 * (2.5**2)) ** 0.5
-    assert __euclidean_distance(2.5, 2.5, -2.5, -2.5) == (2 * (5**2)) ** 0.5
-    assert __euclidean_distance(2.5, 2.5, -2.5, 0) == ((5**2) + (2.5**2)) ** 0.5
-    assert __euclidean_distance(2.5, 2.5, 0, -2.5) == ((5**2) + (2.5**2)) ** 0.5
-
-
-def test_manhattan_distance():
-    assert __manhattan_distance(0, 0, 0, 0) == 0
-    assert __manhattan_distance(2, 2, 2.5, 2.5) == 1
-    assert __manhattan_distance(1, 1, 2.5, 2.5) == 3
-    assert __manhattan_distance(0, 0, 2.5, 2.5) == 5
-    assert __manhattan_distance(-2.5, -2.5, 2.5, 2.5) == 10
-    assert __manhattan_distance(-2.5, 0, 2.5, 2.5) == 7.5
-    assert __manhattan_distance(0, -2.5, 2.5, 2.5) == 7.5
-    assert __manhattan_distance(2.5, 2.5, 2, 2) == 1
-    assert __manhattan_distance(2.5, 2.5, 1, 1) == 3
-    assert __manhattan_distance(2.5, 2.5, 0, 0) == 5
-    assert __manhattan_distance(2.5, 2.5, -2.5, -2.5) == 10
-    assert __manhattan_distance(2.5, 2.5, -2.5, 0) == 7.5
-    assert __manhattan_distance(2.5, 2.5, 0, -2.5) == 7.5
-
-
-def test_uniform_distance():
-    assert __uniform_distance(0, 0, 0, 0) == 0
-    assert __uniform_distance(2, 2, 2.5, 2.5) == 0.5
-    assert __uniform_distance(1, 1, 2.5, 2.5) == 1.5
-    assert __uniform_distance(0, 0, 2.5, 2.5) == 2.5
-    assert __uniform_distance(-2.5, -2.5, 2.5, 2.5) == 5
-    assert __uniform_distance(-2.5, 0, 2.5, 2.5) == 5
-    assert __uniform_distance(0, -2.5, 2.5, 2.5) == 5
-    assert __uniform_distance(2.5, 2.5, 2, 2) == 0.5
-    assert __uniform_distance(2.5, 2.5, 1, 1) == 1.5
-    assert __uniform_distance(2.5, 2.5, 0, 0) == 2.5
-    assert __uniform_distance(2.5, 2.5, -2.5, -2.5) == 5
-    assert __uniform_distance(2.5, 2.5, -2.5, 0) == 5
-    assert __uniform_distance(2.5, 2.5, 0, -2.5) == 5
 
 
 def compare_numpy_arrays(array_a, array_b):
@@ -79,7 +27,7 @@ def compare_numpy_arrays(array_a, array_b):
     return (array_a == array_b).all()
 
 
-def distances_from_line_helper(metric, expected_distance):
+def test_distances_from_line():
     # If we give it an empty list then things should
     # be an empty array
     res_tup = get_distances_from_line([], 1, 0)
@@ -89,9 +37,10 @@ def distances_from_line_helper(metric, expected_distance):
 
     y_int = 5
     slope = -1
+    expected_distance = 1
 
     # Items which follow the slope exactly should be all 0 for all metrics
-    res_tup = get_distances_from_line([5, 4, 3, 2, 1], slope, y_int, metric)
+    res_tup = get_distances_from_line([5, 4, 3, 2, 1], slope, y_int)
     assert compare_numpy_arrays(res_tup.distances, np.zeros(5))
     # Exactly same as line should be true
     assert res_tup.first_elbow_above_line
@@ -103,7 +52,7 @@ def distances_from_line_helper(metric, expected_distance):
     )
 
     # Order DOES matter
-    res_tup = get_distances_from_line([3, 4, 5, 2, 1], slope, y_int, metric)
+    res_tup = get_distances_from_line([3, 4, 5, 2, 1], slope, y_int)
     assert not compare_numpy_arrays(res_tup.distances, np.zeros(5))
     assert not res_tup.first_elbow_above_line
     assert res_tup.is_truncated
@@ -112,7 +61,7 @@ def distances_from_line_helper(metric, expected_distance):
         res_tup.y_deltas < 0, np.array([True, False, False, False, False])
     )
 
-    res_tup = get_distances_from_line([5, 4, 2, 2, 1], slope, y_int, metric)
+    res_tup = get_distances_from_line([5, 4, 2, 2, 1], slope, y_int)
     assert compare_numpy_arrays(
         res_tup.distances,
         np.array([0, 0, expected_distance, 0, 0]),
@@ -126,9 +75,7 @@ def distances_from_line_helper(metric, expected_distance):
 
     # Should be symmetrical
     # This flips around the line, so we need to say we want everything
-    res_tup = get_distances_from_line(
-        [5, 4, 2, 3, 1], slope, y_int, metric, first_elbow=False
-    )
+    res_tup = get_distances_from_line([5, 4, 2, 3, 1], slope, y_int, first_elbow=False)
     assert compare_numpy_arrays(
         res_tup.distances,
         np.array([0, 0, expected_distance, expected_distance, 0]),
@@ -140,9 +87,7 @@ def distances_from_line_helper(metric, expected_distance):
         res_tup.y_deltas < 0, np.array([False, False, True, False, False])
     )
 
-    res_tup = get_distances_from_line(
-        [5, 4, 2, 3, 1], slope, y_int, metric, first_elbow=True
-    )
+    res_tup = get_distances_from_line([5, 4, 2, 3, 1], slope, y_int, first_elbow=True)
     assert compare_numpy_arrays(
         res_tup.distances,
         np.array([0, 0, expected_distance, 0, 0]),
@@ -155,7 +100,7 @@ def distances_from_line_helper(metric, expected_distance):
     )
 
     res_tup = get_distances_from_line(
-        [8, 7, 7, 5, 4, 2, 3, 1], slope, 8, metric, first_elbow=True
+        [8, 7, 7, 5, 4, 2, 3, 1], slope, 8, first_elbow=True
     )
     assert compare_numpy_arrays(
         res_tup.distances,
@@ -174,7 +119,7 @@ def distances_from_line_helper(metric, expected_distance):
     )
 
     res_tup = get_distances_from_line(
-        [8, 7, 7, 5, 4, 2, 3, 1], slope, 8, metric, first_elbow=False
+        [8, 7, 7, 5, 4, 2, 3, 1], slope, 8, first_elbow=False
     )
     assert compare_numpy_arrays(
         res_tup.distances,
@@ -195,7 +140,7 @@ def distances_from_line_helper(metric, expected_distance):
     )
 
     res_tup = get_distances_from_line(
-        [8, 7, 7, 5, 4, 4, 1, 1], slope, 8, metric, first_elbow=True
+        [8, 7, 7, 5, 4, 4, 1, 1], slope, 8, first_elbow=True
     )
     assert compare_numpy_arrays(
         res_tup.distances,
@@ -206,33 +151,29 @@ def distances_from_line_helper(metric, expected_distance):
     assert res_tup.truncation_index == 5
 
     # What if we did a numpy array rather than just a list of numbers?
-    res_tup = get_distances_from_line(np.array([5, 4, 3, 2, 1]), slope, y_int, metric)
+    res_tup = get_distances_from_line(np.array([5, 4, 3, 2, 1]), slope, y_int)
     assert compare_numpy_arrays(
         res_tup.distances,
         np.zeros(5),
     )
     assert not compare_numpy_arrays(
-        get_distances_from_line(
-            np.array([3, 4, 5, 2, 1]), slope, y_int, metric
-        ).distances,
+        get_distances_from_line(np.array([3, 4, 5, 2, 1]), slope, y_int).distances,
         np.zeros(5),
     )
     assert compare_numpy_arrays(
-        get_distances_from_line(
-            np.array([5, 4, 2, 2, 1]), slope, y_int, metric
-        ).distances,
+        get_distances_from_line(np.array([5, 4, 2, 2, 1]), slope, y_int).distances,
         np.array([0, 0, expected_distance, 0, 0]),
     )
     assert compare_numpy_arrays(
         get_distances_from_line(
-            np.array([5, 4, 2, 3, 1]), slope, y_int, metric, first_elbow=False
+            np.array([5, 4, 2, 3, 1]), slope, y_int, first_elbow=False
         ).distances,
         np.array([0, 0, expected_distance, expected_distance, 0]),
     )
 
     # But now what about when we are given something that flips across the line?
     res_tup = get_distances_from_line(
-        np.array([5, 4, 2, 3, 1]), slope, y_int, metric, first_elbow=True
+        np.array([5, 4, 2, 3, 1]), slope, y_int, first_elbow=True
     )
     assert compare_numpy_arrays(
         res_tup.distances,
@@ -243,13 +184,13 @@ def distances_from_line_helper(metric, expected_distance):
     assert not res_tup.first_elbow_above_line
 
     # What about the slope of zero? Should be the same for all metrics.
-    res_tup = get_distances_from_line([1, 2, 3], 0, 1, metric)
+    res_tup = get_distances_from_line([1, 2, 3], 0, 1)
     assert compare_numpy_arrays(res_tup.distances, np.array([0, 1, 2]))
     assert not res_tup.is_truncated
     assert res_tup.truncation_index == 2
     assert res_tup.first_elbow_above_line
 
-    res_tup = get_distances_from_line(np.array([5, 4, 2, 3, 1]), 0, 0, metric)
+    res_tup = get_distances_from_line(np.array([5, 4, 2, 3, 1]), 0, 0)
     assert compare_numpy_arrays(
         res_tup.distances,
         np.array([5, 4, 2, 3, 1]),
@@ -259,7 +200,7 @@ def distances_from_line_helper(metric, expected_distance):
     assert res_tup.first_elbow_above_line
 
     res_tup = get_distances_from_line(
-        np.array([5, 4, 0, -1, 0]), 0, 0, metric, first_elbow=True
+        np.array([5, 4, 0, -1, 0]), 0, 0, first_elbow=True
     )
     assert compare_numpy_arrays(
         res_tup.distances,
@@ -270,7 +211,7 @@ def distances_from_line_helper(metric, expected_distance):
     assert res_tup.first_elbow_above_line
 
     res_tup = get_distances_from_line(
-        np.array([-5, -4, 0, 1, 0]), 0, 0, metric, first_elbow=False
+        np.array([-5, -4, 0, 1, 0]), 0, 0, first_elbow=False
     )
     assert compare_numpy_arrays(
         res_tup.distances,
@@ -279,21 +220,6 @@ def distances_from_line_helper(metric, expected_distance):
     assert not res_tup.is_truncated
     assert res_tup.truncation_index == 4
     assert not res_tup.first_elbow_above_line
-
-
-def test_get_distances_from_line_euclidean():
-    # this distance should be between (2,2) and (2.5, 2.5)
-    distances_from_line_helper("euclidean", (2 * ((2.5 - 2.0) ** 2)) ** 0.5)
-
-
-def test_get_distances_from_line_manhattan():
-    # this distance should be between (2,2) and (2.5, 2.5)
-    distances_from_line_helper("manhattan", 1)
-
-
-def test_get_distances_from_line_uniform():
-    # this distance should be between (2,2) and (2.5, 2.5)
-    distances_from_line_helper("uniform", 0.5)
 
 
 def test_find_elbow_index():
@@ -316,13 +242,10 @@ def test_find_elbow_index():
         for metric in ["euclidean", "manhattan", "uniform"]:
             for instance in perms:
                 assert (
-                    find_elbow_index(instance, metric, below_line_exclusive=False)
-                    == expected
+                    find_elbow_index(instance, below_line_exclusive=False) == expected
                 )
                 assert (
-                    find_elbow_index(
-                        np.array(instance), metric, below_line_exclusive=False
-                    )
+                    find_elbow_index(np.array(instance), below_line_exclusive=False)
                     == expected
                 )
 

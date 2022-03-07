@@ -24,15 +24,13 @@ From here the individual heuristics are run
 
 * shifted_derivative
 """
+
+# TODO: Update documentation to reflect latest changes
+
 from typing import Optional, NamedTuple
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
 
-# Prevent typos
-__EUCLIDEAN_STR = "euclidean"
-__MANHATTAN_STR = "manhattan"
-__UNIFORM_STR = "uniform"
-__RAW_Y_STR = "raw-y"
 
 ELBOW_HEURISTIC_STR = "elbow"
 DERIVATIVE_HEURISTIC_STR = "shifted_derivative"
@@ -42,26 +40,6 @@ SUPPORTED_HEURISTICS = [
     DERIVATIVE_HEURISTIC_STR,
     AVERAGE_HEURISTIC_STR,
 ]
-
-
-def __euclidean_distance(x1: float, y1: float, x2: float, y2: float) -> float:
-    """Calculate the L2 distance between two points."""
-    return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
-
-
-def __manhattan_distance(x1: float, y1: float, x2: float, y2: float) -> float:
-    """Calculate the L1 distance between two points"""
-    return abs(x1 - x2) + abs(y1 - y2)
-
-
-def __uniform_distance(x1: float, y1: float, x2: float, y2: float) -> float:
-    """Calculate the L-infinity distance between two points"""
-    return max(abs(x1 - x2), abs(y1 - y2))
-
-
-def __raw_y_distance(x1: float, y1: float, x2: float, y2: float) -> float:
-    """Calculate the y difference (non-absolute)"""
-    return y2 - y1
 
 
 class LineDistances(NamedTuple):
@@ -92,10 +70,9 @@ class LineDistances(NamedTuple):
 
 
 def get_distances_from_line(
-    values: ArrayLike,
+    sorted_values: ArrayLike,
     comparison_slope: float,
     comparison_y_intercept: float,
-    metric: str = __MANHATTAN_STR,
     first_elbow: bool = True,
 ) -> LineDistances:
     """Finds the shortest distance for all provided values from a provided line.
@@ -111,9 +88,6 @@ def get_distances_from_line(
         The slope of the line to compare values with.
     comparison_y_intercept : float
         The y intercept of the line to compare values with.
-    metric: str (Optional default "manhattan")
-        Which distance metric to use when comparing with the line.
-        One of ("euclidean", "manhattan", "uniform").
     first_elbow: bool (default True)
         If true: computation will stop if y values change sign
         relative to the provided line.
@@ -126,74 +100,50 @@ def get_distances_from_line(
     LineDistances
         The distances as well as additional metadata.
     """
-    if metric == __EUCLIDEAN_STR:
-        dist_fun = __euclidean_distance
-    elif metric == __MANHATTAN_STR:
-        dist_fun = __manhattan_distance
-    elif metric == __UNIFORM_STR:
-        dist_fun = __uniform_distance
-    elif metric == __RAW_Y_STR:
-        dist_fun = __raw_y_distance
-    else:
-        raise ValueError(
-            f"Illegal metric - '{metric}'.\
-           Must be one of [{__EUCLIDEAN_STR}, {__MANHATTAN_STR}, {__UNIFORM_STR}]"
-        )
     try:
-        n_elements = values.size
+        n_elements = sorted_values.size
+        sorted_values_array = sorted_values
     except AttributeError:
         # handed a list rather than a numpy array
-        n_elements = len(values)
-    distances = np.zeros(n_elements)
-    y_deltas = np.zeros(n_elements)
-    to_examine = range(n_elements)
+        n_elements = len(sorted_values)
+        sorted_values_array = np.array(sorted_values)
 
-    perp_slope = comparison_slope * -1
-    # only compute this once
-    divisor = comparison_slope - perp_slope
-    # TODO: look at np.vectorize
-    # NOTE: Haven't been able to find a case yet where just comparing against the
-    # raw y value doesn't give us the answer we want.
+    comparison_line = comparison_slope * np.arange(n_elements) + comparison_y_intercept
+    differences = sorted_values_array - comparison_line
+    abs_differences = np.abs(differences)
+
+    truncation_index = abs_differences.size - 1
     was_positive_y = None
-    truncation_index = n_elements - 1
-    for x in to_examine:
-        instance_y = values[x]
-        # special case: slope of 0
-        if divisor == 0:
-            comparison_x = x
-            comparison_y = comparison_y_intercept
-        else:
-            # Which y value are we computing distance for
-            instance_y_intercept = instance_y - perp_slope * x
 
-            comparison_x = (instance_y_intercept - comparison_y_intercept) / divisor
-            comparison_y = comparison_slope * comparison_x + comparison_y_intercept
-
-        # Rather than computing the true y-delta we are
-        # going to re-use the closest point on the line
-        # The sign of the delta should still be the same.
-        y_dist = instance_y - comparison_y
-        if y_dist != 0:
-            if was_positive_y is None:
-                was_positive_y = y_dist > 0
-
+    # Check that there is actually a value, then use argmax
+    # to avoid making multiple arrays for this
+    if n_elements > 0:
+        max_val = np.max(differences)
+        min_val = np.min(differences)
+        if max_val > 0 and min_val < 0:
+            # We have a flip
+            first_positive_index = np.argmax(differences > 0)
+            first_negative_index = np.argmax(differences < 0)
+            if first_positive_index < first_negative_index:
+                was_positive_y = True
+                if first_elbow:
+                    truncation_index = first_negative_index - 1
+            else:
+                was_positive_y = False
+                if first_elbow:
+                    truncation_index = first_positive_index - 1
             if first_elbow:
-                # NOTE: Depending on how this is parallelized (if at all)
-                # it may make sense to have the bail-out in the calling
-                # function
-                if was_positive_y is None:
-                    was_positive_y = y_dist > 0
-                elif (was_positive_y and y_dist < 0) or (
-                    not was_positive_y and y_dist > 0
-                ):
-                    truncation_index = x - 1
-                    break
+                differences[truncation_index + 1 :] = 0
+                abs_differences[truncation_index + 1 :] = 0
+        elif max_val > 0:
+            # We default to this but I feel it is better to be explicit
+            was_positive_y = True
+        elif min_val < 0:
+            was_positive_y = False
 
-        distances[x] = dist_fun(x, instance_y, comparison_x, comparison_y)
-        y_deltas[x] = y_dist
     return LineDistances(
-        distances,
-        y_deltas,
+        abs_differences,
+        differences,
         truncation_index != n_elements - 1,
         truncation_index,
         was_positive_y is None or was_positive_y,
@@ -220,7 +170,6 @@ def __edge_cases(sorted_values: ArrayLike, max_first_delta: Optional[float] = 0.
 def find_cutoff(
     values: ArrayLike,
     cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
-    distance_metric: str = __MANHATTAN_STR,
     first_elbow: bool = True,
     max_first_delta: Optional[float] = 0.33,
     below_line_exclusive: bool = True,
@@ -259,7 +208,6 @@ def find_cutoff(
         sorted_values,
         slope,
         y_intercept,
-        metric=distance_metric,
         first_elbow=first_elbow,
     )
 
@@ -284,7 +232,6 @@ def find_cutoff(
 
 def find_elbow_index(
     values: ArrayLike,
-    metric: str = __MANHATTAN_STR,
     first_elbow: bool = True,
     max_first_delta: Optional[float] = 0.33,
     below_line_exclusive: bool = True,
@@ -292,15 +239,12 @@ def find_elbow_index(
     """Finds the elbow index (inclusive) in a series of descending real values.
 
     Example uses include selecting the number of topics and determining
-    when there is a jump in a distance metric.
+    when there is a jump in a similarity metric.
 
     Parameters
     ----------
     values: ArrayLike
         A 1d array (or list) of real values.
-    metric: str (Optional default "manhattan")
-        Which distance metric to use when comparing with the line.
-        One of ("euclidean", "manhattan", "uniform").
     first_elbow: bool (Optional default True)
         If true only the first elbow will be examined in the
         graph.
@@ -342,7 +286,6 @@ def find_elbow_index(
     return find_cutoff(
         values,
         ELBOW_HEURISTIC_STR,
-        distance_metric=metric,
         first_elbow=first_elbow,
         max_first_delta=max_first_delta,
         below_line_exclusive=below_line_exclusive,
