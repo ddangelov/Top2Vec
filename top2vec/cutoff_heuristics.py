@@ -4,6 +4,25 @@ Will eventually be rolled directly into Top2Vec.
 
 Author: Shawn
 License: BSD 3 clause
+
+Notes
+-----
+Heuristics - assuming we are operating on `values`
+
+An index of -1 means "nothing for cutoff".
+Otherwise incices are assumed to be inclusive.
+
+All heuristics go through the following algorithm first:
+* If `values` is empty or all-zero: return -1
+* If `values.size <= 2`: return 0
+* If `max_first_delta` provided and the value change from index 0 to 1
+  as a proportion of the total value change from index 0 to -1 is greater than
+  or equal to `max_first_delta`: return 0
+
+From here the individual heuristics are run
+* elbow finding
+
+* shifted_derivative
 """
 from typing import Optional, NamedTuple
 import numpy as np
@@ -133,6 +152,8 @@ def get_distances_from_line(
     # only compute this once
     divisor = comparison_slope - perp_slope
     # TODO: look at np.vectorize
+    # NOTE: Haven't been able to find a case yet where just comparing against the
+    # raw y value doesn't give us the answer we want.
     was_positive_y = None
     truncation_index = n_elements - 1
     for x in to_examine:

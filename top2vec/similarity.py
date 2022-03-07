@@ -1,11 +1,30 @@
 """Determine what is and isn't similar between sets of vectors using the elbow finding heuristic."""
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict, NamedTuple
 
 import sklearn.metrics
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
 import scipy.sparse
-from top2vec.elbow_finding import find_elbow_index
+from top2vec.cutoff_heuristics import ELBOW_HEURISTIC_STR, find_cutoff
+
+# TODO: Run profiling and think if there is a better way to
+# do the distance computation
+
+
+class VectorSimilarityScores(NamedTuple):
+    """Represents multiple data points about distance from a line.
+
+    Attributes
+    ----------
+    indices: NdArray[np.int64]
+        An array of vector indices sorted from most to least similar.
+    scores: NdArray[np.float64]
+        Index 0 is the similarity score of `indices[0]` and the
+        original vector.
+    """
+
+    indices: NDArray[np.int64]
+    scores: NDArray[np.float64]
 
 
 def __ensure_np_array(vectors: ArrayLike) -> Tuple[int, NDArray]:
@@ -42,57 +61,65 @@ def find_closest_items(
     comparison_embedding: NDArray,
     topn: Optional[int] = None,
     ignore_indices: Optional[ArrayLike] = None,
-    elbow_metric: str = "manhattan",
-    first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,
-    below_line_exclusive: bool = True,
-) -> List[Tuple[NDArray[np.int64], NDArray[np.float64]]]:
+    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
+    cutoff_args: Optional[Dict] = None,
+) -> List[VectorSimilarityScores]:
     """Finds the closest embeddings based on provided vector(s) from the same space.
 
-    Parameters
-    ----------
-    vectors: ArrayLike
-        Something which can be interpreted as a 1D or 2D numpy array of
-        floats. Will be used as the points to compute distance from.
-    comparison_embedding: NDarray
-        A 2D numpy array of floats.
-        Will be compared to vectors and saved if "close enough".
-    topn: Optional[int]
-        A maximum number of points to consider similar based on the
-        elbow finding heuristic. The number of returned similarity
-        scores will be the minimum of the elbow cut-off and topn
-        if provided.
-    ignore_indices: Optional[ArrayLike]
-        An array-like structure of indices to ignore when computing
-        the elbow-threshold as well as for return values.
-        Prevents you from getting the same thing out that you put in
-        if comparison_vectors and embedding are the same data.
-    elbow_metric: str (Optional, default `'manhattan'`)
-        Which distance metric to use when computing the cut-off for
-        close enough.
-    first_elbow: bool (Optional, default True)
-        If the curve forms an S around the linear descent line only
-        return an elbow from the first portion above/below the line.
-    require_positive: bool (Optional, default True)
-        It is possibe to have bad data where there is only one point
-        which is actually similar and the rest are orthogonal or worse.
-        The distance from the line for that first point will be 0,
-        which won't be an elbow.
-        If True then only values which are greater than 0 will be returned.
-    max_first_delta: Optional[float] = 0.33
-        Use index 0 as elbow if this value is exceeded as percent of total
-        variation.
-        Due to the way that elbow finding works this returns unintuitive
-        results if the first value is vastly different than all following values
-        unless this is set.
+        Parameters
+        ----------
+        vectors: ArrayLike
+            Something which can be interpreted as a 1D or 2D numpy array of
+            floats. Will be used as the points to compute distance from.
+        comparison_embedding: NDarray
+            A 2D numpy array of floats.
+            Will be compared to vectors and saved if "close enough".
+        topn: Optional[int]
+            A maximum number of points to consider similar based on the
+            elbow finding heuristic. The number of returned similarity
+            scores will be the minimum of the elbow cut-off and topn
+            if provided.
+        ignore_indices: Optional[ArrayLike]
+            An array-like structure of indices to ignore when computing
+            the elbow-threshold as well as for return values.
+            Prevents you from getting the same thing out that you put in
+            if comparison_vectors and embedding are the same data.
+        require_positive: bool (Optional, default True)
+            It is possibe to have bad data where there is only one point
+            which is actually similar and the rest are orthogonal or worse.
+            The distance from the line for that first point will be 0,
+            which won't be an elbow.
+            If True then only values which are greater than 0 will be returned.
+        cutoff_heuristic: str (Optional, default `'elbow'`)
+            Which cutoff heuristic to use.
+            See `top2vec.cutoff_heuristics` for more.
+        cutoff_args: dict (Optional, default None)
+            Pass custom arguments to the cutoff heuristic.
+            See `top2vec.cutoff_heurstics.find_cutoff` for more information.
 
-    Returns
-    -------
-    List[Tuple[NDArray[np.int64], NDArray[np.float64]]]
-        A list of tuples where index 0 is a numpy array of the indices of similar vectors and
-        index 1 is a numpy array of their cosine similarity scores.
-        Tuple i will correspond to the provided comparison_vectors i.
+            elbow_metric: str (Optional, default `'manhattan'`)
+                Which distance metric to use when computing the cut-off for
+                close enough.
+            first_elbow: bool (Optional, default True)
+                If the curve forms an S around the linear descent line only
+                return an elbow from the first portion above/below the line.
+            max_first_delta: Optional[float] = 0.33
+                Use index 0 as elbow if this value is exceeded as percent of total
+                variation.
+                Due to the way that elbow finding works this returns unintuitive
+                results if the first value is vastly different than all following values
+                unless this is set.
+            below_line_exclusive: bool (Optiona, default True)
+                Will cutoff indices below the linear descent line be
+                treated as exclusive.
+    ]
+        Returns
+        -------
+        List[VectorSimilarityScores]
+            A list of tuples where index 0 is a numpy array of the indices of similar vectors and
+            index 1 is a numpy array of their cosine similarity scores.
+            Tuple i will correspond to the provided comparison_vectors i.
     """
     num_vectors, vectors = __ensure_2d_np_array(comparison_vectors)
     if num_vectors == 0:
@@ -107,6 +134,14 @@ def find_closest_items(
         vectors, comparison_embedding, metric="cosine"
     )
     relevant_indices = np.flip(np.argsort(similarity_scores), axis=1)
+
+    if cutoff_args is None:
+        cutoff_args = {
+            "distance_metric": "manhattan",
+            "first_elbow": True,
+            "max_first_delta": 0.33,
+            "below_line_exclusive": True,
+        }
     # Need to broadcast this for each if we are multiple vectors at once
     # TODO: Decide whether or not the values should be dropped for finding an elbow
     # If the only thing that is similar is itself then nothing should be returned
@@ -116,23 +151,19 @@ def find_closest_items(
             np.arange(comparison_embedding.shape[0]), ignore_indices_array
         )
         elbow_indices = np.apply_along_axis(
-            find_elbow_index,
+            find_cutoff,
             arr=similarity_scores[:, fancy_indices],
             axis=1,
-            metric=elbow_metric,
-            first_elbow=first_elbow,
-            max_first_delta=max_first_delta,
-            below_line_exclusive=below_line_exclusive,
+            cutoff_heuristic=cutoff_heuristic,
+            **cutoff_args,
         )
     else:
         elbow_indices = np.apply_along_axis(
-            find_elbow_index,
+            find_cutoff,
             arr=similarity_scores,
             axis=1,
-            metric=elbow_metric,
-            first_elbow=first_elbow,
-            max_first_delta=max_first_delta,
-            below_line_exclusive=below_line_exclusive,
+            cutoff_heuristic=cutoff_heuristic,
+            **cutoff_args,
         )
     # Now I reshape the individual vectors
     # NumPy doesn't support jagged arrays, so now is time to iterate
@@ -158,7 +189,7 @@ def find_closest_items(
             new_cutoff = np.argmax(item_scores <= 0)
             item_indices = item_indices[:new_cutoff]
             item_scores = item_scores[:new_cutoff]
-        result.append((item_indices, item_scores))
+        result.append(VectorSimilarityScores(item_indices, item_scores))
     return result
 
 
@@ -169,10 +200,9 @@ def find_closest_items_to_average(
     negative: Optional[ArrayLike] = None,
     ignore_negative_indices: Optional[ArrayLike] = None,
     topn: Optional[int] = 100,
-    elbow_metric: str = "manhattan",
-    first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,
+    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
+    cutoff_args: Optional[Dict] = None,
 ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
     """Find the top-N most similar vectors while also using an elbow-finding heuristic.
     Positive vectors contribute positively towards the similarity, negative vectors negatively.
@@ -201,24 +231,18 @@ def find_closest_items_to_average(
         elbow finding heuristic. The number of returned similarity
         scores will be the minimum of the elbow cut-off and topn
         if provided.
-    elbow_metric: str (Optional, default `'manhattan'`)
-        Which distance metric to use when computing the cut-off for
-        close enough.
-    first_elbow: bool (Optional, default True)
-        If the curve forms an S around the linear descent line only
-        return an elbow from the first portion above/below the line.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    max_first_delta: Optional[float] = 0.33
-        Use index 0 as elbow if this value is exceeded as percent of total
-        variation.
-        Due to the way that elbow finding works this returns unintuitive
-        results if the first value is vastly different than all following values
-        unless this is set.
+    cutoff_heuristic: str (Optional, default `'elbow'`)
+        Which cutoff heuristic to use.
+        See `top2vec.cutoff_heuristics` for more.
+    cutoff_args: dict (Optional, default None)
+        Pass custom arguments to the cutoff heuristic.
+        See `top2vec.cutoff_heurstics.find_cutoff` for more information.
 
     Returns
     -------
-    Tuple[NDArray[np.int64], NDArray[np.float64]]
+    VectorSimilarityScores
         A tuple where index 0 is a numpy array of the indices of similar vectors and
         index 1 is a numpy array of their cosine similarity scores.
 
@@ -267,10 +291,9 @@ def find_closest_items_to_average(
         comparison_embedding=comparison_embedding,
         ignore_indices=ignore_indices,
         topn=topn,
-        elbow_metric=elbow_metric,
-        first_elbow=first_elbow,
         require_positive=require_positive,
-        max_first_delta=max_first_delta,
+        cutoff_heuristic=cutoff_heuristic,
+        cutoff_args=cutoff_args,
     )[0]
 
 
@@ -279,10 +302,9 @@ def find_similar_in_embedding(
     positive_indices: Optional[ArrayLike] = None,
     negative_indices: Optional[ArrayLike] = None,
     topn: Optional[int] = 100,
-    elbow_metric: str = "manhattan",
-    first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,
+    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
+    cutoff_args: Optional[Dict] = None,
 ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
     """Find the top-N most similar vectors within an embedding while also using
     an elbow-finding heuristic.
@@ -301,24 +323,18 @@ def find_similar_in_embedding(
         elbow finding heuristic. The number of returned similarity
         scores will be the minimum of the elbow cut-off and topn
         if provided.
-    elbow_metric: str (Optional, default `'manhattan'`)
-        Which distance metric to use when computing the cut-off for
-        close enough.
-    first_elbow: bool (Optional, default True)
-        If the curve forms an S around the linear descent line only
-        return an elbow from the first portion above/below the line.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    max_first_delta: Optional[float] = 0.33
-        Use index 0 as elbow if this value is exceeded as percent of total
-        variation.
-        Due to the way that elbow finding works this returns unintuitive
-        results if the first value is vastly different than all following values
-        unless this is set.
+    cutoff_heuristic: str (Optional, default `'elbow'`)
+        Which cutoff heuristic to use.
+        See `top2vec.cutoff_heuristics` for more.
+    cutoff_args: dict (Optional, default None)
+        Pass custom arguments to the cutoff heuristic.
+        See `top2vec.cutoff_heurstics.find_cutoff` for more information.
 
     Returns
     -------
-    Tuple[NDArray[np.int64], NDArray[np.float64]]
+    VectorSimilarityScores
         A tuple where index 0 is a numpy array of the indices of similar vectors and
         index 1 is a numpy array of their cosine similarity scores.
 
@@ -344,10 +360,9 @@ def find_similar_in_embedding(
         negative=negative_vectors,
         ignore_negative_indices=negative_indices,
         topn=topn,
-        elbow_metric=elbow_metric,
-        first_elbow=first_elbow,
         require_positive=require_positive,
-        max_first_delta=max_first_delta,
+        cutoff_heuristic=cutoff_heuristic,
+        cutoff_args=cutoff_args,
     )
 
 
@@ -356,10 +371,9 @@ def describe_closest_items(
     embedding: NDArray[np.float64],
     embedding_vocabulary: ArrayLike,
     topn: int = 100,
-    elbow_metric: str = "manhattan",
-    first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,
+    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
+    cutoff_args: Optional[Dict] = None,
 ) -> List[Tuple[NDArray, NDArray[np.float64]]]:
     """Finds the most similar embedded vectors for a vector or set of vectors using cosine
     similarity and an elbow finding heuristic.
@@ -386,21 +400,16 @@ def describe_closest_items(
         elbow finding heuristic. The number of returned similarity
         scores will be the minimum of the elbow cut-off and topn
         if provided.
-        Pass `None` to only use the elbow-finding value.
-    elbow_metric: str (Optional, default `'manhattan'`)
-        Which distance metric to use when computing the cut-off for
-        close enough.
-    first_elbow: bool (Optional, default True)
-        If the curve forms an S around the linear descent line only
-        return an elbow from the first portion above/below the line.
+        Pass `None` to only use the cutoff value.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    max_first_delta: Optional[float] = 0.33
-        Use index 0 as elbow if this value is exceeded as percent of total
-        variation.
-        Due to the way that elbow finding works this returns unintuitive
-        results if the first value is vastly different than all following values
-        unless this is set.
+    cutoff_heuristic: str (Optional, default `'elbow'`)
+        Which cutoff heuristic to use.
+        See `top2vec.cutoff_heuristics` for more.
+    cutoff_args: dict (Optional, default None)
+        Pass custom arguments to the cutoff heuristic.
+        See `top2vec.cutoff_heurstics.find_cutoff` for more information.
+
 
     Returns
     -------
@@ -428,10 +437,9 @@ def describe_closest_items(
         vectors,
         embedding,
         topn=topn,
-        elbow_metric=elbow_metric,
-        first_elbow=first_elbow,
         require_positive=require_positive,
-        max_first_delta=max_first_delta,
+        cutoff_heuristic=cutoff_heuristic,
+        cutoff_args=cutoff_args,
     )
     results = []
     for indices, scores in closest_terms:
@@ -443,10 +451,9 @@ def generate_similarity_matrix(
     vectors: ArrayLike,
     comparison_embeddings: ArrayLike,
     topn: Optional[int] = 100,
-    elbow_metric: str = "manhattan",
-    first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,
+    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
+    cutoff_args: Optional[Dict] = None,
 ) -> NDArray[np.float64]:
     """Translates from a series of vectors and a set of embeddings to compare
     into a matrix. Uses the elbow finding heuristic to determine what is
@@ -468,21 +475,15 @@ def generate_similarity_matrix(
     topn: int (Optional, default `100`)
         A maximum number of points to consider similar to a provided
         vector. Can be used to limit topic sizes.
-        Pass `None` to only use the elbow-finding value.
-    elbow_metric: str (Optional, default `'manhattan'`)
-        Which distance metric to use when computing the cut-off for
-        close enough.
-    first_elbow: bool (Optional, default True)
-        If the curve forms an S around the linear descent line only
-        return an elbow from the first portion above/below the line.
+        Pass `None` to only use the cutoff value.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    max_first_delta: Optional[float] = 0.33
-        Use index 0 as elbow if this value is exceeded as percent of total
-        variation.
-        Due to the way that elbow finding works this returns unintuitive
-        results if the first value is vastly different than all following values
-        unless this is set.
+    cutoff_heuristic: str (Optional, default `'elbow'`)
+        Which cutoff heuristic to use.
+        See `top2vec.cutoff_heuristics` for more.
+    cutoff_args: dict (Optional, default None)
+        Pass custom arguments to the cutoff heuristic.
+        See `top2vec.cutoff_heurstics.find_cutoff` for more information.
 
     Returns
     -------
@@ -500,10 +501,9 @@ def generate_similarity_matrix(
         vector_array,
         embeddings_array,
         topn=topn,
-        elbow_metric=elbow_metric,
-        first_elbow=first_elbow,
         require_positive=require_positive,
-        max_first_delta=max_first_delta,
+        cutoff_heuristic=cutoff_heuristic,
+        cutoff_args=cutoff_args,
     )
     res_matrix = np.zeros((num_vectors, num_embeddings))
     for index, (indices, scores) in enumerate(similarity_values):
@@ -515,10 +515,9 @@ def generate_csr_similarity_matrix(
     vectors: ArrayLike,
     comparison_embeddings: ArrayLike,
     topn: Optional[int] = 100,
-    elbow_metric: str = "manhattan",
-    first_elbow: bool = True,
     require_positive: bool = True,
-    max_first_delta: Optional[float] = 0.33,
+    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
+    cutoff_args: Optional[Dict] = None,
 ) -> scipy.sparse.csr_matrix:
     """As with `generate_similarity_matrix`, but a sparse output.
 
@@ -542,21 +541,15 @@ def generate_csr_similarity_matrix(
     topn: int
         A maximum number of points to consider similar to a provided
         vector. Can be used to limit topic sizes.
-        Pass `None` to only use the elbow-finding value for size.
-    elbow_metric: str (Optional, default `'manhattan'`)
-        Which distance metric to use when computing the cut-off for
-        close enough.
-    first_elbow: bool (Optional, default True)
-        If the curve forms an S around the linear descent line only
-        return an elbow from the first portion above/below the line.
+        Pass `None` to only use the cutoff value for size.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    max_first_delta: Optional[float] = 0.33
-        Use index 0 as elbow if this value is exceeded as percent of total
-        variation.
-        Due to the way that elbow finding works this returns unintuitive
-        results if the first value is vastly different than all following values
-        unless this is set.
+    cutoff_heuristic: str (Optional, default `'elbow'`)
+        Which cutoff heuristic to use.
+        See `top2vec.cutoff_heuristics` for more.
+    cutoff_args: dict (Optional, default None)
+        Pass custom arguments to the cutoff heuristic.
+        See `top2vec.cutoff_heurstics.find_cutoff` for more information.
 
     Returns
     -------
@@ -583,10 +576,9 @@ def generate_csr_similarity_matrix(
         vector_array,
         embeddings_array,
         topn=topn,
-        elbow_metric=elbow_metric,
-        first_elbow=first_elbow,
         require_positive=require_positive,
-        max_first_delta=max_first_delta,
+        cutoff_heuristic=cutoff_heuristic,
+        cutoff_args=cutoff_args,
     )
 
     res_shape = (num_vectors, num_embeddings)

@@ -94,6 +94,40 @@ def test_find_closest_items():
         res[0][1], np.array([1.0, 1.0, 1.0, 1.0, cosine0_3]), round=True
     )
 
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=None,
+        cutoff_args={"max_first_delta": 0},
+    )
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    assert compare_numpy_arrays(
+        res[0][0],
+        np.array(
+            [
+                5,
+            ]
+        ),
+    )
+    assert compare_numpy_arrays(
+        res[0][1],
+        np.array(
+            [
+                1.0,
+            ]
+        ),
+        round=True,
+    )
+    assert compare_numpy_arrays(
+        res[0].scores,
+        np.array(
+            [
+                1.0,
+            ]
+        ),
+        round=True,
+    )
     res = find_closest_items(test_vectors, test_embedding, ignore_indices=None, topn=2)
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -228,7 +262,9 @@ def test_find_closest_items():
             2,
         ],
         require_positive=False,
-        max_first_delta=None,
+        cutoff_args={
+            "max_first_delta": None,
+        },
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -253,8 +289,7 @@ def test_find_closest_items():
         test_embedding,
         ignore_indices=[0, 1, 2, 4, 5],
         require_positive=False,
-        max_first_delta=None,
-        below_line_exclusive=False,
+        cutoff_args={"max_first_delta": None, "below_line_exclusive": False},
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -267,8 +302,7 @@ def test_find_closest_items():
         test_embedding,
         ignore_indices=[0, 1, 2, 4, 5],
         require_positive=False,
-        max_first_delta=None,
-        below_line_exclusive=True,
+        cutoff_args={"max_first_delta": None, "below_line_exclusive": True},
     )
     for indices, scores in res:
         assert len(indices) == len(scores)

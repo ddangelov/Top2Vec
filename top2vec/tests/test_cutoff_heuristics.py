@@ -3,7 +3,7 @@ from itertools import permutations
 import pytest
 import numpy as np
 
-from top2vec.elbow_finding import (
+from top2vec.cutoff_heuristics import (
     find_elbow_index,
     get_distances_from_line,
     _get_shifted_second_derivative,
