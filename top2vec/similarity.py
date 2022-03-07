@@ -46,6 +46,7 @@ def find_closest_items(
     first_elbow: bool = True,
     require_positive: bool = True,
     max_first_delta: Optional[float] = 0.33,
+    below_line_exclusive: bool = True,
 ) -> List[Tuple[NDArray[np.int64], NDArray[np.float64]]]:
     """Finds the closest embeddings based on provided vector(s) from the same space.
 
@@ -121,6 +122,7 @@ def find_closest_items(
             metric=elbow_metric,
             first_elbow=first_elbow,
             max_first_delta=max_first_delta,
+            below_line_exclusive=below_line_exclusive,
         )
     else:
         elbow_indices = np.apply_along_axis(
@@ -130,6 +132,7 @@ def find_closest_items(
             metric=elbow_metric,
             first_elbow=first_elbow,
             max_first_delta=max_first_delta,
+            below_line_exclusive=below_line_exclusive,
         )
     # Now I reshape the individual vectors
     # NumPy doesn't support jagged arrays, so now is time to iterate

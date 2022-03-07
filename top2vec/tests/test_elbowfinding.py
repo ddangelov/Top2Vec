@@ -97,6 +97,10 @@ def distances_from_line_helper(metric, expected_distance):
     assert res_tup.first_elbow_above_line
     assert not res_tup.is_truncated
     assert res_tup.truncation_index == 4
+    # Don't really care about values, care about signs
+    assert compare_numpy_arrays(
+        res_tup.y_deltas < 0, np.array([False, False, False, False, False])
+    )
 
     # Order DOES matter
     res_tup = get_distances_from_line([3, 4, 5, 2, 1], slope, y_int, metric)
@@ -104,6 +108,9 @@ def distances_from_line_helper(metric, expected_distance):
     assert not res_tup.first_elbow_above_line
     assert res_tup.is_truncated
     assert res_tup.truncation_index == 1
+    assert compare_numpy_arrays(
+        res_tup.y_deltas < 0, np.array([True, False, False, False, False])
+    )
 
     res_tup = get_distances_from_line([5, 4, 2, 2, 1], slope, y_int, metric)
     assert compare_numpy_arrays(
@@ -113,6 +120,9 @@ def distances_from_line_helper(metric, expected_distance):
     assert not res_tup.first_elbow_above_line
     assert not res_tup.is_truncated
     assert res_tup.truncation_index == 4
+    assert compare_numpy_arrays(
+        res_tup.y_deltas < 0, np.array([False, False, True, False, False])
+    )
 
     # Should be symmetrical
     # This flips around the line, so we need to say we want everything
@@ -126,6 +136,9 @@ def distances_from_line_helper(metric, expected_distance):
     assert not res_tup.first_elbow_above_line
     assert not res_tup.is_truncated
     assert res_tup.truncation_index == 4
+    assert compare_numpy_arrays(
+        res_tup.y_deltas < 0, np.array([False, False, True, False, False])
+    )
 
     res_tup = get_distances_from_line(
         [5, 4, 2, 3, 1], slope, y_int, metric, first_elbow=True
@@ -137,6 +150,9 @@ def distances_from_line_helper(metric, expected_distance):
     assert not res_tup.first_elbow_above_line
     assert res_tup.is_truncated
     assert res_tup.truncation_index == 2
+    assert compare_numpy_arrays(
+        res_tup.y_deltas < 0, np.array([False, False, True, False, False])
+    )
 
     res_tup = get_distances_from_line(
         [8, 7, 7, 5, 4, 2, 3, 1], slope, 8, metric, first_elbow=True
@@ -148,6 +164,35 @@ def distances_from_line_helper(metric, expected_distance):
     assert res_tup.first_elbow_above_line
     assert res_tup.is_truncated
     assert res_tup.truncation_index == 4
+    assert compare_numpy_arrays(
+        res_tup.y_deltas < 0,
+        np.array([False, False, False, False, False, False, False, False]),
+    )
+    assert compare_numpy_arrays(
+        res_tup.y_deltas > 0,
+        np.array([False, False, True, False, False, False, False, False]),
+    )
+
+    res_tup = get_distances_from_line(
+        [8, 7, 7, 5, 4, 2, 3, 1], slope, 8, metric, first_elbow=False
+    )
+    assert compare_numpy_arrays(
+        res_tup.distances,
+        np.array(
+            [0, 0, expected_distance, 0, 0, expected_distance, expected_distance, 0]
+        ),
+    )
+    assert res_tup.first_elbow_above_line
+    assert not res_tup.is_truncated
+    assert res_tup.truncation_index == 7
+    assert compare_numpy_arrays(
+        res_tup.y_deltas < 0,
+        np.array([False, False, False, False, False, True, False, False]),
+    )
+    assert compare_numpy_arrays(
+        res_tup.y_deltas > 0,
+        np.array([False, False, True, False, False, False, True, False]),
+    )
 
     res_tup = get_distances_from_line(
         [8, 7, 7, 5, 4, 4, 1, 1], slope, 8, metric, first_elbow=True
@@ -270,8 +315,16 @@ def test_find_elbow_index():
         # In 2d spaces the end result of the different norms should be identical
         for metric in ["euclidean", "manhattan", "uniform"]:
             for instance in perms:
-                assert find_elbow_index(instance, metric) == expected
-                assert find_elbow_index(np.array(instance), metric) == expected
+                assert (
+                    find_elbow_index(instance, metric, below_line_exclusive=False)
+                    == expected
+                )
+                assert (
+                    find_elbow_index(
+                        np.array(instance), metric, below_line_exclusive=False
+                    )
+                    == expected
+                )
 
     # Anything of size 1 or 2 will return the first
     elbow_index_helper([2], 0)
@@ -328,16 +381,24 @@ def test_find_elbow_index():
         -1,
         -1,
     ]
-    assert find_elbow_index(flipper, first_elbow=True) == 1
-    assert find_elbow_index(flipper, first_elbow=False) == 7
+    assert find_elbow_index(flipper, first_elbow=True, below_line_exclusive=False) == 1
+    # Immediately flips underneath
+    assert find_elbow_index(flipper, first_elbow=True, below_line_exclusive=True) == 0
+    assert find_elbow_index(flipper, first_elbow=False, below_line_exclusive=False) == 7
+    assert find_elbow_index(flipper, first_elbow=False, below_line_exclusive=True) == 6
 
     flipper2 = flipper
     flipper2[0] = 7
-    assert find_elbow_index(flipper2, first_elbow=True) == 5
-    assert find_elbow_index(flipper2, first_elbow=False) == 7
+    assert find_elbow_index(flipper2, first_elbow=True, below_line_exclusive=False) == 5
+    assert find_elbow_index(flipper2, first_elbow=True, below_line_exclusive=True) == 5
+    assert (
+        find_elbow_index(flipper2, first_elbow=False, below_line_exclusive=False) == 7
+    )
+    # NOTE: This is an interesting test case
+    # The first elbow is above the line, but the actual point being returned is below the line
+    assert find_elbow_index(flipper2, first_elbow=False, below_line_exclusive=True) == 6
 
 
-"""
 def test_bad_values():
     # Strict elbow finding on this returns sub-optimal values due to the massive drop between the first and second item
     # Make this work better!
@@ -434,7 +495,7 @@ def test_bad_values():
             0.315881,
         ]
     )
-    assert find_elbow_index(values) == 3"""
+    assert find_elbow_index(values) == 3
 
 
 def test_slid_second_derivative():
@@ -470,8 +531,8 @@ def test_slid_second_derivative():
         assert compare_numpy_arrays(
             _get_shifted_second_derivative(test, True, 20), second_der
         )
-
-    test_distances = LineDistances(test, True, 4, True)
+    # This isn't using y_deltas at all
+    test_distances = LineDistances(test, np.array([1, 1, 1, 1, 1, 1, 1]), True, 4, True)
     assert compare_numpy_arrays(
         _get_shifted_second_derivative(
             test_distances.distances,

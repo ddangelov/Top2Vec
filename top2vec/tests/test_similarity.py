@@ -232,8 +232,9 @@ def test_find_closest_items():
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
-    assert compare_numpy_arrays(res[1][0], np.array([0, 5]))
-    assert compare_numpy_arrays(res[1][1], np.array([cosine1_0, 0]), round=True)
+    # Below the curve is exclusive
+    assert compare_numpy_arrays(res[1][0], np.array([0]))
+    assert compare_numpy_arrays(res[1][1], np.array([cosine1_0]), round=True)
     res = find_closest_items(
         test_vectors,
         test_embedding,
@@ -253,12 +254,29 @@ def test_find_closest_items():
         ignore_indices=[0, 1, 2, 4, 5],
         require_positive=False,
         max_first_delta=None,
+        below_line_exclusive=False,
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
     # Our indices should be based on the same array we passed in
+    # Again below curve
     assert compare_numpy_arrays(res[1][0], np.array([3, 6]))
     assert compare_numpy_arrays(res[1][1], np.array([cosine1_3, cosine1_6]), round=True)
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=[0, 1, 2, 4, 5],
+        require_positive=False,
+        max_first_delta=None,
+        below_line_exclusive=True,
+    )
+    for indices, scores in res:
+        assert len(indices) == len(scores)
+    # Our indices should be based on the same array we passed in
+    # Again below curve
+    assert compare_numpy_arrays(res[1][0], np.array([3]))
+    assert compare_numpy_arrays(res[1][1], np.array([cosine1_3]), round=True)
+
     res = find_closest_items(
         test_vectors,
         test_embedding,
