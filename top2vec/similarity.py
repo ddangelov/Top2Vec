@@ -59,7 +59,6 @@ def find_closest_items(
     topn: Optional[int] = None,
     ignore_indices: Optional[ArrayLike] = None,
     require_positive: bool = True,
-    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
     cutoff_args: Optional[Dict] = None,
 ) -> List[VectorSimilarityScores]:
     """Finds the closest embeddings based on provided vector(s) from the same space.
@@ -89,13 +88,13 @@ def find_closest_items(
         The distance from the line for that first point will be 0,
         which won't be an elbow.
         If True then only values which are greater than 0 will be returned.
-    cutoff_heuristic: str (Optional, default `'elbow'`)
-        Which cutoff heuristic to use.
-        See `top2vec.cutoff_heuristics` for more.
     cutoff_args: dict (Optional, default None)
         Pass custom arguments to the cutoff heuristic.
         See `top2vec.cutoff_heurstics.find_cutoff` for more information.
 
+        cutoff_heuristic: str (Optional, default `'elbow'`)
+            Which cutoff heuristic to use.
+            See `top2vec.cutoff_heuristics` for more.
         first_elbow: bool (Optional, default True)
             If the curve forms an S around the linear descent line only
             return a cutoff from the first portion above/below the line.
@@ -132,6 +131,7 @@ def find_closest_items(
 
     if cutoff_args is None:
         cutoff_args = {
+            "cutoff_heuristic": ELBOW_HEURISTIC_STR,
             "first_elbow": True,
             "max_first_delta": 0.33,
             "below_line_exclusive": True,
@@ -148,7 +148,6 @@ def find_closest_items(
             find_cutoff,
             arr=similarity_scores[:, fancy_indices],
             axis=1,
-            cutoff_heuristic=cutoff_heuristic,
             **cutoff_args,
         )
     else:
@@ -156,7 +155,6 @@ def find_closest_items(
             find_cutoff,
             arr=similarity_scores,
             axis=1,
-            cutoff_heuristic=cutoff_heuristic,
             **cutoff_args,
         )
     # Now I reshape the individual vectors
@@ -195,9 +193,8 @@ def find_closest_items_to_average(
     ignore_negative_indices: Optional[ArrayLike] = None,
     topn: Optional[int] = 100,
     require_positive: bool = True,
-    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
     cutoff_args: Optional[Dict] = None,
-) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
+) -> VectorSimilarityScores:
     """Find the top-N most similar vectors while also using a cutoff-finding heuristic.
     Positive vectors contribute positively towards the similarity, negative vectors negatively.
 
@@ -228,9 +225,6 @@ def find_closest_items_to_average(
         Pass `None` to only use the cutoff value.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    cutoff_heuristic: str (Optional, default `'elbow'`)
-        Which cutoff heuristic to use.
-        See `top2vec.cutoff_heuristics` for more.
     cutoff_args: dict (Optional, default None)
         Pass custom arguments to the cutoff heuristic.
         See `top2vec.cutoff_heurstics.find_cutoff` for more information.
@@ -287,7 +281,6 @@ def find_closest_items_to_average(
         ignore_indices=ignore_indices,
         topn=topn,
         require_positive=require_positive,
-        cutoff_heuristic=cutoff_heuristic,
         cutoff_args=cutoff_args,
     )[0]
 
@@ -298,9 +291,8 @@ def find_similar_in_embedding(
     negative_indices: Optional[ArrayLike] = None,
     topn: Optional[int] = 100,
     require_positive: bool = True,
-    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
     cutoff_args: Optional[Dict] = None,
-) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
+) -> VectorSimilarityScores:
     """Find the top-N most similar vectors within an embedding while also using
     a cutoff finding heuristic.
     Positive vectors contribute positively towards the similarity, negative vectors negatively.
@@ -321,9 +313,6 @@ def find_similar_in_embedding(
         Pass `None` to only use the cutoff value.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    cutoff_heuristic: str (Optional, default `'elbow'`)
-        Which cutoff heuristic to use.
-        See `top2vec.cutoff_heuristics` for more.
     cutoff_args: dict (Optional, default None)
         Pass custom arguments to the cutoff heuristic.
         See `top2vec.cutoff_heurstics.find_cutoff` for more information.
@@ -357,7 +346,6 @@ def find_similar_in_embedding(
         ignore_negative_indices=negative_indices,
         topn=topn,
         require_positive=require_positive,
-        cutoff_heuristic=cutoff_heuristic,
         cutoff_args=cutoff_args,
     )
 
@@ -368,7 +356,6 @@ def describe_closest_items(
     embedding_vocabulary: ArrayLike,
     topn: int = 100,
     require_positive: bool = True,
-    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
     cutoff_args: Optional[Dict] = None,
 ) -> List[Tuple[NDArray, NDArray[np.float64]]]:
     """Finds the most similar embedded vectors for a vector or set of vectors using cosine
@@ -399,9 +386,6 @@ def describe_closest_items(
         Pass `None` to only use the cutoff value.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    cutoff_heuristic: str (Optional, default `'elbow'`)
-        Which cutoff heuristic to use.
-        See `top2vec.cutoff_heuristics` for more.
     cutoff_args: dict (Optional, default None)
         Pass custom arguments to the cutoff heuristic.
         See `top2vec.cutoff_heurstics.find_cutoff` for more information.
@@ -434,7 +418,6 @@ def describe_closest_items(
         embedding,
         topn=topn,
         require_positive=require_positive,
-        cutoff_heuristic=cutoff_heuristic,
         cutoff_args=cutoff_args,
     )
     results = []
@@ -448,7 +431,6 @@ def generate_similarity_matrix(
     comparison_embeddings: ArrayLike,
     topn: Optional[int] = 100,
     require_positive: bool = True,
-    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
     cutoff_args: Optional[Dict] = None,
 ) -> NDArray[np.float64]:
     """Translates from a series of vectors and a set of embeddings to compare
@@ -476,9 +458,6 @@ def generate_similarity_matrix(
         Pass `None` to only use the cutoff value.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    cutoff_heuristic: str (Optional, default `'elbow'`)
-        Which cutoff heuristic to use.
-        See `top2vec.cutoff_heuristics` for more.
     cutoff_args: dict (Optional, default None)
         Pass custom arguments to the cutoff heuristic.
         See `top2vec.cutoff_heurstics.find_cutoff` for more information.
@@ -500,7 +479,6 @@ def generate_similarity_matrix(
         embeddings_array,
         topn=topn,
         require_positive=require_positive,
-        cutoff_heuristic=cutoff_heuristic,
         cutoff_args=cutoff_args,
     )
     res_matrix = np.zeros((num_vectors, num_embeddings))
@@ -514,7 +492,6 @@ def generate_csr_similarity_matrix(
     comparison_embeddings: ArrayLike,
     topn: Optional[int] = 100,
     require_positive: bool = True,
-    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
     cutoff_args: Optional[Dict] = None,
 ) -> scipy.sparse.csr_matrix:
     """As with `generate_similarity_matrix`, but a sparse output.
@@ -544,9 +521,6 @@ def generate_csr_similarity_matrix(
         Pass `None` to only use the cutoff value.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
-    cutoff_heuristic: str (Optional, default `'elbow'`)
-        Which cutoff heuristic to use.
-        See `top2vec.cutoff_heuristics` for more.
     cutoff_args: dict (Optional, default None)
         Pass custom arguments to the cutoff heuristic.
         See `top2vec.cutoff_heurstics.find_cutoff` for more information.
@@ -577,7 +551,6 @@ def generate_csr_similarity_matrix(
         embeddings_array,
         topn=topn,
         require_positive=require_positive,
-        cutoff_heuristic=cutoff_heuristic,
         cutoff_args=cutoff_args,
     )
 
