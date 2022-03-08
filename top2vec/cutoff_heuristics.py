@@ -36,6 +36,12 @@ can under-estimate if the curve is a long slow decay.
 
 * `average`: Runs both of the above and returns the average index
 between the two (rounding up).
+
+* `recursive_elbow`: As `elbow`, but runs twice if there are at
+least 3 points to examine in the sub-graph.
+The first pass is used as a cutoff which is then passed back into
+the elbow finding method. Seems to behave better when the data
+forms a long slow curve.
 """
 
 from typing import Optional, NamedTuple
@@ -46,10 +52,12 @@ from numpy.typing import NDArray, ArrayLike
 ELBOW_HEURISTIC_STR = "elbow"
 DERIVATIVE_HEURISTIC_STR = "shifted_derivative"
 AVERAGE_HEURISTIC_STR = "average"
+RECURSIVE_ELBOW_HEURISTIC_STR = "recursive_elbow"
 SUPPORTED_HEURISTICS = [
     ELBOW_HEURISTIC_STR,
     DERIVATIVE_HEURISTIC_STR,
     AVERAGE_HEURISTIC_STR,
+    RECURSIVE_ELBOW_HEURISTIC_STR,
 ]
 
 
@@ -208,13 +216,16 @@ def find_cutoff(
 
     cutoff_heuristic: str (Optional, default `'elbow'`)
         Which heuristic to use when determining the index.
-        * `elbow`: Finds the index with the greatest distance from the curve.
-        * `shifted_derivative`: Finds the index with the greatest
-        `distance[i] * 2nd_derivative[i + 1]`.
-        This prioritizes points which have a large change in slope but
-        can under-estimate if the curve is a long slow decay.
-        * `average`: Runs both of the above and returns the average index
-        between the two (rounding up)
+
+            * `elbow`: Finds the index with the greatest distance from the curve.
+            * `shifted_derivative`: Finds the index with the greatest
+            `distance[i] * 2nd_derivative[i + 1]`.
+                This prioritizes points which have a large change in slope but
+                can under-estimate if the curve is a long slow decay.
+            * `average`: Runs both of the above and returns the average index
+            between the two (rounding up).
+            * `recursive_elbow`: As `elbow`, but runs twice.
+             Seems to behave better when the data forms a long slow curve.
 
     first_elbow: bool (Optional, default True)
         If true only the first elbow will be examined in the
@@ -293,7 +304,7 @@ def find_cutoff(
             distances_tuple=distances_tuple,
             below_line_exclusive=below_line_exclusive,
         )
-    else:
+    elif cutoff_heuristic == AVERAGE_HEURISTIC_STR:
         # we have an average
         elbow = __elbow_index(distances_tuple, below_line_exclusive)
         scores_index = __shifted_derivative_index(
@@ -302,6 +313,18 @@ def find_cutoff(
             below_line_exclusive=below_line_exclusive,
         )
         return round((elbow + scores_index) / 2)
+    elif cutoff_heuristic == RECURSIVE_ELBOW_HEURISTIC_STR:
+        first_pass = __elbow_index(distances_tuple, below_line_exclusive)
+        if first_pass > 1:
+            return find_cutoff(
+                values[: first_pass + 1],
+                cutoff_heuristic=ELBOW_HEURISTIC_STR,
+                first_elbow=first_elbow,
+                max_first_delta=max_first_delta,
+                below_line_exclusive=below_line_exclusive,
+            )
+        else:
+            return first_pass
 
 
 def find_elbow_index(

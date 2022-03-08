@@ -5,6 +5,7 @@ import pytest
 import numpy as np
 
 from top2vec.cutoff_heuristics import (
+    RECURSIVE_ELBOW_HEURISTIC_STR,
     find_elbow_index,
     find_cutoff,
     get_distances_from_line,
@@ -299,6 +300,66 @@ def test_find_cutoff():
             )
             == 4
         )
+
+
+def test_recursive_elbow_index():
+    # Anything which results in index 1 or less should be the same
+    for heuristic in [ELBOW_HEURISTIC_STR, RECURSIVE_ELBOW_HEURISTIC_STR]:
+        assert find_cutoff([], cutoff_heuristic=heuristic) == -1
+        assert find_cutoff(None, cutoff_heuristic=heuristic) == -1
+        assert find_cutoff([0, 0, 0, 0], cutoff_heuristic=heuristic) == -1
+        assert find_cutoff([0], cutoff_heuristic=heuristic) == -1
+        assert find_cutoff([0, 0], cutoff_heuristic=heuristic) == -1
+        assert find_cutoff([1], cutoff_heuristic=heuristic) == 0
+        assert find_cutoff([1, 111111111], cutoff_heuristic=heuristic) == 0
+        assert (
+            find_cutoff(
+                [10, 2, 1, 0], cutoff_heuristic=heuristic, max_first_delta=0.001
+            )
+            == 0
+        )
+    test_data = [20, 19, 17, 17, 16, 10, 9, 8, 7, 6, 6, 6, 6, 6, 6, 5, 4, 3, 2, 1]
+    first_pass = find_cutoff(
+        test_data,
+        cutoff_heuristic=ELBOW_HEURISTIC_STR,
+        first_elbow=True,
+        below_line_exclusive=False,
+    )
+    assert first_pass == 5
+    second_pass = find_cutoff(
+        test_data[: first_pass + 1],
+        cutoff_heuristic=ELBOW_HEURISTIC_STR,
+        first_elbow=True,
+        below_line_exclusive=False,
+    )
+    assert second_pass == find_cutoff(
+        test_data,
+        cutoff_heuristic=RECURSIVE_ELBOW_HEURISTIC_STR,
+        first_elbow=True,
+        below_line_exclusive=False,
+    )
+    assert second_pass == 4
+
+    first_pass = find_cutoff(
+        test_data,
+        cutoff_heuristic=ELBOW_HEURISTIC_STR,
+        first_elbow=True,
+        below_line_exclusive=True,
+    )
+    assert first_pass == 4
+    second_pass = find_cutoff(
+        test_data[: first_pass + 1],
+        cutoff_heuristic=ELBOW_HEURISTIC_STR,
+        first_elbow=True,
+        below_line_exclusive=True,
+    )
+    assert second_pass == find_cutoff(
+        test_data,
+        cutoff_heuristic=RECURSIVE_ELBOW_HEURISTIC_STR,
+        first_elbow=True,
+        below_line_exclusive=True,
+    )
+    assert second_pass == 1
 
 
 def test_derivative_index():
