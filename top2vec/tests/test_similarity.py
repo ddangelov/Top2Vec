@@ -30,12 +30,32 @@ def compare_numpy_arrays(array_a, array_b, round=False):
         return (array_a == array_b).all()
 
 
+def test_compare_numpy_arrays():
+    assert compare_numpy_arrays(None, None)
+    assert not compare_numpy_arrays(np.array([1, 2, 3]), None)
+    assert compare_numpy_arrays(np.array([]), np.array([]))
+    assert compare_numpy_arrays(np.array([1, 2, 3]), np.array([1, 2, 3]))
+    assert compare_numpy_arrays(
+        np.array([1, 2, 3]), np.array([1.0000001, 2.0000001, 3.0000001]), round=True
+    )
+    assert not compare_numpy_arrays(np.array([1, 2, 3]), np.array([]))
+    assert not compare_numpy_arrays(np.array([[1, 2, 3]]), np.array([1, 2, 3]))
+    assert not compare_numpy_arrays(np.array([[1, 1], [1, 1]]), np.array([1, 1, 1, 1]))
+
+
 def get_cosine_sim(vector_a, vector_b):
     if np.linalg.norm(vector_a) == 0 or np.linalg.norm(vector_b) == 0:
         return 0
     return np.dot(vector_a, vector_b) / (
         np.linalg.norm(vector_a) * np.linalg.norm(vector_b)
     )
+
+
+def test_get_cosine_sim():
+    # Make sure that 0 doesn't give us issues
+    assert get_cosine_sim(np.array([0, 0, 0]), np.array([1, 2, 3])) == 0
+    assert get_cosine_sim(np.array([1, 2, 3]), np.array([1, 2, 3])) == 1
+    assert get_cosine_sim(np.array([-1, 2]), np.array([2, 1])) == 0
 
 
 def test_find_closest_items():
@@ -564,9 +584,17 @@ def test_find_similar_in_embedding():
         scores, np.array([1.0, 1.0, 1.0, 1.0, cosines[1][0]]), round=True
     )
 
-    # TODO: we should get an identical value when running find_similar
+    scores0, indices0 = find_similar_in_embedding(
+        test_embedding, positive_indices=[1], topn=2
+    )
+    scores1, indices1 = find_closest_items(
+        test_embedding[1], test_embedding, topn=2, ignore_indices=[1]
+    )[0]
+
+    # We should get an identical value when running find_similar
     # and find_embedding
-    # Currently the elbow is computed while IGNORING the similar items
+    assert compare_numpy_arrays(scores0, scores1, round=True)
+    assert compare_numpy_arrays(indices0, indices1, round=True)
 
 
 def test_describe_closest_items():
@@ -640,8 +668,37 @@ def test_describe_closest_items():
         np.array([cosines[1][0]]),
         round=True,
     )
-    # TODO: test without requiring positive
     assert compare_numpy_arrays(full_run[1][0], np.array(["hat"]))
+    # All 0s doesn't really work with anything
+    assert full_run[2][0].shape == (0,)
+    assert full_run[2][1].shape == (0,)
+
+    # Testing with no max first delta or requiring positive
+    full_run = describe_closest_items(
+        test_vectors,
+        test_embedding,
+        test_vocabulary,
+        require_positive=False,
+        cutoff_args={"below_line_exclusive": False, "max_first_delta": None},
+    )
+    assert len(full_run) == test_vectors.shape[0]
+    # Two items with cosine similarity of 1
+    assert full_run[0][0].shape == (3,)
+    assert full_run[0][1].shape == (3,)
+    assert compare_numpy_arrays(
+        full_run[0][1], np.array([1, 1, cosines[0][3]]), round=True
+    )
+    assert compare_numpy_arrays(full_run[0][0], np.array(["kitten", "cat", "car"]))
+    # Just one item, two are orthogonal and one is negative
+    assert full_run[1][0].shape == (2,)
+    assert full_run[1][1].shape == (2,)
+    # cosine similarity
+    assert compare_numpy_arrays(
+        full_run[1][1],
+        np.array([cosines[1][0], 0]),
+        round=True,
+    )
+    assert compare_numpy_arrays(full_run[1][0], np.array(["hat", "kitten"]))
     # All 0s doesn't really work with anything
     assert full_run[2][0].shape == (0,)
     assert full_run[2][1].shape == (0,)

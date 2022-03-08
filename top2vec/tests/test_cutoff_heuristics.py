@@ -1,13 +1,18 @@
 from itertools import permutations
+from random import shuffle
 
 import pytest
 import numpy as np
 
 from top2vec.cutoff_heuristics import (
     find_elbow_index,
+    find_cutoff,
     get_distances_from_line,
     _get_shifted_second_derivative,
     LineDistances,
+    ELBOW_HEURISTIC_STR,
+    DERIVATIVE_HEURISTIC_STR,
+    AVERAGE_HEURISTIC_STR,
 )
 
 
@@ -25,6 +30,16 @@ def compare_numpy_arrays(array_a, array_b):
     if array_a.shape != array_b.shape:
         return False
     return (array_a == array_b).all()
+
+
+def test_compare_numpy_arrays():
+    assert compare_numpy_arrays(None, None)
+    assert not compare_numpy_arrays(np.array([1, 2, 3]), None)
+    assert compare_numpy_arrays(np.array([]), np.array([]))
+    assert compare_numpy_arrays(np.array([1, 2, 3]), np.array([1, 2, 3]))
+    assert not compare_numpy_arrays(np.array([1, 2, 3]), np.array([]))
+    assert not compare_numpy_arrays(np.array([[1, 2, 3]]), np.array([1, 2, 3]))
+    assert not compare_numpy_arrays(np.array([[1, 1], [1, 1]]), np.array([1, 1, 1, 1]))
 
 
 def test_distances_from_line():
@@ -222,6 +237,109 @@ def test_distances_from_line():
     assert not res_tup.first_elbow_above_line
 
 
+def test_find_cutoff():
+    with pytest.raises(ValueError):
+        find_cutoff([], cutoff_heuristic="Fake Data")
+    with pytest.raises(ValueError):
+        find_cutoff([], cutoff_heuristic=None)
+
+    for heuristic in [
+        ELBOW_HEURISTIC_STR,
+        DERIVATIVE_HEURISTIC_STR,
+        AVERAGE_HEURISTIC_STR,
+    ]:
+        assert find_cutoff([], cutoff_heuristic=heuristic) == -1
+        assert find_cutoff(None, cutoff_heuristic=heuristic) == -1
+        assert find_cutoff([0, 0, 0, 0], cutoff_heuristic=heuristic) == -1
+        assert find_cutoff([0], cutoff_heuristic=heuristic) == -1
+        assert find_cutoff([0, 0], cutoff_heuristic=heuristic) == -1
+        assert find_cutoff([1], cutoff_heuristic=heuristic) == 0
+        assert find_cutoff([1, 111111111], cutoff_heuristic=heuristic) == 0
+        assert (
+            find_cutoff(
+                [10, 2, 1, 0], cutoff_heuristic=heuristic, max_first_delta=0.001
+            )
+            == 0
+        )
+        test_data = [20, 19, 18, 17, 16, 10, 9, 8, 7, 6, 6, 6, 6, 6, 6, 5, 4, 3, 2, 1]
+        assert (
+            find_cutoff(
+                test_data,
+                cutoff_heuristic=heuristic,
+                first_elbow=True,
+                below_line_exclusive=False,
+            )
+            == 5
+        )
+        assert (
+            find_cutoff(
+                test_data,
+                cutoff_heuristic=heuristic,
+                first_elbow=True,
+                below_line_exclusive=True,
+            )
+            == 4
+        )
+        shuffle(test_data)
+        assert (
+            find_cutoff(
+                test_data,
+                cutoff_heuristic=heuristic,
+                first_elbow=True,
+                below_line_exclusive=False,
+            )
+            == 5
+        )
+        assert (
+            find_cutoff(
+                test_data,
+                cutoff_heuristic=heuristic,
+                first_elbow=True,
+                below_line_exclusive=True,
+            )
+            == 4
+        )
+
+
+def test_derivative_index():
+    base_data = [20, 19, 18, 17, 16, 10, 9, 8, 7, 6, 6, 6, 6, 6, 6, 5, 4, 3, 2, 1]
+    assert (
+        find_cutoff(base_data, cutoff_heuristic=ELBOW_HEURISTIC_STR)
+    ) == find_cutoff(base_data, cutoff_heuristic=DERIVATIVE_HEURISTIC_STR)
+    assert (
+        find_cutoff(base_data, cutoff_heuristic=AVERAGE_HEURISTIC_STR)
+    ) == find_cutoff(base_data, cutoff_heuristic=DERIVATIVE_HEURISTIC_STR)
+
+    derivative_data = [
+        20,
+        19,
+        18,
+        17,
+        16,
+        14,
+        13,
+        9,
+        7,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+    ]
+    assert (
+        find_cutoff(derivative_data, cutoff_heuristic=ELBOW_HEURISTIC_STR) - 1
+    ) == find_cutoff(derivative_data, cutoff_heuristic=DERIVATIVE_HEURISTIC_STR)
+    assert (
+        find_cutoff(derivative_data, cutoff_heuristic=AVERAGE_HEURISTIC_STR)
+    ) == find_cutoff(derivative_data, cutoff_heuristic=DERIVATIVE_HEURISTIC_STR)
+
+
 def test_find_elbow_index():
     # Tell me what the farthest shortest distance from the line is!
     assert find_elbow_index([]) == -1
@@ -239,15 +357,12 @@ def test_find_elbow_index():
         # does NP array or list
         perms = permutations(base_data)
         # In 2d spaces the end result of the different norms should be identical
-        for metric in ["euclidean", "manhattan", "uniform"]:
-            for instance in perms:
-                assert (
-                    find_elbow_index(instance, below_line_exclusive=False) == expected
-                )
-                assert (
-                    find_elbow_index(np.array(instance), below_line_exclusive=False)
-                    == expected
-                )
+        for instance in perms:
+            assert find_elbow_index(instance, below_line_exclusive=False) == expected
+            assert (
+                find_elbow_index(np.array(instance), below_line_exclusive=False)
+                == expected
+            )
 
     # Anything of size 1 or 2 will return the first
     elbow_index_helper([2], 0)

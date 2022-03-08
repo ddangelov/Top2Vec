@@ -18,14 +18,25 @@ All heuristics go through the following algorithm first:
 * If `max_first_delta` provided and the value change from index 0 to 1
   as a proportion of the total value change from index 0 to -1 is greater than
   or equal to `max_first_delta`: return 0
+* If `first_elbow` is true and the curve crosses the linear descent line
+  then only the segment of the curve prior to the first crossing will
+  be examined. This will not cause a re-calculation of the linear
+  descent slope.
 
 From here the individual heuristics are run
-* elbow finding
 
-* shifted_derivative
+* `elbow`: Finds the index with the greatest distance from the curve.
+This is the 'standard' heuristic for things such as determining the number
+of topics to represent a corpus of documents.
+
+* `shifted_derivative`: Finds the index with the greatest
+`distance[i] * 2nd_derivative[i + 1]`.
+This prioritizes points which have a large change in slope but
+can under-estimate if the curve is a long slow decay.
+
+* `average`: Runs both of the above and returns the average index
+between the two (rounding up).
 """
-
-# TODO: Update documentation to reflect latest changes
 
 from typing import Optional, NamedTuple
 import numpy as np
@@ -47,9 +58,11 @@ class LineDistances(NamedTuple):
 
     Attributes
     ----------
-    distances: NdArray[np.float64]
-        The shortest distance between value[index i] and any point
-        along the provided line.
+    distances: NDArray[np.float64]
+        The absolute value of the distance between value[index i]
+        and provided_line[index i].
+    y_deltas: NDArray[np.float64]
+        The distance between value[index i] and provided_line[index i].
     is_truncated: bool
         If true: `first_elbow` was True and the values curve crossed
         the provided line at least once.
@@ -75,10 +88,7 @@ def get_distances_from_line(
     comparison_y_intercept: float,
     first_elbow: bool = True,
 ) -> LineDistances:
-    """Finds the shortest distance for all provided values from a provided line.
-
-    Handles if the shortest distance to the line actually happens between
-    two regularly listed points with integer X values.
+    """Finds the distance for all provided values from a provided line.
 
     Parameters
     ----------
@@ -99,6 +109,18 @@ def get_distances_from_line(
     -------
     LineDistances
         The distances as well as additional metadata.
+
+    Notes
+    -----
+    The original version of this algorithm found the shortest
+    distance between each point and the line via the perpendicular
+    slope in order to handle if the shortest distancce was between
+    two points that existed on the line.
+    After running multiple situations I haven't found a case
+    where simply subtracting values[i] from line[i] doesn't result
+    in the same index as the greatest distance from the line.
+    Therefore in order to save computational cost the algorithm
+    has been greatly simplified.
     """
     try:
         n_elements = sorted_values.size
@@ -176,13 +198,65 @@ def find_cutoff(
 ):
     """Finds the cutoff index (inclusive) in a series of real values.
 
+    Example uses include selecting the number of topics and determining
+    when there is a jump in a similarity metric.
+
     Parameters
     ----------
+    values: ArrayLike
+        A 1d array (or list) of real values.
+
+    cutoff_heuristic: str (Optional, default `'elbow'`)
+        Which heuristic to use when determining the index.
+        * `elbow`: Finds the index with the greatest distance from the curve.
+        * `shifted_derivative`: Finds the index with the greatest
+        `distance[i] * 2nd_derivative[i + 1]`.
+        This prioritizes points which have a large change in slope but
+        can under-estimate if the curve is a long slow decay.
+        * `average`: Runs both of the above and returns the average index
+        between the two (rounding up)
+
+    first_elbow: bool (Optional, default True)
+        If true only the first elbow will be examined in the
+        graph.
+        Cutoff finding can behave poorly compared to human intuition
+        when values cross the comparison line in a sort of S-curve.
+
+    max_first_delta_percent: Optional[float] (Optional default .33)
+        Max value allowed for `(y[1] - y[0]) / (y[0] - y[-1])`.
+        Some data sets have a single close value and
+        then lots of bad ones and return unintuitive results
+        as the distance from the line for index 0 is always 0.
+        The default of 0.33 says that if 33% or more of the total
+        change happens between 0 and 1 we will say the elbow is
+        index 0.
+        Providing `None` causes this check to be skipped entirely.
+
     below_line_exclusive: bool (Optional default True)
-        If true then result indices which are from an elbow below
+        If true then result indices which are from a cutoff below
         the linear descent line will be treated as exclusive.
         Therefore the final result will be index - 1.
 
+    Returns
+    -------
+    int
+        The index of the point to be used as a cutoff when all
+        provided data has been sorted in descending order, as
+        determined by `cutoff_heuristic`.
+
+        Will return -1 if provided a None value, empty list,
+        or zero vector.
+
+        It is imposible to detect if anything diverges when given
+        2 or fewer points, so index 0 will be returned.
+
+    Notes
+    -----
+    The comparison slope is created by assuming a linear descent
+    from the largest to the smallest provided value. The elbow
+    is the farthest distance from the line.
+    This can then be thought of as a value which diverges the most
+    from a linear decrease and can then be used as a cut-off value.
     """
 
     if cutoff_heuristic not in SUPPORTED_HEURISTICS:
@@ -236,7 +310,7 @@ def find_elbow_index(
     max_first_delta: Optional[float] = 0.33,
     below_line_exclusive: bool = True,
 ) -> int:
-    """Finds the elbow index (inclusive) in a series of descending real values.
+    """Finds the elbow index (inclusive) in a series of real values.
 
     Example uses include selecting the number of topics and determining
     when there is a jump in a similarity metric.
@@ -245,43 +319,44 @@ def find_elbow_index(
     ----------
     values: ArrayLike
         A 1d array (or list) of real values.
-    first_elbow: bool (Optional default True)
+    first_elbow: bool (Optional, default True)
         If true only the first elbow will be examined in the
         graph.
-        Elbow finding can behave poorly compared to human intuition
+        Cutoff finding can behave poorly compared to human intuition
         when values cross the comparison line in a sort of S-curve.
     max_first_delta_percent: Optional[float] (Optional default .33)
-        Max value allowed for (y[1] - y[0]) / (y[0] - y[-1]).
+        Max value allowed for `(y[1] - y[0]) / (y[0] - y[-1])`.
         Some data sets have a single close value and
         then lots of bad ones and return unintuitive results
         as the distance from the line for index 0 is always 0.
         The default of 0.33 says that if 33% or more of the total
         change happens between 0 and 1 we will say the elbow is
         index 0.
+        Providing `None` causes this check to be skipped entirely.
     below_line_exclusive: bool (Optional default True)
-        If true then result indices which are from an elbow below
+        If true then result indices which are from a cutoff below
         the linear descent line will be treated as exclusive.
         Therefore the final result will be index - 1.
 
     Returns
     -------
     int
-        The index of the point with the greatest perpendicular
-        distance from the comparison line when all provided data
-        has been sorted in descending order.
+        The index of the point with the greatest distance from the
+        comparison line when all provided data has been sorted in
+        descending order.
         Will return -1 if provided a None value, empty list,
         or zero vector.
+
+        It is imposible to detect if anything diverges when given
+        2 or fewer points, so index zero will be returned.
 
     Notes
     -----
     The comparison slope is created by assuming a linear descent
     from the largest to the smallest provided value. The elbow
-    is the farthest perpendicular distance from the line.
+    is the farthest distance from the line.
     This can then be thought of as a value which diverges the most
     from a linear decrease and can then be used as a cut-off value.
-
-    It is imposible to detect if anything diverges when given
-    2 or fewer points, so index zero will be returned.
     """
     return find_cutoff(
         values,
@@ -295,6 +370,22 @@ def find_elbow_index(
 def __elbow_index(
     distances_tuple: LineDistances, below_line_exclusive: bool = True
 ) -> int:
+    """Find the index of the point farthest from the line.
+
+    Parameters
+    ----------
+    distances_tuple: LineDistances
+        The result of `get_distances_from_line`.
+    below_line_exclusive: bool (Optional default True)
+        If true then result indices which are from below
+        the linear descent line will be treated as exclusive.
+        Therefore the final result will be index - 1.
+
+    Returns
+    -------
+    int
+        The index to be used as a cutoff (inclusive).
+    """
     raw_elbow = distances_tuple.distances.argmax()
     if below_line_exclusive and distances_tuple.y_deltas[raw_elbow] < 0:
         return raw_elbow - 1
@@ -303,7 +394,7 @@ def __elbow_index(
 
 
 def __shifted_derivative_index(
-    sorted_values: ArrayLike,
+    sorted_values: NDArray[np.float64],
     distances_tuple: LineDistances,
     below_line_exclusive: bool = True,
 ) -> int:
@@ -315,13 +406,26 @@ def __shifted_derivative_index(
 
     Parameters
     ----------
+    sorted_values: NDArray[np.float64]
+        A sorted (reverse order) array of real values to be used when
+        computing the derivative.
+    distances_tuple: LineDistances
+        The result of `get_distances_from_line`.
     below_line_exclusive: bool (Optional default True)
         If true then result indices which are from below
         the linear descent line will be treated as exclusive.
         Therefore the final result will be index - 1.
+
+    Returns
+    -------
+    int
+        The cutoff index (inclusive).
+
+    Notes
+    -----
+    The 2nd derivative is slid one to the left so that there will be a high
+    value at the point where things change a lot.
     """
-    # We want to have the 2nd derivative slid one to the left, that way it will have a high value at
-    # the point where things change a lot
     slid_second_derivative = _get_shifted_second_derivative(
         sorted_values, distances_tuple.is_truncated, distances_tuple.truncation_index
     )
