@@ -361,6 +361,23 @@ def test_recursive_elbow_index():
     )
     assert second_pass == 1
 
+    test_data = [20, 5, 0]
+    first_pass = find_cutoff(
+        test_data,
+        cutoff_heuristic=ELBOW_HEURISTIC_STR,
+        first_elbow=True,
+        below_line_exclusive=False,
+        max_first_delta=None
+    )
+    assert first_pass == 1
+    assert 1 == find_cutoff(
+        test_data,
+        cutoff_heuristic=RECURSIVE_ELBOW_HEURISTIC_STR,
+        first_elbow=True,
+        below_line_exclusive=False,
+        max_first_delta=None
+    )
+
 
 def test_derivative_index():
     base_data = [20, 19, 18, 17, 16, 10, 9, 8, 7, 6, 6, 6, 6, 6, 6, 5, 4, 3, 2, 1]

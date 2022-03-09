@@ -32,7 +32,7 @@ top2vec_use_model_embedding = Top2Vec(documents=newsgroups_documents,
 # test USE-multilang
 top2vec_use_multilang = Top2Vec(documents=newsgroups_documents,
                                 embedding_model='universal-sentence-encoder-multilingual')
-
+"""
 # test Sentence Transformer-multilang
 top2vec_transformer_multilang = Top2Vec(documents=newsgroups_documents,
                                         embedding_model='distiluse-base-multilingual-cased')
@@ -41,10 +41,12 @@ top2vec_transformer_multilang = Top2Vec(documents=newsgroups_documents,
 top2vec_transformer_model_embedding = Top2Vec(documents=newsgroups_documents,
                                               embedding_model='distiluse-base-multilingual-cased',
                                               use_embedding_model_tokenizer=True)
-
 models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
           top2vec_use, top2vec_use_multilang, top2vec_transformer_multilang,
           top2vec_use_model_embedding, top2vec_transformer_model_embedding]
+"""
+models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
+          top2vec_use, top2vec_use_multilang, top2vec_use_model_embedding]
 
 
 @pytest.mark.parametrize('top2vec_model', models)
@@ -543,16 +545,60 @@ def test_query_topics(top2vec_model):
 
 def test_manual_tokenization():
     test_keys = ["A" + str(i) for i in range(26)]
-    test_dict = {
-        test_key: test_key for test_key in test_keys
-    }
+    SetA = [test_key for test_key in test_keys[::2]]
+    SetB = [test_key for test_key in test_keys[1::2]]
+    test_dict = dict()
+    for i in range(len(test_keys)):
+        if i % 2 == 0:
+            test_dict[test_keys[i]] = SetA * (i + 1)
+        else:
+            test_dict[test_keys[i]] = SetB * i
 
-    top2vec_model = Top2Vec(min_count=1, documents=test_keys, tokenizer=lambda x: test_dict[x], raw_tokens=False)
+    top2vec_model = Top2Vec(
+        min_count=1,
+        documents=test_keys,
+        tokenizer=lambda x: test_dict[x],
+        raw_tokens=False,
+        hdbscan_args={"min_cluster_size": 2},
+    )
     # This raises a value error by default
     with pytest.raises(ValueError):
         top2vec_model.similar_words(test_keys[0], 1)
 
-    top2vec_model = Top2Vec(min_count=1, documents=test_keys, tokenizer=lambda x: test_dict[x], raw_tokens=True)
+    top2vec_model = Top2Vec(
+        min_count=1,
+        documents=test_keys,
+        tokenizer=lambda x: test_dict[x],
+        raw_tokens=True,
+        hdbscan_args={"min_cluster_size": 2},
+    )
     # None of these should raise an error now
     for test_key in test_keys:
-        top2vec_model.similar_words(test_key, 1)
+        top2vec_model.similar_words([test_key], 1)
+
+
+def test_setting_topic_limit():
+    max_topic_terms = 75
+    top2vec_model = Top2Vec(
+        documents=newsgroups_documents,
+        speed="fast-learn",
+        workers=8,
+        max_topic_terms=max_topic_terms,
+        use_cutoff_heuristics=False,
+    )
+    topic_words, topic_scores, topic_ids = top2vec_model.get_topics()
+    for index in range(len(topic_words)):
+        assert len(topic_words[index]) == len(topic_scores[index])
+        assert len(topic_words[index]) == max_topic_terms
+
+    top2vec_model = Top2Vec(
+        documents=newsgroups_documents,
+        speed="fast-learn",
+        workers=8,
+        max_topic_terms=max_topic_terms,
+        use_cutoff_heuristics=True,
+    )
+    topic_words, topic_scores, topic_ids = top2vec_model.get_topics()
+    for index in range(len(topic_words)):
+        assert len(topic_words[index]) == len(topic_scores[index])
+        assert len(topic_words[index]) <= max_topic_terms

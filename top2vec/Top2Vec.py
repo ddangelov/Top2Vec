@@ -1258,7 +1258,7 @@ class Top2Vec:
             raise ValueError("Vector needs to be a numpy array.")
         vec_size = self.document_vectors.shape[1]
         if not vector.shape[0] == vec_size:
-            raise ValueError(f"Vector needs to be of {vec_size} dimensions.")
+            raise ValueError(f"Vector needs to be of {vec_size} dimensions. Provided {vector.shape[0]}")
 
     def index_document_vectors(self, ef_construction=200, M=64):
         """
@@ -1985,7 +1985,8 @@ class Top2Vec:
             a paragraph or a document.
 
         num_topics: int
-            Number of documents to return.
+            Number of topics to return.
+            Will be the maximum to return if self.use_cutoff_heuristics.
 
         reduced: bool (Optional, default False)
             Original topics are searched by default. If True the
@@ -2690,14 +2691,15 @@ class Top2Vec:
         ----------
         keywords: List of str
             List of positive keywords being used for search of semantically
-            similar documents.
+            similar topics.
 
         keywords_neg: (Optional) List of str
             List of negative keywords being used for search of semantically
-            dissimilar documents.
+            dissimilar topics.
 
         num_topics: int
-            Number of documents to return.
+            Number of topics to return.
+            Will be the maximum number of topics if self.use_cutoff_heuristics.
 
         reduced: bool (Optional, default False)
             Original topics are searched by default. If True the

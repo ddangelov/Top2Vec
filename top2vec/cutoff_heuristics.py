@@ -1,6 +1,4 @@
-"""Allow finding an elbow for cut-off heuristics.
-
-Will eventually be rolled directly into Top2Vec.
+"""Supports various heuristics for determining when values deviate from an expected line.
 
 Author: Shawn
 License: BSD 3 clause

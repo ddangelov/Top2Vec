@@ -1,4 +1,8 @@
-"""Determine what is and isn't similar between sets of vectors using the our cutoff heuristics."""
+"""Determine what is and isn't similar between sets of vectors using the our cutoff heuristics.
+
+Author: Shawn
+License: BSD 3 clause
+"""
 from typing import Tuple, List, Optional, Dict, NamedTuple
 
 import sklearn.metrics
@@ -8,8 +12,9 @@ import scipy.sparse
 from top2vec.cutoff_heuristics import ELBOW_HEURISTIC_STR, find_cutoff
 
 
-class VectorSimilarityScores(NamedTuple):
-    """Represents multiple data points about distance from a line.
+class SimilarVectorIndices(NamedTuple):
+    """Lists of the most similar to least similar vectors and their
+    corresponding similarity scores.
 
     Attributes
     ----------
@@ -21,6 +26,23 @@ class VectorSimilarityScores(NamedTuple):
     """
 
     indices: NDArray[np.int64]
+    scores: NDArray[np.float64]
+
+
+class SimilarItems(NamedTuple):
+    """Lists of the most similar to least similar vectors and their
+    corresponding similarity scores.
+
+    Attributes
+    ----------
+    items: NdArray
+        An array of items (usually strings) sorted from most to least similar.
+    scores: NdArray[np.float64]
+        Index 0 is the similarity score of `indices[0]` and the
+        original vector.
+    """
+
+    indices: NDArray
     scores: NDArray[np.float64]
 
 
@@ -60,7 +82,7 @@ def find_closest_items(
     ignore_indices: Optional[ArrayLike] = None,
     require_positive: bool = True,
     cutoff_args: Optional[Dict] = None,
-) -> List[VectorSimilarityScores]:
+) -> List[SimilarVectorIndices]:
     """Finds the closest embeddings based on provided vector(s) from the same space.
 
     Parameters
@@ -110,7 +132,7 @@ def find_closest_items(
 
     Returns
     -------
-    List[VectorSimilarityScores]
+    List[SimilarVectorIndices]
         A list of tuples where index 0 is a numpy array of the indices of similar vectors and
         index 1 is a numpy array of their cosine similarity scores.
         Tuple i will correspond to the provided comparison_vectors i.
@@ -181,7 +203,7 @@ def find_closest_items(
             new_cutoff = np.argmax(item_scores <= 0)
             item_indices = item_indices[:new_cutoff]
             item_scores = item_scores[:new_cutoff]
-        result.append(VectorSimilarityScores(item_indices, item_scores))
+        result.append(SimilarVectorIndices(item_indices, item_scores))
     return result
 
 
@@ -194,7 +216,7 @@ def find_closest_items_to_average(
     topn: Optional[int] = 100,
     require_positive: bool = True,
     cutoff_args: Optional[Dict] = None,
-) -> VectorSimilarityScores:
+) -> SimilarVectorIndices:
     """Find the top-N most similar vectors while also using a cutoff-finding heuristic.
     Positive vectors contribute positively towards the similarity, negative vectors negatively.
 
@@ -231,7 +253,7 @@ def find_closest_items_to_average(
 
     Returns
     -------
-    VectorSimilarityScores
+    SimilarVectorIndices
         A tuple where index 0 is a numpy array of the indices of similar vectors and
         index 1 is a numpy array of their cosine similarity scores.
 
@@ -292,7 +314,7 @@ def find_similar_in_embedding(
     topn: Optional[int] = 100,
     require_positive: bool = True,
     cutoff_args: Optional[Dict] = None,
-) -> VectorSimilarityScores:
+) -> SimilarVectorIndices:
     """Find the top-N most similar vectors within an embedding while also using
     a cutoff finding heuristic.
     Positive vectors contribute positively towards the similarity, negative vectors negatively.
@@ -319,7 +341,7 @@ def find_similar_in_embedding(
 
     Returns
     -------
-    VectorSimilarityScores
+    SimilarVectorIndices
         A tuple where index 0 is a numpy array of the indices of similar vectors and
         index 1 is a numpy array of their cosine similarity scores.
 
@@ -357,7 +379,7 @@ def describe_closest_items(
     topn: int = 100,
     require_positive: bool = True,
     cutoff_args: Optional[Dict] = None,
-) -> List[Tuple[NDArray, NDArray[np.float64]]]:
+) -> List[SimilarItems]:
     """Finds the most similar embedded vectors for a vector or set of vectors using cosine
     similarity and a cutoff finding heuristic.
 
@@ -393,7 +415,7 @@ def describe_closest_items(
 
     Returns
     -------
-    List[Tuple[NDArray, NDArray[np.float64]]]
+    List[SimilarItems]
         A list of tuples where index 0 is a numpy array of the similar embedded vectors'
         names (according to vocabulary) and index 1 is a numpy array of their cosine
         similarity scores.
