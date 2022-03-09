@@ -300,3 +300,11 @@ def test_USE_topic_descriptions():
     ) = top2vec_use_model_embedding_cutoff.query_topics("spacecraft jpl", num_topics=80)
     assert space_topic_num in topic_nums
     assert topic_nums.size < 80
+
+
+# TODO Test the following:
+# With and without returning the original documents
+# search_documents_by_topic
+# search_documents_by_vector
+# search_documents_by_keywords
+# search_documents_by_documents
