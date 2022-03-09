@@ -116,6 +116,7 @@ def test_document_descriptions(top2vec_model: Top2Vec):
     )
     print(average_percent_contained_per_doc)
     assert average_percent_contained_per_doc > 0.125
+    # TODO: Compare with the _herusitic version of the model
 
 
 @pytest.mark.parametrize("top2vec_model", models)

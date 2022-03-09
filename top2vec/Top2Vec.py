@@ -3,6 +3,7 @@
 # License: BSD 3 clause
 import logging
 import numpy as np
+from numpy.typing import NDArray, ArrayLike
 import pandas as pd
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.utils import simple_preprocess
@@ -17,6 +18,9 @@ import tempfile
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
 from scipy.special import softmax
+
+from typing import List, Dict, Optional, Tuple, Union
+from top2vec.similarity import find_closest_items, find_closest_items_to_average
 
 try:
     import hnswlib
@@ -327,7 +331,7 @@ class Top2Vec:
     workers: int (Optional)
         The amount of worker threads to be used in training the model. Larger
         amount will lead to faster training.
-    
+
     tokenizer: callable (Optional, default None)
         Override the default tokenization method. If None then
         gensim.utils.simple_preprocess will be used.
@@ -345,7 +349,29 @@ class Top2Vec:
 
     hdbscan_args: dict (Optional, default None)
         Pass custom arguments to HDBSCAN.
-    
+
+    max_topic_terms: int (Optional, default 50)
+        The number of terms used to represent a topic if
+        `use_cutoff_heuristics` is False. The maximum
+        number of terms used to represent a topic if
+        `use_cutoff_heuristics` is True.
+        Must be an integer value greater than 0.
+
+    use_cutoff_heuristics: bool (Optional, default False)
+        Rather than using a hard-coded value (50) to
+        determine the number of terms per topic, use
+        a heuristic such as elbow finding.
+
+    cutoff_args: Optional[Dict] (Optional, default None)
+        Custom arguments to cutoff heuristics.
+        See `top2vec.cutoff_heurstics.find_cutoff` for more information.
+
+    raw_tokens: bool (Optional, default False)
+        Whether tokens should be treated as raw or not.
+        If this is False then lowercasing will be performed when
+        searching based on keywords. This can cause problems
+        in the event the provided tokenizer doesn't perform lowercasing.
+
     verbose: bool (Optional, default True)
         Whether to print status data during training.
     """
@@ -372,6 +398,10 @@ class Top2Vec:
                  use_embedding_model_tokenizer=False,
                  umap_args=None,
                  hdbscan_args=None,
+                 max_topic_terms: int = 50,
+                 use_cutoff_heuristics: bool = False,
+                 cutoff_args: Optional[Dict] = None,
+                 raw_tokens: bool = False,
                  verbose=True
                  ):
 
@@ -384,6 +414,13 @@ class Top2Vec:
 
         if tokenizer is None:
             tokenizer = default_tokenizer
+
+        if int(max_topic_terms) <= 0:
+            raise ValueError("max_topic_term must be integer value greater than 0.")
+        else:
+            self.max_topic_terms = int(max_topic_terms)
+        self.use_cutoff_heuristics = use_cutoff_heuristics
+        self.raw_tokens = raw_tokens
 
         # validate documents
         if not (isinstance(documents, list) or isinstance(documents, np.ndarray)):
@@ -625,6 +662,9 @@ class Top2Vec:
         # deduplicate topics
         self._deduplicate_topics()
 
+        # This is where we need to decide whether to do a cutoff or not
+        self.cutoff_args = cutoff_args
+
         # find topic words and scores
         self.topic_words, self.topic_word_scores = self._find_topic_words_and_scores(topic_vectors=self.topic_vectors)
 
@@ -850,6 +890,7 @@ class Top2Vec:
 
     @staticmethod
     def _calculate_documents_topic(topic_vectors, document_vectors, dist=True, num_topics=None):
+        # NOTE: This will be a jagged array if we support cutoff heuristics
         batch_size = 10000
         doc_top = []
         if dist:
@@ -918,9 +959,11 @@ class Top2Vec:
         top_scores = np.flip(np.sort(res, axis=1), axis=1)
 
         for words, scores in zip(top_words, top_scores):
-            topic_words.append([self.vocab[i] for i in words[0:50]])
-            topic_word_scores.append(scores[0:50])
+            topic_words.append([self.vocab[i] for i in words[0:self.max_topic_terms]])
+            topic_word_scores.append(scores[0:self.max_topic_terms])
 
+        # NOTE: This will be a jagged array if we support cutoff heuristics
+        # need to change to a list of NDArrays or make a simple wrapper class
         topic_words = np.array(topic_words)
         topic_word_scores = np.array(topic_word_scores)
 
@@ -998,12 +1041,24 @@ class Top2Vec:
         return combined_vector
 
     @staticmethod
-    def _search_vectors_by_vector(vectors, vector, num_res):
+    def _search_vectors_by_vector(
+        vectors, vector, num_res
+    ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
         ranks = np.inner(vectors, vector)
         indexes = np.flip(np.argsort(ranks)[-num_res:])
         scores = np.array([ranks[res] for res in indexes])
 
         return indexes, scores
+
+    @staticmethod
+    def _search_vectors_by_vector_heuristic(
+        vectors: NDArray, vector: ArrayLike, topn: int, cutoff_args=None
+    ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
+        """Use a cutoff heuristic to find the closest (up to) topn vectors to the provided
+        vector."""
+        return find_closest_items(vector, vectors, topn=topn, cutoff_args=cutoff_args)[
+            0
+        ]
 
     @staticmethod
     def _check_hnswlib_status():
@@ -1084,7 +1139,7 @@ class Top2Vec:
         if num_topics >= current_num_topics:
             raise ValueError(f"Number of topics must be less than {current_num_topics}.")
 
-    def _validate_num_docs(self, num_docs):
+    def _validate_num_docs(self, num_docs: int):
         self._less_than_zero(num_docs, "num_docs")
         document_count = len(self.doc_top)
         if num_docs > document_count:
@@ -1124,7 +1179,7 @@ class Top2Vec:
                 raise ValueError(f"Invalid number of documents: original topic {topic_num}"
                                  f" only has {self.topic_sizes[topic_num]} documents.")
 
-    def _validate_doc_ids(self, doc_ids, doc_ids_neg):
+    def _validate_doc_ids(self, doc_ids: ArrayLike, doc_ids_neg: ArrayLike):
 
         if not (isinstance(doc_ids, list) or isinstance(doc_ids, np.ndarray)):
             raise ValueError("doc_ids must be a list of string or int.")
@@ -1147,22 +1202,27 @@ class Top2Vec:
         elif max(doc_ids) > len(self.doc_top) - 1:
             raise ValueError(f"{max(doc_ids)} is not a valid document id.")
 
-    def _validate_keywords(self, keywords, keywords_neg):
+    def _validate_keywords(self, keywords: ArrayLike, keywords_neg: ArrayLike) -> Tuple[ArrayLike, ArrayLike]:
         if not (isinstance(keywords, list) or isinstance(keywords, np.ndarray)):
             raise ValueError("keywords must be a list of strings.")
 
         if not (isinstance(keywords_neg, list) or isinstance(keywords_neg, np.ndarray)):
             raise ValueError("keywords_neg must be a list of strings.")
 
-        keywords_lower = [keyword.lower() for keyword in keywords]
-        keywords_neg_lower = [keyword.lower() for keyword in keywords_neg]
+        if self.raw_tokens:
+            positive_keywords = [keyword for keyword in keywords]
+            negative_keywords = [keyword for keyword in keywords_neg]
+
+        else:
+            positive_keywords = [keyword.lower() for keyword in keywords]
+            negative_keywords = [keyword.lower() for keyword in keywords_neg]
 
         vocab = self.vocab
-        for word in keywords_lower + keywords_neg_lower:
+        for word in set(positive_keywords + negative_keywords):
             if word not in vocab:
                 raise ValueError(f"'{word}' has not been learned by the model so it cannot be searched.")
 
-        return keywords_lower, keywords_neg_lower
+        return positive_keywords, negative_keywords
 
     def _validate_document_ids_add_doc(self, documents, document_ids):
         if document_ids is None:
@@ -1352,8 +1412,8 @@ class Top2Vec:
             Semantic similarity of document to topic(s). The cosine similarity
             of the document and topic vector.
 
-        topics_words: array of shape(len(doc_ids), num_topics, 50)
-            For each topic the top 50 words are returned, in order
+        topics_words: array of shape(len(doc_ids), num_topics, max_topic_terms)
+            For each topic the top max_topic_terms words are returned, in order
             of semantic similarity to topic.
 
             Example:
@@ -1361,9 +1421,9 @@ class Top2Vec:
             ['environment', 'warming', 'climate ... 'temperature']  <Topic 21>
             ...]
 
-        word_scores: array of shape(num_topics, 50)
+        word_scores: array of shape(num_topics, max_topic_terms)
             For each topic the cosine similarity scores of the
-            top 50 words to the topic are returned.
+            top max_topic_terms words to the topic are returned.
 
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],  <Topic 4>
@@ -1631,10 +1691,11 @@ class Top2Vec:
         The original topics found are returned unless reduced=True,
         in which case reduced topics will be returned.
 
-        Each topic will consist of the top 50 semantically similar words
-        to the topic. These are the 50 words closest to topic vector
-        along with cosine similarity of each word from vector. The
-        higher the score the more relevant the word is to the topic.
+        Each topic will consist of the top max_topic_terms semantically
+        similar words to the topic. These are the max_topic_terms words
+        closest to topic vector along with cosine similarity of each word
+        from vector. The higher the score the more relevant the word is
+        to the topic.
 
         Parameters
         ----------
@@ -1647,8 +1708,8 @@ class Top2Vec:
 
         Returns
         -------
-        topics_words: array of shape(num_topics, 50)
-            For each topic the top 50 words are returned, in order
+        topics_words: array of shape(num_topics, max_topic_terms)
+            For each topic the top max_topic_terms words are returned, in order
             of semantic similarity to topic.
             
             Example:
@@ -1656,9 +1717,9 @@ class Top2Vec:
             ['environment', 'warming', 'climate ... 'temperature']  <Topic 1>
             ...]
 
-        word_scores: array of shape(num_topics, 50)
+        word_scores: array of shape(num_topics, max_topic_terms)
             For each topic the cosine similarity scores of the
-            top 50 words to the topic are returned.
+            top max_topic_terms words to the topic are returned.
             
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],  <Topic 0>
@@ -1676,6 +1737,7 @@ class Top2Vec:
             else:
                 self._validate_num_topics(num_topics, reduced)
 
+            # NOTE: This will be a jagged array if we support cutoff heuristics
             return self.topic_words_reduced[0:num_topics], self.topic_word_scores_reduced[0:num_topics], np.array(
                 range(0, num_topics))
         else:
@@ -1685,6 +1747,7 @@ class Top2Vec:
             else:
                 self._validate_num_topics(num_topics, reduced)
 
+            # NOTE: This will be a jagged array if we support cutoff heuristics
             return self.topic_words[0:num_topics], self.topic_word_scores[0:num_topics], np.array(range(0, num_topics))
 
     def get_topic_hierarchy(self):
@@ -1937,18 +2000,18 @@ class Top2Vec:
 
         Returns
         -------
-        topics_words: array of shape (num_topics, 50)
-            For each topic the top 50 words are returned, in order of semantic
-            similarity to topic.
+        topics_words: array of shape (num_topics, max_topic_terms)
+            For each topic the top max_topic_terms words are returned,
+            in order of semantic similarity to topic.
 
             Example:
             [['data', 'deep', 'learning' ... 'artificial'],           <Topic 0>
             ['environment', 'warming', 'climate ... 'temperature']    <Topic 1>
             ...]
 
-        word_scores: array of shape (num_topics, 50)
-            For each topic the cosine similarity scores of the top 50 words
-            to the topic are returned.
+        word_scores: array of shape (num_topics, max_topic_terms)
+            For each topic the cosine similarity scores of the top
+            max_topic_terms words to the topic are returned.
 
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],     <Topic 0>
@@ -1980,7 +2043,7 @@ class Top2Vec:
                                                 alpha=0.025,
                                                 min_alpha=0.01,
                                                 epochs=100)
-
+        # Supports cutoff heuristics
         return self.search_topics_by_vector(query_vec, num_topics=num_topics, reduced=reduced)
 
     def search_documents_by_vector(self, vector, num_docs, return_documents=True, use_index=False, ef=None):
@@ -2031,6 +2094,8 @@ class Top2Vec:
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
+        if not use_index and self.use_cutoff_heuristics:
+            return self.search_documents_by_vector_heuristic(vector, num_docs, return_documents)
         self._validate_vector(vector)
         self._validate_num_docs(num_docs)
 
@@ -2061,7 +2126,68 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    def search_words_by_vector(self, vector, num_words, use_index=False, ef=None):
+    def search_documents_by_vector_heuristic(
+        self,
+        vector: NDArray[np.float64],
+        num_docs: Optional[int],
+        return_documents: bool = True,
+    ) -> Union[
+        Tuple[NDArray, NDArray[np.float64], NDArray[np.int64]],
+        Tuple[NDArray[np.float64], NDArray[np.int64]],
+    ]:
+        """
+        Semantic search of documents using a vector.
+
+        These are the documents closest to the vector. Documents are
+        ordered by proximity to the vector. Successive documents in the
+        list are less semantically similar to the vector.
+
+        Parameters
+        ----------
+        vector: array of shape(vector dimension, 1)
+            The vector dimension should be the same as the vectors in
+            the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
+
+        num_docs: Optional[int]
+            Number of documents to return.
+
+        return_documents: bool (Optional default True)
+            Determines if the documents will be returned. If they were not
+            saved in the model they will not be returned.
+
+        Returns
+        -------
+        documents: (Optional) array of str, shape(num_docs)
+            The documents in a list, the most similar are first.
+
+            Will only be returned if the documents were saved and if
+            return_documents is set to True.
+
+        doc_scores: array of float, shape(num_docs)
+            Semantic similarity of document to vector. The cosine similarity of
+            the document and vector.
+
+        doc_ids: array of int, shape(num_docs)
+            Unique ids of documents. If ids were not given to the model, the
+            index of the document in the model will be returned.
+        """
+        self._validate_vector(vector)
+        self._validate_num_docs(num_docs)
+
+        vector = self._l2_normalize(vector)
+
+        doc_indexes, doc_scores = self._search_vectors_by_vector_heuristic(
+            self.document_vectors, vector, num_docs, self.cutoff_args
+        )
+        doc_ids = self._get_document_ids(doc_indexes)
+
+        if self.documents is not None and return_documents:
+            documents = self.documents[doc_indexes]
+            return documents, doc_scores, doc_ids
+        else:
+            return doc_scores, doc_ids
+
+    def search_words_by_vector(self, vector, num_words, use_index=False, ef=None) -> Tuple[NDArray, NDArray[np.float64]]:
         """
         Semantic search of words using a vector.
 
@@ -2098,6 +2224,8 @@ class Top2Vec:
             Semantic similarity of word to vector. The cosine similarity of
             the word and vector.
         """
+        if not use_index and self.use_cutoff_heuristics:
+            return self.search_words_by_vector_heuristic(vector, num_words)
 
         self._validate_vector(vector)
 
@@ -2121,10 +2249,54 @@ class Top2Vec:
                                                                        vector, num_words)
 
         words = np.array([self.vocab[index] for index in word_indexes])
-
         return words, word_scores
 
-    def search_topics_by_vector(self, vector, num_topics, reduced=False):
+    def search_words_by_vector_heuristic(
+        self, vector: NDArray[np.float64], num_words: Optional[int]
+    ) -> Tuple[NDArray, NDArray[np.float64]]:
+        """
+        Semantic search of words using a vector.
+
+        These are the words closest to the vector according to a cutoff heuristic.
+        Words are ordered by proximity to the vector.
+        Successive words in the list are less semantically similar to the vector.
+
+        Parameters
+        ----------
+        vector: array of shape(vector dimension, 1)
+            The vector dimension should be the same as the vectors in
+            the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
+
+        num_words: Optional[int]
+            Maximum number of words to return.
+
+        Returns
+        -------
+        words: array of str, shape(num_words)
+            The words in a list, the most similar are first.
+
+        word_scores: array of float, shape(num_words)
+            Semantic similarity of word to vector. The cosine similarity of
+            the word and vector.
+        """
+
+        self._validate_vector(vector)
+
+        vector = self._l2_normalize(vector)
+        word_indexes, word_scores = self._search_vectors_by_vector_heuristic(
+            self.word_vectors, vector, num_words, self.cutoff_args
+        )
+        words = np.array([self.vocab[index] for index in word_indexes])
+        return words, word_scores
+
+    def search_topics_by_vector(
+        self, vector: NDArray[np.float64], num_topics: int, reduced=False
+    ) -> Tuple[
+        List[ArrayLike],
+        List[NDArray[np.float64]],
+        NDArray[np.float64],
+        NDArray[np.int64],
+    ]:
         """
         Semantic search of topics using keywords.
 
@@ -2140,6 +2312,7 @@ class Top2Vec:
 
         num_topics: int
             Number of documents to return.
+            Optional if self.use_cutoff_heuristics
 
         reduced: bool (Optional, default False)
             Original topics are searched by default. If True the
@@ -2147,18 +2320,18 @@ class Top2Vec:
 
         Returns
         -------
-        topics_words: array of shape (num_topics, 50)
-            For each topic the top 50 words are returned, in order of semantic
-            similarity to topic.
+        topics_words: List of arrays of shape (max_topic_terms)
+            For each topic the top max_topic_terms words are returned,
+            in order of semantic similarity to topic.
 
             Example:
             [['data', 'deep', 'learning' ... 'artificial'],           <Topic 0>
             ['environment', 'warming', 'climate ... 'temperature']    <Topic 1>
             ...]
 
-        word_scores: array of shape (num_topics, 50)
-            For each topic the cosine similarity scores of the top 50 words
-            to the topic are returned.
+        word_scores: List of arrays of shape (max_topic_terms)
+            For each topic the cosine similarity scores of the top
+            max_topic_terms words to the topic are returned.
 
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],     <Topic 0>
@@ -2166,11 +2339,11 @@ class Top2Vec:
             ...]
 
         topic_scores: array of float, shape(num_topics)
-            For each topic the cosine similarity to the search keywords will be
+            For each similar topic the cosine similarity to the search keywords will be
             returned.
 
         topic_nums: array of int, shape(num_topics)
-            The unique number of every topic will be returned.
+            The unique number of every similar topic will be returned.
         """
 
         self._validate_vector(vector)
@@ -2180,15 +2353,29 @@ class Top2Vec:
 
         if reduced:
             self._validate_hierarchical_reduction()
-
-            topic_nums, topic_scores = self._search_vectors_by_vector(self.topic_vectors_reduced,
-                                                                      vector, num_topics)
+            if self.use_cutoff_heuristics:
+                topic_nums, topic_scores = self._search_vectors_by_vector_heuristic(
+                    self.topic_vectors_reduced, vector, num_topics, self.cutoff_args
+                )
+            else:
+                topic_nums, topic_scores = self._search_vectors_by_vector(
+                    self.topic_vectors_reduced, vector, num_topics
+                )
             topic_words = [self.topic_words_reduced[topic] for topic in topic_nums]
-            word_scores = [self.topic_word_scores_reduced[topic] for topic in topic_nums]
+            word_scores = [
+                self.topic_word_scores_reduced[topic] for topic in topic_nums
+            ]
 
         else:
-            topic_nums, topic_scores = self._search_vectors_by_vector(self.topic_vectors,
-                                                                      vector, num_topics)
+            if self.use_cutoff_heuristics:
+                topic_nums, topic_scores = self._search_vectors_by_vector_heuristic(
+                    self.topic_vectors, vector, num_topics, self.cutoff_args
+                )
+
+            else:
+                topic_nums, topic_scores = self._search_vectors_by_vector(
+                    self.topic_vectors, vector, num_topics
+                )
             topic_words = [self.topic_words[topic] for topic in topic_nums]
             word_scores = [self.topic_word_scores[topic] for topic in topic_nums]
 
@@ -2234,7 +2421,8 @@ class Top2Vec:
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
-
+        if self.use_cutoff_heuristics:
+            return self.search_documents_by_topic_heuristic(topic_num, num_docs, return_documents, reduced)
         if reduced:
             self._validate_hierarchical_reduction()
             self._validate_topic_num(topic_num, reduced)
@@ -2256,6 +2444,28 @@ class Top2Vec:
             doc_indexes = topic_document_indexes[topic_document_indexes_ordered][0:num_docs]
             doc_scores = self.doc_dist[doc_indexes]
             doc_ids = self._get_document_ids(doc_indexes)
+
+        if self.documents is not None and return_documents:
+            documents = self.documents[doc_indexes]
+            return documents, doc_scores, doc_ids
+        else:
+            return doc_scores, doc_ids
+
+    def search_documents_by_topic_heuristic(self, topic_num, num_docs, return_documents=True, reduced=False):
+        """As `search_documents_by_topic`, but use a cutoff heuristic."""
+        # Only difference between reduced is the topic vector
+        if reduced:
+            self._validate_hierarchical_reduction()
+            self._validate_topic_num(topic_num, reduced)
+            self._validate_topic_search(topic_num, num_docs, reduced)
+            target_topic_vec = self.topic_vectors_reduced[topic_num]
+        else:
+            self._validate_topic_num(topic_num, reduced)
+            self._validate_topic_search(topic_num, num_docs, reduced)
+            target_topic_vec = self.topic_vectors[topic_num]
+
+        doc_indexes, doc_scores = find_closest_items(target_topic_vec, self.document_vectors, topn=num_docs, ignore_indices=None, cutoff_args=self.cutoff_args)
+        doc_ids = self._get_document_ids(doc_indexes)
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
@@ -2320,6 +2530,8 @@ class Top2Vec:
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
+        if not use_index and self.use_cutoff_heuristics:
+            return self.search_documents_by_keywords_heuristic(keywords, num_docs, keywords_neg, return_documents)
 
         if keywords_neg is None:
             keywords_neg = []
@@ -2354,7 +2566,41 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    def similar_words(self, keywords, num_words, keywords_neg=None, use_index=False, ef=None):
+    def search_documents_by_keywords_heuristic(self, keywords, num_docs, keywords_neg=None, return_documents=True):
+        if keywords_neg is None:
+            keywords_neg = []
+
+        self._validate_num_docs(num_docs)
+        keywords, keywords_neg = self._validate_keywords(keywords, keywords_neg)
+        word_vecs = self._words2word_vectors(keywords)
+        neg_word_vecs = self._words2word_vectors(keywords_neg)
+
+        # Don't need to ignore anything
+        combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
+        doc_indexes, doc_scores = find_closest_items(
+            combined_vector,
+            self.document_vectors,
+            topn=num_docs,
+            cutoff_args=self.cutoff_args,
+            ignore_indices=None,
+        )
+
+        doc_ids = self._get_document_ids(doc_indexes)
+
+        if self.documents is not None and return_documents:
+            documents = self.documents[doc_indexes]
+            return documents, doc_scores, doc_ids
+        else:
+            return doc_scores, doc_ids
+
+    def similar_words(
+        self,
+        keywords: ArrayLike,
+        num_words: int,
+        keywords_neg: Optional[ArrayLike] = None,
+        use_index: bool = False,
+        ef: Optional[int] = None,
+    ) -> Tuple[NDArray, NDArray[np.float64]]:
         """
         Semantic similarity search of words.
 
@@ -2377,6 +2623,7 @@ class Top2Vec:
 
         num_words: int
             Number of words to return.
+            Optional if self.use_cutoff_heuristics is True.
 
         use_index: bool (Optional default False)
             If index_words method has been called, setting this to True will
@@ -2407,16 +2654,21 @@ class Top2Vec:
         neg_word_vecs = self._words2word_vectors(keywords_neg)
         combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
 
-        num_res = min(num_words + len(keywords) + len(keywords_neg), self.word_vectors.shape[0])
+        num_res = min(
+            num_words + len(keywords) + len(keywords_neg), self.word_vectors.shape[0]
+        )
 
         # if use_index:
-        words, word_scores = self.search_words_by_vector(vector=combined_vector,
-                                                         num_words=num_res,
-                                                         use_index=use_index,
-                                                         ef=ef)
+        # Cutoff heuristic version is supported here
+        words, word_scores = self.search_words_by_vector(
+            vector=combined_vector, num_words=num_res, use_index=use_index, ef=ef
+        )
 
-        res_indexes = [index for index, word in enumerate(words)
-                       if word not in list(keywords) + list(keywords_neg)][:num_words]
+        res_indexes = [
+            index
+            for index, word in enumerate(words)
+            if word not in list(keywords) + list(keywords_neg)
+        ][:num_words]
         words = words[res_indexes]
         word_scores = word_scores[res_indexes]
 
@@ -2453,18 +2705,18 @@ class Top2Vec:
 
         Returns
         -------
-        topics_words: array of shape (num_topics, 50)
-            For each topic the top 50 words are returned, in order of semantic
-            similarity to topic.
-            
+        topics_words: array of shape (num_topics, max_topic_terms)
+            For each topic the top max_topic_terms words are returned,
+            in order of semantic similarity to topic.
+
             Example:
             [['data', 'deep', 'learning' ... 'artificial'],           <Topic 0>
             ['environment', 'warming', 'climate ... 'temperature']    <Topic 1>
             ...]
 
-        word_scores: array of shape (num_topics, 50)
-            For each topic the cosine similarity scores of the top 50 words
-            to the topic are returned.
+        word_scores: array of shape (num_topics, max_topic_terms)
+            For each topic the cosine similarity scores of the top
+            max_topic_terms words to the topic are returned.
             
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],     <Topic 0>
@@ -2485,11 +2737,13 @@ class Top2Vec:
         word_vecs = self._words2word_vectors(keywords)
         neg_word_vecs = self._words2word_vectors(keywords_neg)
         combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
-
+        # Supports cutoff heuristics
         return self.search_topics_by_vector(combined_vector, num_topics=num_topics, reduced=reduced)
 
-    def search_documents_by_documents(self, doc_ids, num_docs, doc_ids_neg=None, return_documents=True,
-                                      use_index=False, ef=None):
+    def search_documents_by_documents(
+        self, doc_ids, num_docs, doc_ids_neg=None, return_documents=True, use_index=False, ef=None
+    ) -> Union[Tuple[NDArray, NDArray[np.float64], NDArray[np.int64]],
+               Tuple[NDArray[np.float64], NDArray[np.int64]]]:
         """
         Semantic similarity search of documents.
 
@@ -2544,6 +2798,9 @@ class Top2Vec:
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
+        if not use_index and self.use_cutoff_heuristics:
+            return self.search_documents_by_documents_heuristic(doc_ids, num_docs, doc_ids_neg, return_documents)
+
         if doc_ids_neg is None:
             doc_ids_neg = []
 
@@ -2584,6 +2841,91 @@ class Top2Vec:
                            if doc_ind not in search_doc_indexes][:num_docs]
             doc_indexes = doc_indexes[res_indexes]
             doc_scores = doc_scores[res_indexes]
+
+        doc_ids = self._get_document_ids(doc_indexes)
+
+        if self.documents is not None and return_documents:
+            documents = self.documents[doc_indexes]
+            return documents, doc_scores, doc_ids
+        else:
+            return doc_scores, doc_ids
+
+    def search_documents_by_documents_heuristic(
+        self,
+        doc_ids: ArrayLike,
+        num_docs: Optional[int],
+        doc_ids_neg: Optional[ArrayLike] = None,
+        return_documents: bool = True,
+    ) -> Union[Tuple[NDArray, NDArray[np.float64], NDArray[np.int64]],
+               Tuple[NDArray[np.float64], NDArray[np.int64]]]:
+        """
+        Semantic similarity search of documents with cutoff heuristic.
+
+        The most semantically similar documents to the semantic combination of
+        document ids provided will be returned. If negative document ids are
+        provided, the documents will be semantically dissimilar to those
+        document ids. Documents will be ordered by decreasing similarity. This
+        method finds the closest document vectors to the provided documents
+        averaged.
+
+        This doesn't support document indexing as the concept of nearest N will
+        change on a per vector basis.
+
+        Parameters
+        ----------
+        doc_ids: List of int, str
+            Unique ids of document. If ids were not given, the index of
+            document in the original corpus.
+
+        doc_ids_neg: (Optional) List of int, str
+            Unique ids of document. If ids were not given, the index of
+            document in the original corpus.
+
+        num_docs: Optional[int]
+            Max number of documents to return.
+
+        return_documents: bool (Optional default True)
+            Determines if the documents will be returned. If they were not
+            saved in the model they will also not be returned.
+
+        Returns
+        -------
+        documents: (Optional) array of str, shape(num_docs)
+            The documents in a list, the most similar are first.
+
+            Will only be returned if the documents were saved and if
+            return_documents is set to True.
+
+        doc_scores: array of float, shape(num_docs)
+            Semantic similarity of document to keywords. The cosine similarity
+            of the document and average of keyword vectors.
+
+        doc_ids: array of int, shape(num_docs)
+            Unique ids of documents. If ids were not given to the model, the
+            index of the document in the model will be returned.
+        """
+        if doc_ids_neg is None:
+            doc_ids_neg = []
+
+        self._validate_num_docs(num_docs)
+        self._validate_doc_ids(doc_ids, doc_ids_neg)
+
+        doc_indexes = self._get_document_indexes(doc_ids)
+        doc_indexes_neg = self._get_document_indexes(doc_ids_neg)
+
+        document_vectors = self.document_vectors
+        doc_vecs = [document_vectors[ind] for ind in doc_indexes]
+        doc_vecs_neg = [document_vectors[ind] for ind in doc_indexes_neg]
+
+        doc_indexes, doc_scores = find_closest_items_to_average(
+            document_vectors,
+            positive=doc_vecs,
+            ignore_positive_indices=doc_indexes,
+            negative=doc_vecs_neg,
+            ignore_negative_indices=doc_indexes_neg,
+            cutoff_args=self.cutoff_args,
+            topn=num_docs,
+        )
 
         doc_ids = self._get_document_ids(doc_indexes)
 

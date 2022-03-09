@@ -539,3 +539,20 @@ def test_query_topics(top2vec_model):
     # check that topics words are returned in decreasing order
     topic_words_scores = word_scores[0]
     assert all(topic_words_scores[i] >= topic_words_scores[i + 1] for i in range(len(topic_words_scores) - 1))
+
+
+def test_manual_tokenization():
+    test_keys = ["A" + str(i) for i in range(26)]
+    test_dict = {
+        test_key: test_key for test_key in test_keys
+    }
+
+    top2vec_model = Top2Vec(min_count=1, documents=test_keys, tokenizer=lambda x: test_dict[x], raw_tokens=False)
+    # This raises a value error by default
+    with pytest.raises(ValueError):
+        top2vec_model.similar_words(test_keys[0], 1)
+
+    top2vec_model = Top2Vec(min_count=1, documents=test_keys, tokenizer=lambda x: test_dict[x], raw_tokens=True)
+    # None of these should raise an error now
+    for test_key in test_keys:
+        top2vec_model.similar_words(test_key, 1)
