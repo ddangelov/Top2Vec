@@ -1,9 +1,9 @@
-from audioop import reverse
 import pytest
 from top2vec.Top2Vec import Top2Vec
 from top2vec.similarity import (
     describe_closest_items,
     find_closest_items,
+    find_similar_in_embedding,
     generate_similarity_matrix,
     generate_csr_similarity_matrix,
     SimilarVectorIndices,
@@ -200,7 +200,10 @@ def test_document_topic_composition(top2vec_model: Top2Vec):
     # being only 20 newsgroups. Therefore there is some duplication
     topn = 100
     document_topics = find_closest_items(
-        top2vec_model.document_vectors, top2vec_model.topic_vectors, topn=topn
+        top2vec_model.document_vectors,
+        top2vec_model.topic_vectors,
+        topn=topn,
+        cutoff_args=top2vec_model.cutoff_args,
     )
     num_topics_per_doc = [len(scores) for indices, scores in document_topics]
     for num_topics in num_topics_per_doc:
@@ -208,7 +211,10 @@ def test_document_topic_composition(top2vec_model: Top2Vec):
 
     # Now let's see if the doc x topic matrix looks good
     docTopicMatrix = generate_similarity_matrix(
-        top2vec_model.document_vectors, top2vec_model.topic_vectors, topn=topn
+        top2vec_model.document_vectors,
+        top2vec_model.topic_vectors,
+        topn=topn,
+        cutoff_args=top2vec_model.cutoff_args,
     )
     numZeroes = np.count_nonzero(docTopicMatrix == 0)
     sparsity = numZeroes / (docTopicMatrix.size)
@@ -218,7 +224,10 @@ def test_document_topic_composition(top2vec_model: Top2Vec):
     assert sparsity > 0.8
 
     sparse_matrix = generate_csr_similarity_matrix(
-        top2vec_model.document_vectors, top2vec_model.topic_vectors, topn=topn
+        top2vec_model.document_vectors,
+        top2vec_model.topic_vectors,
+        topn=topn,
+        cutoff_args=top2vec_model.cutoff_args,
     )
     assert sparse_matrix.size == np.count_nonzero(docTopicMatrix)
 
@@ -258,6 +267,7 @@ def test_USE_topic_descriptions():
         top2vec_use_model_embedding_cutoff.word_vectors,
         top2vec_use_model_embedding_cutoff.vocab,
         topn=topn,
+        cutoff_args=top2vec_use_model_embedding_cutoff.cutoff_args,
     )
     topic_lens = [len(words) for (words, scores) in topic_descriptions]
 
@@ -302,9 +312,283 @@ def test_USE_topic_descriptions():
     assert topic_nums.size < 80
 
 
-# TODO Test the following:
-# With and without returning the original documents
-# search_documents_by_topic
-# search_documents_by_vector
-# search_documents_by_keywords
-# search_documents_by_documents
+def document_return_helper(top2vec_model, search_documents_tuple, get_docs=True):
+    documents = None
+    if get_docs:
+        documents, scores, indices = search_documents_tuple
+    else:
+        scores, indices = search_documents_tuple
+    if documents is not None:
+        for documents_array_index, top2vec_document_index in enumerate(indices):
+            assert (
+                top2vec_model.documents[top2vec_document_index]
+                == documents[documents_array_index]
+            )
+    return documents, scores, indices
+
+
+@pytest.mark.parametrize("top2vec_model", models)
+def test_search_document_by_topic_heuristics(top2vec_model):
+    # As of now there is a different return type on the various search_documents
+    # functions. It may be best to change this to be a single named tuple
+    # which has None for documents if the function isn't asked to
+    # return them
+
+    if top2vec_model.hierarchy is None:
+        # perform reduction
+        new_number_topics = int(len(top2vec_model.topic_vectors) / 2)
+        top2vec_model.hierarchical_topic_reduction(new_number_topics)
+
+    for reduced_topics in [False, True]:
+        if reduced_topics:
+            t_vectors = top2vec_model.topic_vectors_reduced
+        else:
+            t_vectors = top2vec_model.topic_vectors
+        # With and without returning the original documents
+        for return_docs in [True, False]:
+            num_docs = 50
+            get_docs = return_docs and top2vec_model.documents is not None
+
+            for topic_num in range(len(t_vectors)):
+                # The base case: search_documents_by_vector
+                if top2vec_model.use_cutoff_heuristics:
+                    expected_res = top2vec_model.search_documents_by_vector(
+                        t_vectors[topic_num],
+                        num_docs,
+                        return_documents=return_docs,
+                        use_index=False,
+                    )
+                else:
+                    expected_res = top2vec_model.search_documents_by_vector_heuristic(
+                        t_vectors[topic_num],
+                        num_docs,
+                        return_documents=return_docs,
+                    )
+                (
+                    expected_docs,
+                    expected_scores,
+                    expected_indices,
+                ) = document_return_helper(top2vec_model, expected_res, get_docs)
+                # Annoyingly the structure is different for this
+                assert len(expected_scores) <= num_docs
+                assert len(expected_indices) == len(expected_scores)
+
+                # search_documents_by_topic
+                if top2vec_model.use_cutoff_heuristics:
+                    other_res = top2vec_model.search_documents_by_topics(
+                        topic_num,
+                        num_docs,
+                        return_documents=return_docs,
+                        reduced=reduced_topics,
+                    )
+                else:
+                    other_res = top2vec_model.search_documents_by_vector_heuristic(
+                        t_vectors[topic_num],
+                        num_docs,
+                        return_documents=return_docs,
+                        reduced=reduced_topics,
+                    )
+                other_docs, other_scores, other_indices = document_return_helper(
+                    top2vec_model, other_res, get_docs
+                )
+                assert len(other_scores) <= num_docs
+                assert len(other_indices) == len(other_scores)
+
+                assert compare_numpy_arrays(expected_indices, other_indices)
+                assert compare_numpy_arrays(expected_scores, other_scores, round=True)
+                assert compare_numpy_arrays(expected_docs, other_docs)
+                # We've verified that we are internally consistent
+
+
+@pytest.mark.parametrize("top2vec_model", models)
+def test_search_document_by_keywords_heuristics(top2vec_model):
+    # With and without returning the original documents
+    for return_docs in [True, False]:
+        num_docs = 50
+        get_docs = return_docs and top2vec_model.documents is not None
+
+        # For the first bit we aren't going to search with combos
+        for word_index in range(min(len(top2vec_model.vocab) - 1, 50)):
+            word = top2vec_model.vocab[word_index]
+            word_vector = top2vec_model.word_vectors[word_index]
+
+            # The base case: search_documents_by_vector
+            if top2vec_model.use_cutoff_heuristics:
+                vector_res = top2vec_model.search_documents_by_vector(
+                    word_vector,
+                    num_docs,
+                    return_documents=return_docs,
+                    use_index=False,
+                )
+            else:
+                vector_res = top2vec_model.search_documents_by_keywords_heuristic(
+                    word_vector,
+                    num_docs,
+                    return_documents=return_docs,
+                )
+            vector_docs, vector_scores, vector_indices = document_return_helper(
+                top2vec_model, vector_res, get_docs
+            )
+
+            assert len(vector_scores) <= num_docs
+            assert len(vector_indices) == len(vector_scores)
+
+            if top2vec_model.use_cutoff_heuristics:
+                keyword_res = top2vec_model.search_documents_by_keywords(
+                    [word],
+                    num_docs,
+                    return_documents=return_docs,
+                    use_index=False,
+                )
+            else:
+                keyword_res = top2vec_model.search_documents_by_keywords_heuristic(
+                    [word],
+                    num_docs,
+                    return_documents=return_docs,
+                )
+            keyword_docs, keyword_scores, keyword_indices = document_return_helper(
+                top2vec_model, keyword_res, get_docs
+            )
+
+            assert len(keyword_scores) <= num_docs
+            assert len(keyword_indices) == len(keyword_scores)
+
+            assert compare_numpy_arrays(vector_indices, keyword_indices)
+            assert compare_numpy_arrays(vector_scores, keyword_scores, round=True)
+            assert compare_numpy_arrays(vector_docs, keyword_docs)
+
+            # We have major problems if our model returns the same thing for positive and negative
+            if top2vec_model.use_cutoff_heuristics:
+                neg_keyword_res = top2vec_model.search_documents_by_keywords(
+                    keywords=[],
+                    num_docs=num_docs,
+                    keywords_neg=[word],
+                    return_documents=return_docs,
+                    use_index=False,
+                )
+            else:
+                neg_keyword_res = top2vec_model.search_documents_by_keywords_heuristic(
+                    keywords=[],
+                    num_docs=num_docs,
+                    keywords_neg=[word],
+                    return_documents=return_docs,
+                )
+            (
+                neg_keyword_docs,
+                neg_keyword_scores,
+                neg_keyword_indices,
+            ) = document_return_helper(top2vec_model, neg_keyword_res, get_docs)
+
+            assert len(neg_keyword_scores) <= num_docs
+            assert len(neg_keyword_indices) == len(neg_keyword_scores)
+            assert not compare_numpy_arrays(neg_keyword_indices, keyword_indices)
+            assert not compare_numpy_arrays(
+                neg_keyword_scores, keyword_scores, round=True
+            )
+            assert not compare_numpy_arrays(neg_keyword_docs, keyword_docs)
+    # TODO: Decide if we want to compare what we get from searching by averages as well as individual vectors
+
+
+@pytest.mark.parametrize("top2vec_model", models)
+def test_search_document_by_documents_heuristics(top2vec_model):
+    # With and without returning the original documents
+    for return_docs in [True, False]:
+        num_docs = 50
+        get_docs = return_docs and top2vec_model.documents is not None
+        # This should be the same as searching and not returning what was provided
+        # Because this performs an ignore operation it is different than just
+        # searching by an averaged vector in the similarity module
+        for doc_num in range(num_docs):
+            # going to search for close documents, make sure that things are as expected, and
+            # say that at least the closest 3 documents in embedding space should be there
+
+            closest_docs = find_similar_in_embedding(
+                top2vec_model.document_vectors,
+                positive_indices=[doc_num],
+                cutoff_args=top2vec_model.cutoff_args,
+            )
+            # Going to test regardless of if we are configured to use
+            # heuristics
+            res = top2vec_model.search_documents_by_documents(
+                [doc_num],
+                num_docs,
+                return_documents=return_docs,
+                use_index=False,
+            )
+            res_docs, res_scores, res_indices = document_return_helper(
+                top2vec_model, res, get_docs
+            )
+            assert doc_num not in res_indices
+            assert doc_num not in closest_docs.indices
+            to_examine = min(len(closest_docs.indices), 3)
+            for x in range(to_examine):
+                close_index = closest_docs.indices[x]
+                close_score = closest_docs.scores[x]
+                assert close_index in res_indices
+                assert (
+                    abs(
+                        round(res_scores[x], ndigits=N_DECIMALS)
+                        - round(close_score, ndigits=N_DECIMALS)
+                    )
+                    < 0.001
+                )
+
+
+@pytest.mark.parametrize("top2vec_model", models)
+def test_similar_words(top2vec_model):
+    num_words = min(len(top2vec_model.vocab) - 1, 50)
+    # This should return similar items that do NOT include the provided keywords
+    for word_index in range(num_words):
+        word = top2vec_model.vocab[word_index]
+        word_vector = top2vec_model.word_vectors[word_index]
+        words, scores = top2vec_model.similar_words(
+            keywords=[word],
+            keywords_neg=None,
+            num_words=num_words,
+            use_index=False,
+        )
+        assert len(words) <= num_words
+        assert len(words) == len(scores)
+        assert word not in words
+
+        # NOTE the cutoff heuristics will actually ignore
+        # the provided indices when computing an elbow,
+        # which gives a different value. So we won't ignore for now
+        if top2vec_model.use_cutoff_heuristics:
+            expected_words, expected_scores = describe_closest_items(
+                vectors=word_vector,
+                embedding=top2vec_model.word_vectors,
+                embedding_vocabulary=top2vec_model.vocab,
+                topn=num_words,
+                cutoff_args=top2vec_model.cutoff_args,
+            )[0]
+            assert len(words) == len(expected_words) - 1
+            # assert len(scores) == len(expected_scores)
+            assert set(words) == (set(expected_words) - set([word]))
+
+        # Because this is negative we shouldn't need to worry about
+        # the initial item being returned.
+        # Again, we have problems if our model says something which
+        # is a complete opposite to our query is within the acceptable cutoff
+        words, scores = top2vec_model.similar_words(
+            keywords=[],
+            keywords_neg=[word],
+            num_words=num_words,
+            use_index=False,
+        )
+        assert len(words) == len(scores)
+        assert word not in words
+        if top2vec_model.use_cutoff_heuristics:
+            expected_words, expected_scores = describe_closest_items(
+                vectors=-word_vector,
+                embedding=top2vec_model.word_vectors,
+                embedding_vocabulary=top2vec_model.vocab,
+                topn=num_words,
+                cutoff_args=top2vec_model.cutoff_args,
+            )[0]
+            assert len(words) == len(expected_words)
+            assert len(scores) == len(expected_scores)
+            # order can be slightly different with these
+            # if we have identical values
+            assert set(words) == set(expected_words)
+            assert compare_numpy_arrays(scores, expected_scores, round=True)
