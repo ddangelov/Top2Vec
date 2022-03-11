@@ -20,7 +20,7 @@ from sklearn.preprocessing import normalize
 from scipy.special import softmax
 
 from typing import List, Dict, Optional, Tuple, Union
-from top2vec.similarity import find_closest_items, find_closest_items_to_average
+from top2vec.cutoff_heuristics.similarity import find_closest_items, find_closest_items_to_average
 
 try:
     import hnswlib
@@ -364,7 +364,8 @@ class Top2Vec:
 
     cutoff_args: Optional[Dict] (Optional, default None)
         Custom arguments to cutoff heuristics.
-        See `top2vec.cutoff_heurstics.find_cutoff` for more information.
+        See `top2vec.cutoff_heurstics.cutoff_heurstics.find_cutoff`
+        for more information.
 
     raw_tokens: bool (Optional, default False)
         Whether tokens should be treated as raw or not.
@@ -1391,7 +1392,7 @@ class Top2Vec:
 
         Parameters
         ----------
-        doc_ids: List of str, int
+        doc_ids: List of int|str
             A unique value per document that is used for referring to
             documents in search results. If ids were not given to the model,
             the index of each document in the model is the id.
@@ -1487,7 +1488,7 @@ class Top2Vec:
         ----------
         documents: List of str
 
-        doc_ids: List of str, int (Optional)
+        doc_ids: List of int|str (Optional)
             Only required when doc_ids were given to the original model.
 
             A unique value per document that will be used for referring to
@@ -1584,7 +1585,7 @@ class Top2Vec:
 
         Parameters
         ----------
-        doc_ids: List of str, int
+        doc_ids: List of int|str
 
             A unique value per document that is used for referring to documents
             in search results.
@@ -1943,7 +1944,7 @@ class Top2Vec:
             Semantic similarity of document to vector. The cosine similarity of
             the document and vector.
 
-        doc_ids: array of int, shape(num_docs)
+        doc_ids: array of int|str, shape(num_docs)
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
@@ -2091,7 +2092,7 @@ class Top2Vec:
             Semantic similarity of document to vector. The cosine similarity of
             the document and vector.
 
-        doc_ids: array of int, shape(num_docs)
+        doc_ids: array of int|str, shape(num_docs)
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
@@ -2168,7 +2169,7 @@ class Top2Vec:
             Semantic similarity of document to vector. The cosine similarity of
             the document and vector.
 
-        doc_ids: array of int, shape(num_docs)
+        doc_ids: array of int|str, shape(num_docs)
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
@@ -2418,7 +2419,7 @@ class Top2Vec:
             Semantic similarity of document to topic. The cosine similarity of
             the document and topic vector.
 
-        doc_ids: array of int, shape(num_docs)
+        doc_ids: array of int|str, shape(num_docs)
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
@@ -2452,20 +2453,26 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    def search_documents_by_topic_heuristic(self, topic_num, num_docs, return_documents=True, reduced=False):
+    def search_documents_by_topic_heuristic(
+        self, topic_num, num_docs, return_documents=True, reduced=False
+    ):
         """As `search_documents_by_topic`, but use a cutoff heuristic."""
         # Only difference between reduced is the topic vector
         if reduced:
             self._validate_hierarchical_reduction()
             self._validate_topic_num(topic_num, reduced)
-            self._validate_topic_search(topic_num, num_docs, reduced)
-            target_topic_vec = self.topic_vectors_reduced[topic_num]
+            target_topic_vec = self._l2_normalize(self.topic_vectors_reduced[topic_num])
         else:
             self._validate_topic_num(topic_num, reduced)
-            self._validate_topic_search(topic_num, num_docs, reduced)
-            target_topic_vec = self.topic_vectors[topic_num]
+            target_topic_vec = self._l2_normalize(self.topic_vectors[topic_num])
 
-        doc_indexes, doc_scores = find_closest_items(target_topic_vec, self.document_vectors, topn=num_docs, ignore_indices=None, cutoff_args=self.cutoff_args)
+        doc_indexes, doc_scores = find_closest_items(
+            target_topic_vec,
+            self.document_vectors,
+            topn=num_docs,
+            ignore_indices=None,
+            cutoff_args=self.cutoff_args,
+        )[0]
         doc_ids = self._get_document_ids(doc_indexes)
 
         if self.documents is not None and return_documents:
@@ -2527,7 +2534,7 @@ class Top2Vec:
             Semantic similarity of document to keywords. The cosine similarity
             of the document and average of keyword vectors.
 
-        doc_ids: array of int, shape(num_docs)
+        doc_ids: array of int|str, shape(num_docs)
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
@@ -2584,7 +2591,7 @@ class Top2Vec:
             topn=num_docs,
             cutoff_args=self.cutoff_args,
             ignore_indices=None,
-        )
+        )[0]
 
         doc_ids = self._get_document_ids(doc_indexes)
 
@@ -2661,6 +2668,9 @@ class Top2Vec:
 
         # if use_index:
         # Cutoff heuristic version is supported here
+        # This is causing different behavior than expected because
+        # we aren't ignoring the term itself when searching for close
+        # items
         words, word_scores = self.search_words_by_vector(
             vector=combined_vector, num_words=num_res, use_index=use_index, ef=ef
         )
@@ -2758,7 +2768,7 @@ class Top2Vec:
 
         Parameters
         ----------
-        doc_ids: List of int, str
+        doc_ids: List of int|str
             Unique ids of document. If ids were not given, the index of
             document in the original corpus.
 
@@ -2796,7 +2806,7 @@ class Top2Vec:
             Semantic similarity of document to keywords. The cosine similarity
             of the document and average of keyword vectors.
 
-        doc_ids: array of int, shape(num_docs)
+        doc_ids: array of int|str, shape(num_docs)
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """
@@ -2875,7 +2885,7 @@ class Top2Vec:
 
         Parameters
         ----------
-        doc_ids: List of int, str
+        doc_ids: List of int|str, str
             Unique ids of document. If ids were not given, the index of
             document in the original corpus.
 
@@ -2902,7 +2912,7 @@ class Top2Vec:
             Semantic similarity of document to keywords. The cosine similarity
             of the document and average of keyword vectors.
 
-        doc_ids: array of int, shape(num_docs)
+        doc_ids: array of int|str, shape(num_docs)
             Unique ids of documents. If ids were not given to the model, the
             index of the document in the model will be returned.
         """

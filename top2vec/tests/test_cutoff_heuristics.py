@@ -4,7 +4,7 @@ from random import shuffle
 import pytest
 import numpy as np
 
-from top2vec.cutoff_heuristics import (
+from top2vec.cutoff_heuristics.cutoff_heuristics import (
     RECURSIVE_ELBOW_HEURISTIC_STR,
     find_elbow_index,
     find_cutoff,

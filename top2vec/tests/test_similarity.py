@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import sklearn.metrics
-from top2vec.similarity import (
+from top2vec.cutoff_heuristics.similarity import (
     describe_closest_items,
     find_closest_items,
     find_closest_items_to_average,

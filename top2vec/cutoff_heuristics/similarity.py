@@ -9,7 +9,7 @@ import sklearn.metrics
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
 import scipy.sparse
-from top2vec.cutoff_heuristics import ELBOW_HEURISTIC_STR, find_cutoff
+from top2vec.cutoff_heuristics.cutoff_heuristics import ELBOW_HEURISTIC_STR, find_cutoff
 
 
 class SimilarVectorIndices(NamedTuple):
@@ -112,7 +112,8 @@ def find_closest_items(
         If True then only values which are greater than 0 will be returned.
     cutoff_args: dict (Optional, default None)
         Pass custom arguments to the cutoff heuristic.
-        See `top2vec.cutoff_heurstics.find_cutoff` for more information.
+        See `top2vec.cutoff_heurstics.cutoff_heurstics.find_cutoff`
+        for more information.
 
         cutoff_heuristic: str (Optional, default `'elbow'`)
             Which cutoff heuristic to use.
