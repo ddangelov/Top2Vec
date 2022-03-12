@@ -1,13 +1,11 @@
 import pytest
-from top2vec.Top2Vec import Top2Vec
+from top2vec.Top2Vec import Top2Vec, RetrievedDocuments
 from top2vec.cutoff_heuristics.similarity import (
     describe_closest_items,
     find_closest_items,
     find_similar_in_embedding,
     generate_similarity_matrix,
     generate_csr_similarity_matrix,
-    SimilarVectorIndices,
-    SimilarItems,
 )
 import gensim
 from sklearn.datasets import fetch_20newsgroups
@@ -151,7 +149,7 @@ def test_topic_descriptions(top2vec_model: Top2Vec):
         expected_words, expected_scores = topic_descriptions[topic_num]
         # The ordering can get slightly off, especially as items get rounded
         if top2vec_model.use_cutoff_heuristics:
-            assert scores.size < topn
+            assert scores.size <= topn
             assert set(expected_words) == set(words)
             assert compare_numpy_arrays(expected_scores, scores, round=True)
         else:
@@ -277,7 +275,6 @@ def test_document_topic_composition(top2vec_model: Top2Vec):
 
 
 def test_USE_topic_descriptions():
-    assert top2vec_use_model_embedding_cutoff.get_num_topics() == 80
     topn = 1000
     topic_descriptions = describe_closest_items(
         top2vec_use_model_embedding_cutoff.topic_vectors,
@@ -317,7 +314,7 @@ def test_USE_topic_descriptions():
     )
     assert space_topic_num in topic_nums
     # Not everything should be similar
-    assert topic_nums.size < 80
+    assert topic_nums.size < top2vec_use_model_embedding_cutoff.get_num_topics()
 
     (
         topics_words,
@@ -326,27 +323,25 @@ def test_USE_topic_descriptions():
         topic_nums,
     ) = top2vec_use_model_embedding_cutoff.query_topics("spacecraft jpl", num_topics=80)
     assert space_topic_num in topic_nums
-    assert topic_nums.size < 80
+    assert topic_nums.size < top2vec_use_model_embedding_cutoff.get_num_topics()
 
 
 def document_return_helper(
-    top2vec_model: Top2Vec, search_documents_tuple, get_docs=True
+    top2vec_model: Top2Vec, search_documents_tuple: RetrievedDocuments, get_docs=True
 ):
-    documents = None
+    assert len(search_documents_tuple) == 3
     if get_docs:
-        documents, scores, indices = search_documents_tuple
-    else:
-        scores, indices = search_documents_tuple
-    if documents is not None:
-        for documents_array_index, top2vec_document_id in enumerate(indices):
+        assert search_documents_tuple.documents is not None
+    if search_documents_tuple.documents is not None:
+        for documents_array_index, top2vec_document_id in enumerate(search_documents_tuple.doc_ids):
             top2vec_document_index = top2vec_model._get_document_indexes(
                 [top2vec_document_id]
             )[0]
             assert (
                 top2vec_model.documents[top2vec_document_index]
-                == documents[documents_array_index]
+                == search_documents_tuple.documents[documents_array_index]
             )
-    return documents, scores, indices
+    return search_documents_tuple
 
 
 @pytest.mark.parametrize("top2vec_model", models)

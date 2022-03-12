@@ -42,9 +42,10 @@ the elbow finding method. Seems to behave better when the data
 forms a long slow curve.
 """
 
-from typing import Optional, NamedTuple
+from typing import Optional
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
+from top2vec.types import LineDistances
 
 
 ELBOW_HEURISTIC_STR = "elbow"
@@ -57,35 +58,6 @@ SUPPORTED_HEURISTICS = [
     AVERAGE_HEURISTIC_STR,
     RECURSIVE_ELBOW_HEURISTIC_STR,
 ]
-
-
-class LineDistances(NamedTuple):
-    """Represents multiple data points about distance from a line.
-
-    Attributes
-    ----------
-    distances: NDArray[np.float64]
-        The absolute value of the distance between value[index i]
-        and provided_line[index i].
-    y_deltas: NDArray[np.float64]
-        The distance between value[index i] and provided_line[index i].
-    is_truncated: bool
-        If true: `first_elbow` was True and the values curve crossed
-        the provided line at least once.
-    truncation_index: int
-        Last index before values curve first crosses line.
-        All values after this in `distances` will be 0.
-    first_elbow_above_line: bool
-        Was the value curve above (or equal to) the provided line?
-        Generally can be thought of as inclusive for
-        whether to keep an elbow point.
-    """
-
-    distances: NDArray[np.float64]
-    y_deltas: NDArray[np.float64]
-    is_truncated: bool
-    truncation_index: int
-    first_elbow_above_line: bool
 
 
 def get_distances_from_line(

@@ -3,47 +3,14 @@
 Author: Shawn
 License: BSD 3 clause
 """
-from typing import Tuple, List, Optional, Dict, NamedTuple
+from typing import Tuple, List, Optional, Dict
 
 import sklearn.metrics
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
 import scipy.sparse
 from top2vec.cutoff_heuristics.cutoff_heuristics import ELBOW_HEURISTIC_STR, find_cutoff
-
-
-class SimilarVectorIndices(NamedTuple):
-    """Lists of the most similar to least similar vectors and their
-    corresponding similarity scores.
-
-    Attributes
-    ----------
-    indices: NdArray[np.int64]
-        An array of vector indices sorted from most to least similar.
-    scores: NdArray[np.float64]
-        Index 0 is the similarity score of `indices[0]` and the
-        original vector.
-    """
-
-    indices: NDArray[np.int64]
-    scores: NDArray[np.float64]
-
-
-class SimilarItems(NamedTuple):
-    """Lists of the most similar to least similar vectors and their
-    corresponding similarity scores.
-
-    Attributes
-    ----------
-    items: NdArray
-        An array of items (usually strings) sorted from most to least similar.
-    scores: NdArray[np.float64]
-        Index 0 is the similarity score of `indices[0]` and the
-        original vector.
-    """
-
-    indices: NDArray
-    scores: NDArray[np.float64]
+from top2vec.types import SimilarItems, SimilarVectorIndices
 
 
 def __ensure_np_array(vectors: ArrayLike) -> Tuple[int, NDArray]:

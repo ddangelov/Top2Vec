@@ -19,8 +19,9 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
 from scipy.special import softmax
 
-from typing import List, Dict, Optional, Tuple, Union
+from typing import List, Dict, Optional, Tuple, Union, NamedTuple, Sequence
 from top2vec.cutoff_heuristics.similarity import find_closest_items, find_closest_items_to_average
+from top2vec.types import RetrievedDocuments, DocumentId, SimilarItems
 
 try:
     import hnswlib
@@ -50,6 +51,7 @@ logger.setLevel(logging.WARNING)
 sh = logging.StreamHandler()
 sh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger.addHandler(sh)
+
 
 use_models = ["universal-sentence-encoder-multilingual",
               "universal-sentence-encoder",
@@ -303,7 +305,7 @@ class Top2Vec:
         a longer time to train. The deep-learn option will learn the best
         quality vectors but will take significant time to train. The valid
         string speed options are:
-        
+
             * fast-learn
             * learn
             * deep-learn
@@ -571,7 +573,7 @@ class Top2Vec:
             # preprocess vocabulary
             vectorizer = CountVectorizer(tokenizer=return_doc, preprocessor=return_doc)
             doc_word_counts = vectorizer.fit_transform(tokenized_corpus)
-            words = vectorizer.get_feature_names()
+            words = vectorizer.get_feature_names_out()
             word_counts = np.array(np.sum(doc_word_counts, axis=0).tolist()[0])
             vocab_inds = np.where(word_counts > min_count)[0]
 
@@ -757,8 +759,8 @@ class Top2Vec:
         # load document index
         if top2vec_model.documents_indexed:
             if not _HAVE_HNSWLIB:
-                raise ImportError(f"Cannot load document index.\n\n"
-                                  "Try: pip install top2vec[indexing]\n\n"
+                raise ImportError("Cannot load document index.\n\n" +
+                                  "Try: pip install top2vec[indexing]\n\n" +
                                   "Alternatively try: pip install hnswlib")
 
             temp = tempfile.NamedTemporaryFile(mode='w+b')
@@ -774,8 +776,8 @@ class Top2Vec:
         if top2vec_model.words_indexed:
 
             if not _HAVE_HNSWLIB:
-                raise ImportError(f"Cannot load word index.\n\n"
-                                  "Try: pip install top2vec[indexing]\n\n"
+                raise ImportError("Cannot load word index.\n\n" +
+                                  "Try: pip install top2vec[indexing]\n\n" +
                                   "Alternatively try: pip install hnswlib")
 
             temp = tempfile.NamedTemporaryFile(mode='w+b')
@@ -1064,8 +1066,8 @@ class Top2Vec:
     @staticmethod
     def _check_hnswlib_status():
         if not _HAVE_HNSWLIB:
-            raise ImportError(f"Indexing is not available.\n\n"
-                              "Try: pip install top2vec[indexing]\n\n"
+            raise ImportError("Indexing is not available.\n\n" +
+                              "Try: pip install top2vec[indexing]\n\n" +
                               "Alternatively try: pip install hnswlib")
 
     def _check_document_index_status(self):
@@ -1265,7 +1267,7 @@ class Top2Vec:
         """
         Creates an index of the document vectors using hnswlib. This will
         lead to faster search times for models with a large number of
-        documents. 
+        documents.
 
         For more information on hnswlib see: https://github.com/nmslib/hnswlib
 
@@ -1392,7 +1394,7 @@ class Top2Vec:
 
         Parameters
         ----------
-        doc_ids: List of int|str
+        doc_ids: List of DocumentId
             A unique value per document that is used for referring to
             documents in search results. If ids were not given to the model,
             the index of each document in the model is the id.
@@ -1488,7 +1490,7 @@ class Top2Vec:
         ----------
         documents: List of str
 
-        doc_ids: List of int|str (Optional)
+        doc_ids: List of DocumentId (Optional)
             Only required when doc_ids were given to the original model.
 
             A unique value per document that will be used for referring to
@@ -1585,7 +1587,7 @@ class Top2Vec:
 
         Parameters
         ----------
-        doc_ids: List of int|str
+        doc_ids: List of DocumentId
 
             A unique value per document that is used for referring to documents
             in search results.
@@ -1712,7 +1714,7 @@ class Top2Vec:
         topics_words: array of shape(num_topics, max_topic_terms)
             For each topic the top max_topic_terms words are returned, in order
             of semantic similarity to topic.
-            
+
             Example:
             [['data', 'deep', 'learning' ... 'artificial'],         <Topic 0>
             ['environment', 'warming', 'climate ... 'temperature']  <Topic 1>
@@ -1721,7 +1723,7 @@ class Top2Vec:
         word_scores: array of shape(num_topics, max_topic_terms)
             For each topic the cosine similarity scores of the
             top max_topic_terms words to the topic are returned.
-            
+
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],  <Topic 0>
             [0.7818', 0.7671, 0.7603 ... 0.6769]   <Topic 1>
@@ -1895,7 +1897,15 @@ class Top2Vec:
 
         return self.hierarchy
 
-    def query_documents(self, query, num_docs, return_documents=True, use_index=False, ef=None, tokenizer=None):
+    def query_documents(
+        self,
+        query: str,
+        num_docs: Optional[int],
+        return_documents: bool = True,
+        use_index: bool = False,
+        ef: Optional[int] = None,
+        tokenizer: Optional[callable] = None
+    ) -> RetrievedDocuments:
         """
         Semantic search of documents using a text query.
 
@@ -1903,12 +1913,14 @@ class Top2Vec:
 
         Parameters
         ----------
-        query: string
+        query: str
             Any sequence of text. This could be an actual question, a sentence,
             a paragraph or a document.
 
-        num_docs: int
+        num_docs: Optional[int]
             Number of documents to return.
+            If `use_cutoff_heuristics` is True this will be the maximum
+            number of documents returned.
 
         return_documents: bool (Optional default True)
             Determines if the documents will be returned. If they were not
@@ -1918,14 +1930,14 @@ class Top2Vec:
             If index_documents method has been called, setting this to True
             will speed up search for models with large number of documents.
 
-        ef: int (Optional default None)
+        ef: Optional[int] (Optional default None)
             Higher ef leads to more accurate but slower search. This value
             must be higher than num_docs.
 
             For more information see:
             https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
 
-        tokenizer: callable (Optional, default None)
+        tokenizer: Optional[callable] (Optional, default None)
 
             ** For doc2vec embedding model only **
 
@@ -1934,19 +1946,11 @@ class Top2Vec:
 
         Returns
         -------
-        documents: (Optional) array of str, shape(num_docs)
-            The documents in a list, the most similar are first.
-
-            Will only be returned if the documents were saved and if
-            return_documents is set to True.
-
-        doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to vector. The cosine similarity of
-            the document and vector.
-
-        doc_ids: array of int|str, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the
-            index of the document in the model will be returned.
+        RetrievedDocuments
+            The documents most similar to the provided vector.
+            (Documents, Cosine Similarities, Doc_Ids)
+            Tuple index 0 will be None if `return_documents` is False or
+            `Top2Vec.documents` is None.
         """
 
         self._validate_query(query)
@@ -2048,7 +2052,14 @@ class Top2Vec:
         # Supports cutoff heuristics
         return self.search_topics_by_vector(query_vec, num_topics=num_topics, reduced=reduced)
 
-    def search_documents_by_vector(self, vector, num_docs, return_documents=True, use_index=False, ef=None):
+    def search_documents_by_vector(
+        self,
+        vector: NDArray[np.float64],
+        num_docs: Optional[int],
+        return_documents: bool = True,
+        use_index=False,
+        ef=None,
+    ) -> RetrievedDocuments:
         """
         Semantic search of documents using a vector.
 
@@ -2062,8 +2073,10 @@ class Top2Vec:
             The vector dimension should be the same as the vectors in
             the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
 
-        num_docs: int
+        num_docs: Optional[int]
             Number of documents to return.
+            If `use_cutoff_heuristics` is True this will be the max
+            number of documents to return.
 
         return_documents: bool (Optional default True)
             Determines if the documents will be returned. If they were not
@@ -2082,20 +2095,13 @@ class Top2Vec:
 
         Returns
         -------
-        documents: (Optional) array of str, shape(num_docs)
-            The documents in a list, the most similar are first.
-
-            Will only be returned if the documents were saved and if
-            return_documents is set to True.
-
-        doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to vector. The cosine similarity of
-            the document and vector.
-
-        doc_ids: array of int|str, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the
-            index of the document in the model will be returned.
+        RetrievedDocuments
+            The documents most similar to the provided vector.
+            (Documents, Cosine Similarities, Doc_Ids)
+            Tuple index 0 will be None if `return_documents` is False or
+            `Top2Vec.documents` is None.
         """
+
         if not use_index and self.use_cutoff_heuristics:
             return self.search_documents_by_vector_heuristic(vector, num_docs, return_documents)
         self._validate_vector(vector)
@@ -2124,19 +2130,16 @@ class Top2Vec:
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
-            return documents, doc_scores, doc_ids
         else:
-            return doc_scores, doc_ids
+            documents = None
+        return RetrievedDocuments(documents, doc_scores, doc_ids)
 
     def search_documents_by_vector_heuristic(
         self,
         vector: NDArray[np.float64],
         num_docs: Optional[int],
         return_documents: bool = True,
-    ) -> Union[
-        Tuple[NDArray, NDArray[np.float64], NDArray[np.int64]],
-        Tuple[NDArray[np.float64], NDArray[np.int64]],
-    ]:
+    ) -> RetrievedDocuments:
         """
         Semantic search of documents using a vector.
 
@@ -2151,7 +2154,7 @@ class Top2Vec:
             the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
 
         num_docs: Optional[int]
-            Number of documents to return.
+            Max number of documents to return.
 
         return_documents: bool (Optional default True)
             Determines if the documents will be returned. If they were not
@@ -2159,19 +2162,11 @@ class Top2Vec:
 
         Returns
         -------
-        documents: (Optional) array of str, shape(num_docs)
-            The documents in a list, the most similar are first.
-
-            Will only be returned if the documents were saved and if
-            return_documents is set to True.
-
-        doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to vector. The cosine similarity of
-            the document and vector.
-
-        doc_ids: array of int|str, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the
-            index of the document in the model will be returned.
+        RetrievedDocuments
+            The documents most similar to the provided vector.
+            (Documents, Cosine Similarities, Doc_Ids)
+            Tuple index 0 will be None if `return_documents` is False or
+            `Top2Vec.documents` is None.
         """
         self._validate_vector(vector)
         self._validate_num_docs(num_docs)
@@ -2185,11 +2180,17 @@ class Top2Vec:
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
-            return documents, doc_scores, doc_ids
         else:
-            return doc_scores, doc_ids
+            documents = None
+        return RetrievedDocuments(documents, doc_scores, doc_ids)
 
-    def search_words_by_vector(self, vector, num_words, use_index=False, ef=None) -> Tuple[NDArray, NDArray[np.float64]]:
+    def search_words_by_vector(
+        self,
+        vector: NDArray[np.float64],
+        num_words: Optional[int],
+        use_index: bool = False,
+        ef: Optional[int] = None
+    ) -> SimilarItems:
         """
         Semantic search of words using a vector.
 
@@ -2199,18 +2200,20 @@ class Top2Vec:
 
         Parameters
         ----------
-        vector: array of shape(vector dimension, 1)
+        vector: NDArray[np.float64] of shape(vector dimension, 1)
             The vector dimension should be the same as the vectors in
             the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
 
-        num_words: int
+        num_words: Optional[int]
             Number of words to return.
+            If `use_cutoff_heuristics` is True this will be the max number
+            of words returned.
 
         use_index: bool (Optional default False)
             If index_words method has been called, setting this to True will
             speed up search for models with large number of words.
 
-        ef: int (Optional default None)
+        ef: Optional[int] (Optional default None)
             Higher ef leads to more accurate but slower search. This value
             must be higher than num_docs.
 
@@ -2219,12 +2222,10 @@ class Top2Vec:
 
         Returns
         -------
-        words: array of str, shape(num_words)
-            The words in a list, the most similar are first.
-
-        word_scores: array of float, shape(num_words)
-            Semantic similarity of word to vector. The cosine similarity of
-            the word and vector.
+        SimilarItems
+            Tuple index 0 is the words as an NDArray, most similar first.
+            Tuple index 1 is the cosine similarity of the words and vector
+            as an NDArray.
         """
         if not use_index and self.use_cutoff_heuristics:
             return self.search_words_by_vector_heuristic(vector, num_words)
@@ -2265,7 +2266,7 @@ class Top2Vec:
 
         Parameters
         ----------
-        vector: array of shape(vector dimension, 1)
+        vector: NDArray[np.float64] of shape(vector dimension, 1)
             The vector dimension should be the same as the vectors in
             the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
 
@@ -2308,7 +2309,7 @@ class Top2Vec:
 
         Parameters
         ----------
-        vector: array of shape(vector dimension, 1)
+        vector: NDArray[np.float64] of shape(vector dimension, 1)
             The vector dimension should be the same as the vectors in
             the topic_vectors variable. (i.e. model.topic_vectors.shape[1])
 
@@ -2383,7 +2384,13 @@ class Top2Vec:
 
         return topic_words, word_scores, topic_scores, topic_nums
 
-    def search_documents_by_topic(self, topic_num, num_docs, return_documents=True, reduced=False):
+    def search_documents_by_topic(
+        self,
+        topic_num: int,
+        num_docs: Optional[int],
+        return_documents: bool = True,
+        reduced: bool = False
+    ) -> RetrievedDocuments:
         """
         Get the most semantically similar documents to the topic.
 
@@ -2396,8 +2403,9 @@ class Top2Vec:
         topic_num: int
             The topic number to search.
 
-        num_docs: int
+        num_docs: Optional[int]
             Number of documents to return.
+            If `use_cutoff_heuristics` this will be the max number of documents returned
 
         return_documents: bool (Optional default True)
             Determines if the documents will be returned. If they were not
@@ -2409,19 +2417,11 @@ class Top2Vec:
 
         Returns
         -------
-        documents: (Optional) array of str, shape(num_docs)
-            The documents in a list, the most similar are first.
-
-            Will only be returned if the documents were saved and if
-            return_documents is set to True.
-
-        doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to topic. The cosine similarity of
-            the document and topic vector.
-
-        doc_ids: array of int|str, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the
-            index of the document in the model will be returned.
+        RetrievedDocuments
+            The documents most similar to the topic's vector in the embedding.
+            (Documents, Cosine Similarities, Doc_Ids)
+            Tuple index 0 will be None if `return_documents` is False or
+            `Top2Vec.documents` is None.
         """
         if self.use_cutoff_heuristics:
             return self.search_documents_by_topic_heuristic(topic_num, num_docs, return_documents, reduced)
@@ -2449,14 +2449,49 @@ class Top2Vec:
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
-            return documents, doc_scores, doc_ids
         else:
-            return doc_scores, doc_ids
+            documents = None
+        return RetrievedDocuments(documents, doc_scores, doc_ids)
 
     def search_documents_by_topic_heuristic(
-        self, topic_num, num_docs, return_documents=True, reduced=False
-    ):
-        """As `search_documents_by_topic`, but use a cutoff heuristic."""
+        self,
+        topic_num: int,
+        num_docs: Optional[int],
+        return_documents: bool = True,
+        reduced: bool = False
+    ) -> RetrievedDocuments:
+        """
+        Get the most semantically similar documents to the topic using a
+        cutoff heuristic.
+
+        These are the documents closest to the topic vector. Documents are
+        ordered by proximity to the topic vector. Successive documents in the
+        list are less semantically similar to the topic.
+
+        Parameters
+        ----------
+        topic_num: int
+            The topic number to search.
+
+        num_docs: Optional[int]
+            Max number of documents to return.
+
+        return_documents: bool (Optional default True)
+            Determines if the documents will be returned. If they were not
+            saved in the model they will not be returned.
+
+        reduced: bool (Optional, default False)
+            Original topics are used to search by default. If True the
+            reduced topics will be used.
+
+        Returns
+        -------
+        RetrievedDocuments
+            The documents most similar to the topic's vector in the embedding.
+            (Documents, Cosine Similarities, Doc_Ids)
+            Tuple index 0 will be None if `return_documents` is False or
+            `Top2Vec.documents` is None.
+        """
         # Only difference between reduced is the topic vector
         if reduced:
             self._validate_hierarchical_reduction()
@@ -2477,12 +2512,19 @@ class Top2Vec:
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
-            return documents, doc_scores, doc_ids
         else:
-            return doc_scores, doc_ids
+            documents = None
+        return RetrievedDocuments(documents, doc_scores, doc_ids)
 
-    def search_documents_by_keywords(self, keywords, num_docs, keywords_neg=None, return_documents=True,
-                                     use_index=False, ef=None):
+    def search_documents_by_keywords(
+        self,
+        keywords: Sequence[str],
+        num_docs: Optional[int],
+        keywords_neg: Optional[Sequence[str]] = None,
+        return_documents: bool = True,
+        use_index: bool = False,
+        ef: Optional[int] = None
+    ) -> RetrievedDocuments:
         """
         Semantic search of documents using keywords.
 
@@ -2504,8 +2546,10 @@ class Top2Vec:
             List of negative keywords being used for search of semantically
             dissimilar documents.
 
-        num_docs: int
+        num_docs: Optional[int]
             Number of documents to return.
+            If `use_cutoff_heuristics` then this is optional and represents
+            the maximum number of documents to return.
 
         return_documents: bool (Optional default True)
             Determines if the documents will be returned. If they were not
@@ -2515,7 +2559,7 @@ class Top2Vec:
             If index_documents method has been called, setting this to True
             will speed up search for models with large number of documents.
 
-        ef: int (Optional default None)
+        ef: Optional[int] (Optional default None)
             Higher ef leads to more accurate but slower search. This value
             must be higher than num_docs.
 
@@ -2524,19 +2568,12 @@ class Top2Vec:
 
         Returns
         -------
-        documents: (Optional) array of str, shape(num_docs)
-            The documents in a list, the most similar are first.
-
-            Will only be returned if the documents were saved and if
-            return_documents is set to True.
-
-        doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to keywords. The cosine similarity
-            of the document and average of keyword vectors.
-
-        doc_ids: array of int|str, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the
-            index of the document in the model will be returned.
+        RetrievedDocuments
+            The documents most similar to the average of the provided
+            keyword vectors.
+            (Documents, Cosine Similarities, Doc_Ids)
+            Tuple index 0 will be None if `return_documents` is False or
+            `Top2Vec.documents` is None.
         """
         if not use_index and self.use_cutoff_heuristics:
             return self.search_documents_by_keywords_heuristic(keywords, num_docs, keywords_neg, return_documents)
@@ -2556,9 +2593,9 @@ class Top2Vec:
                                                    use_index=True, ef=ef)
 
         if self.embedding_model == 'doc2vec':
-            sim_docs = self.model.docvecs.most_similar(positive=word_vecs,
-                                                       negative=neg_word_vecs,
-                                                       topn=num_docs)
+            sim_docs = self.model.dv.most_similar(positive=word_vecs,
+                                                  negative=neg_word_vecs,
+                                                  topn=num_docs)
             doc_indexes = [doc[0] for doc in sim_docs]
             doc_scores = np.array([doc[1] for doc in sim_docs])
         else:
@@ -2570,11 +2607,54 @@ class Top2Vec:
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
-            return documents, doc_scores, doc_ids
         else:
-            return doc_scores, doc_ids
+            documents = None
+        return RetrievedDocuments(documents, doc_scores, doc_ids)
 
-    def search_documents_by_keywords_heuristic(self, keywords, num_docs, keywords_neg=None, return_documents=True):
+    def search_documents_by_keywords_heuristic(
+        self,
+        keywords: Sequence[str],
+        num_docs: Optional[int],
+        keywords_neg: Optional[Sequence[str]] = None,
+        return_documents: bool = True,
+    ) -> RetrievedDocuments:
+        """
+        Semantic search of documents using keywords and a cutoff heuristic.
+
+        The most semantically similar documents to the combination of the
+        keywords will be returned. If negative keywords are provided, the
+        documents will be semantically dissimilar to those words. Too many
+        keywords or certain combinations of words may give strange results.
+        This method finds an average vector(negative keywords are subtracted)
+        of all the keyword vectors and returns the documents closest to the
+        resulting vector.
+
+        Parameters
+        ----------
+        keywords: List of str
+            List of positive keywords being used for search of semantically
+            similar documents.
+
+        keywords_neg: List of str (Optional)
+            List of negative keywords being used for search of semantically
+            dissimilar documents.
+
+        num_docs: Optional[int]
+            Max number of documents to return.
+
+        return_documents: bool (Optional default True)
+            Determines if the documents will be returned. If they were not
+            saved in the model they will also not be returned.
+
+        Returns
+        -------
+        RetrievedDocuments
+            The documents most similar to the average of the provided
+            keyword vectors.
+            (Documents, Cosine Similarities, Doc_Ids)
+            Tuple index 0 will be None if `return_documents` is False or
+            `Top2Vec.documents` is None.
+        """
         if keywords_neg is None:
             keywords_neg = []
 
@@ -2597,18 +2677,18 @@ class Top2Vec:
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
-            return documents, doc_scores, doc_ids
         else:
-            return doc_scores, doc_ids
+            documents = None
+        return RetrievedDocuments(documents, doc_scores, doc_ids)
 
     def similar_words(
         self,
-        keywords: ArrayLike,
-        num_words: int,
-        keywords_neg: Optional[ArrayLike] = None,
+        keywords: Sequence[str],
+        num_words: Optional[int],
+        keywords_neg: Optional[Sequence[str]] = None,
         use_index: bool = False,
         ef: Optional[int] = None,
-    ) -> Tuple[NDArray, NDArray[np.float64]]:
+    ) -> SimilarItems:
         """
         Semantic similarity search of words.
 
@@ -2621,15 +2701,15 @@ class Top2Vec:
 
         Parameters
         ----------
-        keywords: List of str
+        keywords: Sequence[str]
             List of positive keywords being used for search of semantically
             similar words.
 
-        keywords_neg: List of str
+        keywords_neg: Optional[Sequence[str]]
             List of negative keywords being used for search of semantically
             dissimilar words.
 
-        num_words: int
+        num_words: Optional[int]
             Number of words to return.
             Optional if self.use_cutoff_heuristics is True.
 
@@ -2637,7 +2717,7 @@ class Top2Vec:
             If index_words method has been called, setting this to True will
             speed up search for models with large number of words.
 
-        ef: int (Optional default None)
+        ef: Optional[int] (Optional default None)
             Higher ef leads to more accurate but slower search. This value
             must be higher than num_docs.
 
@@ -2646,12 +2726,10 @@ class Top2Vec:
 
         Returns
         -------
-        words: array of str, shape(num_words)
-            The words in a list, the most similar are first.
-
-        word_scores: array of float, shape(num_words)
-            Semantic similarity of word to keywords. The cosine similarity of
-            the word and average of keyword vectors.
+        SimilarItems
+            Tuple index 0 is the words in an NDArray, most similar first.
+            Tuple index 1 is the cosine similarity of the words and average
+            of keyword vectors as an NDArray.
         """
         if keywords_neg is None:
             keywords_neg = []
@@ -2729,7 +2807,7 @@ class Top2Vec:
         word_scores: array of shape (num_topics, max_topic_terms)
             For each topic the cosine similarity scores of the top
             max_topic_terms words to the topic are returned.
-            
+
             Example:
             [[0.7132, 0.6473, 0.5700 ... 0.3455],     <Topic 0>
             [0.7818', 0.7671, 0.7603 ... 0.6769]     <Topic 1>
@@ -2753,9 +2831,14 @@ class Top2Vec:
         return self.search_topics_by_vector(combined_vector, num_topics=num_topics, reduced=reduced)
 
     def search_documents_by_documents(
-        self, doc_ids, num_docs, doc_ids_neg=None, return_documents=True, use_index=False, ef=None
-    ) -> Union[Tuple[NDArray, NDArray[np.float64], NDArray[np.int64]],
-               Tuple[NDArray[np.float64], NDArray[np.int64]]]:
+        self,
+        doc_ids: Sequence[DocumentId],
+        num_docs: Optional[int],
+        doc_ids_neg: Optional[Sequence[DocumentId]] = None,
+        return_documents: bool = True,
+        use_index: bool = False,
+        ef: Optional[int] = None
+    ) -> RetrievedDocuments:
         """
         Semantic similarity search of documents.
 
@@ -2768,16 +2851,18 @@ class Top2Vec:
 
         Parameters
         ----------
-        doc_ids: List of int|str
+        doc_ids: Sequence[DocumentId]
             Unique ids of document. If ids were not given, the index of
             document in the original corpus.
 
-        doc_ids_neg: (Optional) List of int, str
+        doc_ids_neg: Optional[Sequence[DocumentId]] (Optional default None)
             Unique ids of document. If ids were not given, the index of
             document in the original corpus.
 
-        num_docs: int
+        num_docs: Optional[int]
             Number of documents to return.
+            If `use_cutoff_heuristics` is True then this will be the max
+            number returned.
 
         return_documents: bool (Optional default True)
             Determines if the documents will be returned. If they were not
@@ -2796,19 +2881,12 @@ class Top2Vec:
 
         Returns
         -------
-        documents: (Optional) array of str, shape(num_docs)
-            The documents in a list, the most similar are first.
-
-            Will only be returned if the documents were saved and if
-            return_documents is set to True.
-
-        doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to keywords. The cosine similarity
-            of the document and average of keyword vectors.
-
-        doc_ids: array of int|str, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the
-            index of the document in the model will be returned.
+        RetrievedDocuments
+            The documents most similar to the average of the provided
+            document vectors.
+            (Documents, Cosine Similarities, Doc_Ids)
+            Tuple index 0 will be None if `return_documents` is False or
+            `Top2Vec.documents` is None.
         """
         if not use_index and self.use_cutoff_heuristics:
             return self.search_documents_by_documents_heuristic(doc_ids, num_docs, doc_ids_neg, return_documents)
@@ -2832,9 +2910,9 @@ class Top2Vec:
                                                    use_index=True, ef=ef)
 
         if self.embedding_model == 'doc2vec':
-            sim_docs = self.model.docvecs.most_similar(positive=doc_indexes,
-                                                       negative=doc_indexes_neg,
-                                                       topn=num_docs)
+            sim_docs = self.model.dv.most_similar(positive=doc_indexes,
+                                                  negative=doc_indexes_neg,
+                                                  topn=num_docs)
             doc_indexes = [doc[0] for doc in sim_docs]
             doc_scores = np.array([doc[1] for doc in sim_docs])
         else:
@@ -2858,18 +2936,17 @@ class Top2Vec:
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
-            return documents, doc_scores, doc_ids
         else:
-            return doc_scores, doc_ids
+            documents = None
+        return RetrievedDocuments(documents, doc_scores, doc_ids)
 
     def search_documents_by_documents_heuristic(
         self,
-        doc_ids: ArrayLike,
+        doc_ids: Sequence[DocumentId],
         num_docs: Optional[int],
-        doc_ids_neg: Optional[ArrayLike] = None,
+        doc_ids_neg: Optional[Sequence[DocumentId]] = None,
         return_documents: bool = True,
-    ) -> Union[Tuple[NDArray, NDArray[np.float64], NDArray[np.int64]],
-               Tuple[NDArray[np.float64], NDArray[np.int64]]]:
+    ) -> RetrievedDocuments:
         """
         Semantic similarity search of documents with cutoff heuristic.
 
@@ -2885,11 +2962,11 @@ class Top2Vec:
 
         Parameters
         ----------
-        doc_ids: List of int|str, str
+        doc_ids: Sequence[DocumentId]
             Unique ids of document. If ids were not given, the index of
             document in the original corpus.
 
-        doc_ids_neg: (Optional) List of int, str
+        doc_ids_neg: Optional[Sequence[DocumentId]] (Optional default None)
             Unique ids of document. If ids were not given, the index of
             document in the original corpus.
 
@@ -2902,19 +2979,12 @@ class Top2Vec:
 
         Returns
         -------
-        documents: (Optional) array of str, shape(num_docs)
-            The documents in a list, the most similar are first.
-
-            Will only be returned if the documents were saved and if
-            return_documents is set to True.
-
-        doc_scores: array of float, shape(num_docs)
-            Semantic similarity of document to keywords. The cosine similarity
-            of the document and average of keyword vectors.
-
-        doc_ids: array of int|str, shape(num_docs)
-            Unique ids of documents. If ids were not given to the model, the
-            index of the document in the model will be returned.
+        RetrievedDocuments
+            The documents most similar to the average of the provided
+            document vectors.
+            (Documents, Cosine Similarities, Doc_Ids)
+            Tuple index 0 will be None if `return_documents` is False or
+            `Top2Vec.documents` is None.
         """
         if doc_ids_neg is None:
             doc_ids_neg = []
@@ -2943,9 +3013,9 @@ class Top2Vec:
 
         if self.documents is not None and return_documents:
             documents = self.documents[doc_indexes]
-            return documents, doc_scores, doc_ids
         else:
-            return doc_scores, doc_ids
+            documents = None
+        return RetrievedDocuments(documents, doc_scores, doc_ids)
 
     def generate_topic_wordcloud(self, topic_num, background_color="black", reduced=False):
         """

@@ -50,7 +50,7 @@ models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_add_documents_original(top2vec_model):
+def test_add_documents_original(top2vec_model: Top2Vec):
     num_docs = top2vec_model.document_vectors.shape[0]
 
     docs_to_add = newsgroups_train.data[0:100]
@@ -74,7 +74,7 @@ def test_add_documents_original(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_hierarchical_topic_reduction(top2vec_model):
+def test_hierarchical_topic_reduction(top2vec_model: Top2Vec):
     num_topics = top2vec_model.get_num_topics()
 
     if num_topics > 10:
@@ -88,7 +88,7 @@ def test_hierarchical_topic_reduction(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_add_documents_post_reduce(top2vec_model):
+def test_add_documents_post_reduce(top2vec_model: Top2Vec):
     docs_to_add = newsgroups_train.data[500:600]
 
     num_docs = top2vec_model.document_vectors.shape[0]
@@ -115,7 +115,7 @@ def test_add_documents_post_reduce(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_delete_documents(top2vec_model):
+def test_delete_documents(top2vec_model: Top2Vec):
     doc_ids_to_delete = list(range(500, 550))
 
     num_docs = top2vec_model.document_vectors.shape[0]
@@ -141,7 +141,7 @@ def test_delete_documents(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_get_topic_hierarchy(top2vec_model):
+def test_get_topic_hierarchy(top2vec_model: Top2Vec):
     hierarchy = top2vec_model.get_topic_hierarchy()
 
     assert len(hierarchy) == len(top2vec_model.topic_vectors_reduced)
@@ -199,61 +199,62 @@ def test_search_documents_by_topic(top2vec_model, reduced):
     topic = topic_nums[0]
     num_docs = topic_sizes[0]
 
-    # search documents by topic
-    if top2vec_model.documents is not None:
-        documents, document_scores, document_ids = top2vec_model.search_documents_by_topic(topic, num_docs,
-                                                                                           reduced=reduced)
-    else:
-        document_scores, document_ids = top2vec_model.search_documents_by_topic(topic, num_docs, reduced=reduced)
+    for return_documents in [True, False]:
+        # search documents by topic
+        documents, document_scores, document_ids = top2vec_model.search_documents_by_topic(
+            topic, num_docs, reduced=reduced, return_documents=return_documents
+        )
 
-    # check that for each document there is a score and number
-    if top2vec_model.documents is not None:
-        assert len(documents) == len(document_scores) == len(document_ids) == num_docs
-    else:
-        assert len(document_scores) == len(document_ids) == num_docs
+        # check that for each document there is a score and number
+        if top2vec_model.documents is not None and return_documents:
+            assert len(documents) == len(document_scores) == len(document_ids) == num_docs
+            assert documents is not None
+        else:
+            assert len(document_scores) == len(document_ids) == num_docs
+            assert documents is None
 
-    # check that documents are returned in decreasing order
-    assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+        # check that documents are returned in decreasing order
+        assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
-    # check that all documents returned are most similar to topic being searched
-    document_indexes = [top2vec_model.doc_id2index[doc_id] for doc_id in document_ids]
+        # check that all documents returned are most similar to topic being searched
+        document_indexes = [top2vec_model.doc_id2index[doc_id] for doc_id in document_ids]
 
-    if reduced:
-        doc_topics = set(np.argmax(
-            np.inner(top2vec_model.document_vectors[document_indexes],
-                     top2vec_model.topic_vectors_reduced), axis=1))
-    else:
-        doc_topics = set(np.argmax(
-            np.inner(top2vec_model.document_vectors[document_indexes],
-                     top2vec_model.topic_vectors), axis=1))
-    assert len(doc_topics) == 1 and topic in doc_topics
+        if reduced:
+            doc_topics = set(np.argmax(
+                np.inner(top2vec_model.document_vectors[document_indexes],
+                         top2vec_model.topic_vectors_reduced), axis=1))
+        else:
+            doc_topics = set(np.argmax(
+                np.inner(top2vec_model.document_vectors[document_indexes],
+                         top2vec_model.topic_vectors), axis=1))
+        assert len(doc_topics) == 1 and topic in doc_topics
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_search_documents_by_keywords(top2vec_model):
+def test_search_documents_by_keywords(top2vec_model: Top2Vec):
     keywords = top2vec_model.vocab
     keyword = keywords[-1]
     num_docs = 10
 
-    if top2vec_model.documents is not None:
-        documents, document_scores, document_ids = top2vec_model.search_documents_by_keywords(keywords=[keyword],
-                                                                                              num_docs=num_docs)
-    else:
-        document_scores, document_ids = top2vec_model.search_documents_by_keywords(keywords=[keyword],
-                                                                                   num_docs=num_docs)
+    for return_documents in [True, False]:
+        documents, document_scores, document_ids = top2vec_model.search_documents_by_keywords(
+            keywords=[keyword], num_docs=num_docs, return_documents=return_documents
+        )
 
-    # check that for each document there is a score and number
-    if top2vec_model.documents is not None:
-        assert len(documents) == len(document_scores) == len(document_ids) == num_docs
-    else:
-        assert len(document_scores) == len(document_ids) == num_docs
+        # check that for each document there is a score and number
+        if top2vec_model.documents is not None and return_documents:
+            assert len(documents) == len(document_scores) == len(document_ids) == num_docs
+            assert documents is not None
+        else:
+            assert len(document_scores) == len(document_ids) == num_docs
+            assert documents is None
 
-    # check that documents are returned in decreasing order
-    assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+        # check that documents are returned in decreasing order
+        assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_similar_words(top2vec_model):
+def test_similar_words(top2vec_model: Top2Vec):
     keywords = top2vec_model.vocab
     keyword = keywords[-1]
     num_words = 20
@@ -291,30 +292,30 @@ def test_search_topics(top2vec_model, reduced):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_search_document_by_documents(top2vec_model):
+def test_search_document_by_documents(top2vec_model: Top2Vec):
     doc_id = top2vec_model.document_ids[0]
 
     num_docs = 10
 
-    if top2vec_model.documents is not None:
-        documents, document_scores, document_ids = top2vec_model.search_documents_by_documents(doc_ids=[doc_id],
-                                                                                               num_docs=num_docs)
-    else:
-        document_scores, document_ids = top2vec_model.search_documents_by_documents(doc_ids=[doc_id],
-                                                                                    num_docs=num_docs)
+    for return_documents in [True, False]:
+        documents, document_scores, document_ids = top2vec_model.search_documents_by_documents(
+            doc_ids=[doc_id], num_docs=num_docs, return_documents=return_documents
+        )
 
-    # check that for each document there is a score and number
-    if top2vec_model.documents is not None:
-        assert len(documents) == len(document_scores) == len(document_ids) == num_docs
-    else:
-        assert len(document_scores) == len(document_ids) == num_docs
+        # check that for each document there is a score and number
+        if top2vec_model.documents is not None and return_documents:
+            assert len(documents) == len(document_scores) == len(document_ids) == num_docs
+            assert documents is not None
+        else:
+            assert len(document_scores) == len(document_ids) == num_docs
+            assert documents is None
 
-    # check that documents are returned in decreasing order
-    assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+        # check that documents are returned in decreasing order
+        assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_get_documents_topics(top2vec_model):
+def test_get_documents_topics(top2vec_model: Top2Vec):
     doc_ids_get = top2vec_model.document_ids[[0, 5]]
 
     if top2vec_model.hierarchy is not None:
@@ -327,7 +328,7 @@ def test_get_documents_topics(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_get_documents_topics_multiple(top2vec_model):
+def test_get_documents_topics_multiple(top2vec_model: Top2Vec):
     doc_ids_get = top2vec_model.document_ids[[0, 1, 5]]
     num_topics = 2
 
@@ -354,109 +355,105 @@ def test_get_documents_topics_multiple(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_search_documents_by_vector(top2vec_model):
+def test_search_documents_by_vector(top2vec_model: Top2Vec):
     document_vectors = top2vec_model.document_vectors
     top2vec_model.search_documents_by_vector(vector=document_vectors[0], num_docs=10)
 
     num_docs = 10
 
-    if top2vec_model.documents is not None:
-        documents, document_scores, document_ids = top2vec_model.search_documents_by_vector(vector=document_vectors[0],
-                                                                                            num_docs=num_docs)
-    else:
-        document_scores, document_ids = top2vec_model.search_documents_by_vector(vector=document_vectors[0],
-                                                                                 num_docs=num_docs)
-    if top2vec_model.documents is not None:
-        assert len(documents) == len(document_scores) == len(document_ids) == num_docs
-    else:
-        assert len(document_scores) == len(document_ids) == num_docs
+    for return_documents in [True, False]:
+        documents, document_scores, document_ids = top2vec_model.search_documents_by_vector(
+            vector=document_vectors[0], num_docs=num_docs, return_documents=return_documents
+        )
+        # check that for each document there is a score and number
+        if top2vec_model.documents is not None and return_documents:
+            assert len(documents) == len(document_scores) == len(document_ids) == num_docs
+            assert documents is not None
+        else:
+            assert len(document_scores) == len(document_ids) == num_docs
+            assert documents is None
 
-    # check that documents are returned in decreasing order
-    assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+        # check that documents are returned in decreasing order
+        assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_index_documents(top2vec_model):
+def test_index_documents(top2vec_model: Top2Vec):
     top2vec_model.index_document_vectors()
     assert top2vec_model.document_vectors.shape[1] <= top2vec_model.document_index.get_max_elements()
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_search_documents_by_vector_index(top2vec_model):
+def test_search_documents_by_vector_index(top2vec_model: Top2Vec):
     document_vectors = top2vec_model.document_vectors
     top2vec_model.search_documents_by_vector(vector=document_vectors[0], num_docs=10)
 
     num_docs = 10
 
-    if top2vec_model.documents is not None:
-        documents, document_scores, document_ids = top2vec_model.search_documents_by_vector(vector=document_vectors[0],
-                                                                                            num_docs=num_docs,
-                                                                                            use_index=True)
-    else:
-        document_scores, document_ids = top2vec_model.search_documents_by_vector(vector=document_vectors[0],
-                                                                                 num_docs=num_docs,
-                                                                                 use_index=True)
-    if top2vec_model.documents is not None:
-        assert len(documents) == len(document_scores) == len(document_ids) == num_docs
-    else:
-        assert len(document_scores) == len(document_ids) == num_docs
+    for return_documents in [True, False]:
+        documents, document_scores, document_ids = top2vec_model.search_documents_by_vector(
+            vector=document_vectors[0], num_docs=num_docs, use_index=True, return_documents=return_documents
+        )
+        # check that for each document there is a score and number
+        if top2vec_model.documents is not None and return_documents:
+            assert len(documents) == len(document_scores) == len(document_ids) == num_docs
+            assert documents is not None
+        else:
+            assert len(document_scores) == len(document_ids) == num_docs
+            assert documents is None
 
-    # check that documents are returned in decreasing order
-    assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+        # check that documents are returned in decreasing order
+        assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_search_documents_by_keywords_index(top2vec_model):
+def test_search_documents_by_keywords_index(top2vec_model: Top2Vec):
     keywords = top2vec_model.vocab
     keyword = keywords[-1]
     num_docs = 10
 
-    if top2vec_model.documents is not None:
-        documents, document_scores, document_ids = top2vec_model.search_documents_by_keywords(keywords=[keyword],
-                                                                                              num_docs=num_docs,
-                                                                                              use_index=True)
-    else:
-        document_scores, document_ids = top2vec_model.search_documents_by_keywords(keywords=[keyword],
-                                                                                   num_docs=num_docs,
-                                                                                   use_index=True)
+    for return_documents in [True, False]:
+        documents, document_scores, document_ids = top2vec_model.search_documents_by_keywords(
+            keywords=[keyword], num_docs=num_docs, use_index=True, return_documents=return_documents
+        )
 
-    # check that for each document there is a score and number
-    if top2vec_model.documents is not None:
-        assert len(documents) == len(document_scores) == len(document_ids) == num_docs
-    else:
-        assert len(document_scores) == len(document_ids) == num_docs
+        # check that for each document there is a score and number
+        if top2vec_model.documents is not None and return_documents:
+            assert len(documents) == len(document_scores) == len(document_ids) == num_docs
+            assert documents is not None
+        else:
+            assert len(document_scores) == len(document_ids) == num_docs
+            assert documents is None
 
-    # check that documents are returned in decreasing order
-    assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+        # check that documents are returned in decreasing order
+        assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_search_document_by_documents_index(top2vec_model):
+def test_search_document_by_documents_index(top2vec_model: Top2Vec):
     doc_id = top2vec_model.document_ids[0]
 
     num_docs = 10
 
-    if top2vec_model.documents is not None:
-        documents, document_scores, document_ids = top2vec_model.search_documents_by_documents(doc_ids=[doc_id],
-                                                                                               num_docs=num_docs,
-                                                                                               use_index=True)
-    else:
-        document_scores, document_ids = top2vec_model.search_documents_by_documents(doc_ids=[doc_id],
-                                                                                    num_docs=num_docs,
-                                                                                    use_index=True)
+    for return_documents in [True, False]:
+        documents, document_scores, document_ids = top2vec_model.search_documents_by_documents(
+            doc_ids=[doc_id], num_docs=num_docs, use_index=True, return_documents=return_documents
+        )
 
-    # check that for each document there is a score and number
-    if top2vec_model.documents is not None:
-        assert len(documents) == len(document_scores) == len(document_ids) == num_docs
-    else:
-        assert len(document_scores) == len(document_ids) == num_docs
+        # check that for each document there is a score and number
+        if top2vec_model.documents is not None and return_documents:
+            assert len(documents) == len(document_scores) == len(document_ids) == num_docs
+            assert documents is not None
+        else:
+            assert len(document_scores) == len(document_ids) == num_docs
+            assert documents is None
 
-    # check that documents are returned in decreasing order
-    assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+        # check that documents are returned in decreasing order
+        assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_search_words_by_vector(top2vec_model):
+def test_search_words_by_vector(top2vec_model: Top2Vec):
     word_vectors = top2vec_model.word_vectors
     top2vec_model.search_words_by_vector(vector=word_vectors[0], num_words=10)
 
@@ -473,13 +470,13 @@ def test_search_words_by_vector(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_index_words(top2vec_model):
+def test_index_words(top2vec_model: Top2Vec):
     top2vec_model.index_word_vectors()
     assert top2vec_model.word_vectors.shape[1] <= top2vec_model.word_index.get_max_elements()
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_similar_words_index(top2vec_model):
+def test_similar_words_index(top2vec_model: Top2Vec):
     keywords = top2vec_model.vocab
     keyword = keywords[-1]
     num_words = 20
@@ -494,7 +491,7 @@ def test_similar_words_index(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_save_and_load(top2vec_model):
+def test_save_and_load(top2vec_model: Top2Vec):
     temp = tempfile.NamedTemporaryFile(mode='w+b')
     top2vec_model.save(temp.name)
     Top2Vec.load(temp.name)
@@ -502,28 +499,28 @@ def test_save_and_load(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_query_documents(top2vec_model):
+def test_query_documents(top2vec_model: Top2Vec):
     num_docs = 10
 
-    if top2vec_model.documents is not None:
+    for return_documents in [True, False]:
         documents, document_scores, document_ids = top2vec_model.query_documents(query="what is the meaning of life?",
-                                                                                 num_docs=num_docs)
-    else:
-        document_scores, document_ids = top2vec_model.query_documents(query="what is the meaning of life?",
-                                                                      num_docs=num_docs)
+                                                                                 num_docs=num_docs,
+                                                                                 return_documents=return_documents)
 
-    # check that for each document there is a score and number
-    if top2vec_model.documents is not None:
-        assert len(documents) == len(document_scores) == len(document_ids) == num_docs
-    else:
-        assert len(document_scores) == len(document_ids) == num_docs
+        # check that for each document there is a score and number
+        if top2vec_model.documents is not None and return_documents:
+            assert len(documents) == len(document_scores) == len(document_ids) == num_docs
+            assert documents is not None
+        else:
+            assert len(document_scores) == len(document_ids) == num_docs
+            assert documents is None
 
-    # check that documents are returned in decreasing order
-    assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
+        # check that documents are returned in decreasing order
+        assert all(document_scores[i] >= document_scores[i + 1] for i in range(len(document_scores) - 1))
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_query_topics(top2vec_model):
+def test_query_topics(top2vec_model: Top2Vec):
     num_topics = top2vec_model.get_num_topics()
     topic_words, word_scores, topic_scores, topic_nums = top2vec_model.query_topics(query="what is the "
                                                                                           "meaning of life?",
@@ -586,10 +583,17 @@ def test_setting_topic_limit():
         max_topic_terms=max_topic_terms,
         use_cutoff_heuristics=False,
     )
+    top2vec_model.hierarchical_topic_reduction(min(10, top2vec_model.get_num_topics() - 1))
     topic_words, topic_scores, topic_ids = top2vec_model.get_topics()
     for index in range(len(topic_words)):
         assert len(topic_words[index]) == len(topic_scores[index])
         assert len(topic_words[index]) == max_topic_terms
+
+    # Make sure it respects the num_topics
+    topic_words, topic_scores, topic_ids = top2vec_model.get_topics(num_topics=2)
+    assert len(topic_words) == len(topic_scores) == len(topic_ids) == 2
+    topic_words, topic_scores, topic_ids = top2vec_model.get_topics(num_topics=1, reduced=True)
+    assert len(topic_words) == len(topic_scores) == len(topic_ids) == 1
 
     top2vec_model = Top2Vec(
         documents=newsgroups_documents,
@@ -598,7 +602,14 @@ def test_setting_topic_limit():
         max_topic_terms=max_topic_terms,
         use_cutoff_heuristics=True,
     )
+    top2vec_model.hierarchical_topic_reduction(min(10, top2vec_model.get_num_topics() - 1))
     topic_words, topic_scores, topic_ids = top2vec_model.get_topics()
     for index in range(len(topic_words)):
         assert len(topic_words[index]) == len(topic_scores[index])
         assert len(topic_words[index]) <= max_topic_terms
+
+    topic_words, topic_scores, topic_ids = top2vec_model.get_topics(num_topics=2)
+    assert len(topic_words) == len(topic_scores) == len(topic_ids) == 2
+
+    topic_words, topic_scores, topic_ids = top2vec_model.get_topics(num_topics=1, reduced=True)
+    assert len(topic_words) == len(topic_scores) == len(topic_ids) == 1

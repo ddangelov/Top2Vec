@@ -10,11 +10,11 @@ from top2vec.cutoff_heuristics.cutoff_heuristics import (
     find_cutoff,
     get_distances_from_line,
     _get_shifted_second_derivative,
-    LineDistances,
     ELBOW_HEURISTIC_STR,
     DERIVATIVE_HEURISTIC_STR,
     AVERAGE_HEURISTIC_STR,
 )
+from top2vec.types import LineDistances
 
 
 def compare_numpy_arrays(array_a, array_b):
