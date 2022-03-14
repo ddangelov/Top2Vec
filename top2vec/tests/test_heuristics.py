@@ -63,10 +63,22 @@ def compare_numpy_arrays(
             return False
 
 
-# ensure consistent sorting
-def sort_value_scores(iterable):
-    by_values = sorted(iterable, key=lambda x: x[0], reverse=True)
-    return sorted(by_values, key=lambda x: round(x[1], N_DECIMALS), reverse=True)
+def test_compare_numpy_arrays():
+    assert compare_numpy_arrays(None, None)
+    assert not compare_numpy_arrays(np.array([1, 2, 3]), None)
+    assert compare_numpy_arrays(np.array([]), np.array([]))
+    assert compare_numpy_arrays(np.array([1, 2, 3]), np.array([1, 2, 3]))
+    assert not compare_numpy_arrays(np.array([1, 2, 3]), np.array([1, 2, 3, 4]))
+    assert not compare_numpy_arrays(np.array([1, 2, 3]), np.array([1, 2, 4]))
+    assert compare_numpy_arrays(
+        np.array([1, 2, 3]), np.array([1.0000001, 2.0000001, 3.0000001]), round=True
+    )
+    assert not compare_numpy_arrays(
+        np.array([1, 2, 3]), np.array([1.0000001, 2.0000001, 4.0000001]), round=True
+    )
+    assert not compare_numpy_arrays(np.array([1, 2, 3]), np.array([]))
+    assert not compare_numpy_arrays(np.array([[1, 2, 3]]), np.array([1, 2, 3]))
+    assert not compare_numpy_arrays(np.array([[1, 1], [1, 1]]), np.array([1, 1, 1, 1]))
 
 
 # get 20 newsgroups data
@@ -109,12 +121,19 @@ top2vec_use_cutoff = Top2Vec(
     umap_args={"random_state": 1337},
     use_cutoff_heuristics=True,
 )
+top2vec_use = Top2Vec(
+    documents=newsgroups_documents,
+    embedding_model="universal-sentence-encoder",
+    umap_args={"random_state": 1337},
+    use_cutoff_heuristics=False,
+)
 
 models = [
     top2vec_docids_cutoff,
     top2vec_use_model_embedding_cutoff,
     top2vec_use_multilang_cutoff,
     top2vec_use_cutoff,
+    top2vec_use,
 ]
 
 
@@ -362,7 +381,7 @@ def document_return_helper(
 
 
 @pytest.mark.parametrize("top2vec_model", models)
-def test_search_document_by_topic_heuristics(top2vec_model):
+def test_search_document_by_topic_heuristics(top2vec_model: Top2Vec):
     # As of now there is a different return type on the various search_documents
     # functions. It may be best to change this to be a single named tuple
     # which has None for documents if the function isn't asked to
@@ -417,7 +436,7 @@ def test_search_document_by_topic_heuristics(top2vec_model):
                     )
                 else:
                     other_res = top2vec_model.search_documents_by_topic_heuristic(
-                        t_vectors[topic_num],
+                        topic_num,
                         num_docs,
                         return_documents=return_docs,
                         reduced=reduced_topics,

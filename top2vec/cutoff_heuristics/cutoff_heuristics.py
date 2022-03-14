@@ -159,7 +159,7 @@ def __edge_cases(sorted_values: ArrayLike, max_first_delta: Optional[float] = 0.
     elif sorted_values.size <= 2:
         return 0
     rise = sorted_values[-1] - sorted_values[0]
-    if max_first_delta is not None:
+    if max_first_delta is not None and rise != 0:
         # determine percent of total drop contained between bin 0 and 1
         percent_delta = (sorted_values[1] - sorted_values[0]) / rise
         if percent_delta >= max_first_delta:
@@ -169,7 +169,7 @@ def __edge_cases(sorted_values: ArrayLike, max_first_delta: Optional[float] = 0.
 
 def find_cutoff(
     values: ArrayLike,
-    cutoff_heuristic: str = ELBOW_HEURISTIC_STR,
+    cutoff_heuristic: str = RECURSIVE_ELBOW_HEURISTIC_STR,
     first_elbow: bool = True,
     max_first_delta: Optional[float] = 0.33,
     below_line_exclusive: bool = True,

@@ -32,7 +32,16 @@ top2vec_use_model_embedding = Top2Vec(documents=newsgroups_documents,
 # test USE-multilang
 top2vec_use_multilang = Top2Vec(documents=newsgroups_documents,
                                 embedding_model='universal-sentence-encoder-multilingual')
-"""
+# With document chunking enabled
+top2vec_use_chunked = Top2Vec(documents=newsgroups_documents, speed="fast-learn",
+                              workers=8, split_documents=True, document_chunker='sequential',
+                              embedding_model='universal-sentence-encoder')
+
+# With random document chunking enabled
+top2vec_use_random_chunked = Top2Vec(documents=newsgroups_documents, speed="fast-learn",
+                                     workers=8, split_documents=True, document_chunker='random',
+                                     embedding_model='universal-sentence-encoder')
+
 # test Sentence Transformer-multilang
 top2vec_transformer_multilang = Top2Vec(documents=newsgroups_documents,
                                         embedding_model='distiluse-base-multilingual-cased')
@@ -41,12 +50,15 @@ top2vec_transformer_multilang = Top2Vec(documents=newsgroups_documents,
 top2vec_transformer_model_embedding = Top2Vec(documents=newsgroups_documents,
                                               embedding_model='distiluse-base-multilingual-cased',
                                               use_embedding_model_tokenizer=True)
+
 models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
-          top2vec_use, top2vec_use_multilang, top2vec_transformer_multilang,
-          top2vec_use_model_embedding, top2vec_transformer_model_embedding]
+          top2vec_use, top2vec_use_multilang, top2vec_use_chunked, top2vec_use_random_chunked,
+          top2vec_transformer_multilang, top2vec_use_model_embedding, top2vec_transformer_model_embedding]
 """
 models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
-          top2vec_use, top2vec_use_multilang, top2vec_use_model_embedding]
+          top2vec_use, top2vec_use_chunked, top2vec_use_random_chunked,
+          top2vec_use_multilang, top2vec_use_model_embedding]
+"""
 
 
 @pytest.mark.parametrize('top2vec_model', models)
@@ -315,24 +327,29 @@ def test_search_document_by_documents(top2vec_model: Top2Vec):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_get_documents_topics(top2vec_model: Top2Vec):
+@pytest.mark.parametrize('reduced', [True, False])
+def test_get_documents_topics(top2vec_model: Top2Vec, reduced: bool):
     doc_ids_get = top2vec_model.document_ids[[0, 5]]
 
-    if top2vec_model.hierarchy is not None:
+    if reduced and top2vec_model.hierarchy is not None:
         doc_topics, doc_dist, topic_words, topic_word_scores = top2vec_model.get_documents_topics(doc_ids=doc_ids_get,
                                                                                                   reduced=True)
     else:
-        doc_topics, doc_dist, topic_words, topic_word_scores = top2vec_model.get_documents_topics(doc_ids=doc_ids_get)
+        doc_topics, doc_dist, topic_words, topic_word_scores = top2vec_model.get_documents_topics(
+            doc_ids=doc_ids_get,
+            reduced=False
+        )
 
     assert len(doc_topics) == len(doc_dist) == len(topic_words) == len(topic_word_scores) == len(doc_ids_get)
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_get_documents_topics_multiple(top2vec_model: Top2Vec):
+@pytest.mark.parametrize('reduced', [True, False])
+def test_get_documents_topics_multiple(top2vec_model: Top2Vec, reduced: bool):
     doc_ids_get = top2vec_model.document_ids[[0, 1, 5]]
     num_topics = 2
 
-    if top2vec_model.hierarchy is not None:
+    if reduced and top2vec_model.hierarchy is not None:
         doc_topics, doc_dist, topic_words, topic_word_scores = top2vec_model.get_documents_topics(doc_ids=doc_ids_get,
                                                                                                   reduced=True,
                                                                                                   num_topics=num_topics)
@@ -341,7 +358,8 @@ def test_get_documents_topics_multiple(top2vec_model: Top2Vec):
 
     else:
         doc_topics, doc_dist, topic_words, topic_word_scores = top2vec_model.get_documents_topics(doc_ids=doc_ids_get,
-                                                                                                  num_topics=num_topics)
+                                                                                                  num_topics=num_topics,
+                                                                                                  reduced=False)
 
         actual_number_topics = top2vec_model.get_num_topics(reduced=False)
 

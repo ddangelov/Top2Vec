@@ -615,6 +615,8 @@ def test_bad_values():
     )
     assert find_elbow_index(values) == 3
 
+    assert find_cutoff([1, 1, 1, 1, 1]) == 0
+
 
 def test_slid_second_derivative():
     test = np.array([0, 1, 2, 3, 4, 5, 6])

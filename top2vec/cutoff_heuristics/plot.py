@@ -124,7 +124,7 @@ def plot_heuristic(
         RECURSIVE_ELBOW_HEURISTIC_STR: recursive_elbow,
     }
     if print_elbows:
-        print(f"Cutoff indices: {cutoff_indices}")
+        print(f"Cutoff indices (inclusive): {cutoff_indices}")
     ELBOW_COLOR = "blue"
     DERIVATIVE_COLOR = "orange"
     AVERGE_COLOR = "green"
