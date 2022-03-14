@@ -36,7 +36,7 @@ can under-estimate if the curve is a long slow decay.
 between the two (rounding up).
 
 * `recursive_elbow`: As `elbow`, but runs twice if there are at
-least 3 points to examine in the sub-graph.
+least min_for_elbow_recurse points to examine in the sub-graph.
 The first pass is used as a cutoff which is then passed back into
 the elbow finding method. Seems to behave better when the data
 forms a long slow curve.
@@ -173,6 +173,7 @@ def find_cutoff(
     first_elbow: bool = True,
     max_first_delta: Optional[float] = 0.33,
     below_line_exclusive: bool = True,
+    min_for_elbow_recurse: int = 10,
 ):
     """Finds the cutoff index (inclusive) in a series of real values.
 
@@ -217,6 +218,13 @@ def find_cutoff(
         If true then result indices which are from a cutoff below
         the linear descent line will be treated as exclusive.
         Therefore the final result will be index - 1.
+
+    min_for_elbow_recurse: int (Optional default 10)
+        The minimum index for recursing if using `recursive_elbow`.
+        If the elbow index for the first pass is less than this
+        value it will be returned.
+        Generally allows for better results if the first elbow
+        is a small value such as due to a sudden large drop.
 
     Returns
     -------
@@ -285,7 +293,7 @@ def find_cutoff(
         return round((elbow + scores_index) / 2)
     elif cutoff_heuristic == RECURSIVE_ELBOW_HEURISTIC_STR:
         first_pass = __elbow_index(distances_tuple, below_line_exclusive)
-        if first_pass > 1:
+        if first_pass >= min_for_elbow_recurse:
             return find_cutoff(
                 sorted_values[: first_pass + 1],
                 cutoff_heuristic=ELBOW_HEURISTIC_STR,

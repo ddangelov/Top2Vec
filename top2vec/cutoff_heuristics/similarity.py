@@ -100,6 +100,12 @@ def find_closest_items(
         below_line_exclusive: bool (Optional, default True)
             Will cutoff indices below the linear descent line be
             treated as exclusive.
+        min_for_elbow_recurse: int (Optional default 10)
+            The minimum index for recursing if using `recursive_elbow`.
+            If the elbow index for the first pass is less than this
+            value it will be returned.
+            Generally allows for better results if the first elbow
+            is a small value such as due to a sudden large drop.
 
     Returns
     -------
@@ -128,6 +134,7 @@ def find_closest_items(
             "first_elbow": True,
             "max_first_delta": 0.33,
             "below_line_exclusive": True,
+            "min_for_elbow_recurse": 10,
         }
     else:
         # Only overwrite defaults with what we are actually given
@@ -138,6 +145,7 @@ def find_closest_items(
             "first_elbow": cutoff_args.get("first_elbow", True),
             "max_first_delta": cutoff_args.get("max_first_delta", 0.33),
             "below_line_exclusive": cutoff_args.get("below_line_exclusive", True),
+            "min_for_elbow_recurse" : cutoff_args.get("min_for_elbow_recurse", 10)
         }
     # Need to broadcast this for each if we are multiple vectors at once
     # TODO: Decide whether or not the values should be dropped for finding an elbow

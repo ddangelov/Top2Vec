@@ -1,4 +1,9 @@
-from typing import Optional, Dict, Tuple
+"""Various methods to visualize various cutoff heuristics.
+
+Author: Shawn
+License: BSD 3 clause
+"""
+from typing import Optional, Dict, Tuple, Sequence, List
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,7 +16,10 @@ from top2vec.cutoff_heuristics.cutoff_heuristics import (
     AVERAGE_HEURISTIC_STR,
     RECURSIVE_ELBOW_HEURISTIC_STR,
 )
+from top2vec.types import DocumentId, RetrievedDocuments, SimilarItems
+from top2vec.Top2Vec import Top2Vec
 
+import sklearn.metrics
 import matplotlib.pyplot as plt
 
 
@@ -20,7 +28,7 @@ def plot_heuristic(
     figure_num: str = "1",
     figsize: Tuple[int, int] = (16, 8),
     cutoff_args: Optional[Dict] = None,
-    print_elbows=True,
+    print_elbows: bool = True,
 ):
     """Displays the various cutoff heuristics as applied to a
     series of real values.
@@ -58,6 +66,12 @@ def plot_heuristic(
             treated as exclusive.
             Note that this will cause points to be drawn one x value less
             than the maximum values on the various plots.
+        min_for_elbow_recurse: int (Optional default 10)
+            The minimum index for recursing if using `recursive_elbow`.
+            If the elbow index for the first pass is less than this
+            value it will be returned.
+            Generally allows for better results if the first elbow
+            is a small value such as due to a sudden large drop.
 
     print_elbows: bool
         Print the elbow values that were found for the provided data.
@@ -66,10 +80,12 @@ def plot_heuristic(
         first_elbow = cutoff_args.get("first_elbow", True)
         below_line_exclusive = cutoff_args.get("below_line_exclusive", True)
         max_first_delta = cutoff_args.get("max_first_delta", 0.33)
+        min_for_elbow_recurse = cutoff_args.get("max_for_elbow_recurs", 10)
     else:
         first_elbow = True
         below_line_exclusive = True
         max_first_delta = 0.33
+        min_for_elbow_recurse = 10
 
     sorted_values = np.flip(np.sort(np.array(values)))
     x = np.arange(sorted_values.size)
@@ -83,6 +99,7 @@ def plot_heuristic(
         first_elbow=first_elbow,
         below_line_exclusive=below_line_exclusive,
         max_first_delta=max_first_delta,
+        min_for_elbow_recurse=min_for_elbow_recurse,
     )
     distances_tuple = get_distances_from_line(
         sorted_values, m, sorted_values[0], first_elbow=first_elbow
@@ -102,6 +119,7 @@ def plot_heuristic(
         first_elbow=first_elbow,
         below_line_exclusive=below_line_exclusive,
         max_first_delta=max_first_delta,
+        min_for_elbow_recurse=min_for_elbow_recurse,
     )
     average_elbow = find_cutoff(
         sorted_values,
@@ -109,6 +127,7 @@ def plot_heuristic(
         first_elbow=first_elbow,
         below_line_exclusive=below_line_exclusive,
         max_first_delta=max_first_delta,
+        min_for_elbow_recurse=min_for_elbow_recurse,
     )
     recursive_elbow = find_cutoff(
         sorted_values,
@@ -116,6 +135,7 @@ def plot_heuristic(
         first_elbow=first_elbow,
         below_line_exclusive=below_line_exclusive,
         max_first_delta=max_first_delta,
+        min_for_elbow_recurse=min_for_elbow_recurse,
     )
     cutoff_indices = {
         ELBOW_HEURISTIC_STR: elbow,
@@ -196,3 +216,253 @@ def plot_heuristic(
             recursive_y_distances[recursive_elbow],
             color=RECURSIVE_COLOR,
         )
+
+
+# Some wrapper functions to also show how the heuristic is making decisions
+def get_and_plot_similar_words(
+    top2vec_model: Top2Vec,
+    keywords: Optional[Sequence[str]] = None,
+    keywords_neg: Optional[Sequence[str]] = None,
+    max_returned: Optional[int] = 250,
+    new_cutoff_args: Optional[Dict] = None,
+    figure: Optional[str] = None,
+    print_first: Optional[int] = 20,
+) -> SimilarItems:
+    """Find similar words and optionally plot the cutoff heuristics.
+
+    Parameters
+    ----------
+    top2vec_model: Top2Vec
+        A trained model to query.
+    keywords: Sequence[str]
+        List of positive keywords being used for search of semantically
+        similar words.
+    keywords_neg: Optional[Sequence[str]] (Optional, default None)
+        List of negative keywords being used for search of semantically
+        dissimilar words.
+    max_returned: Optional[int] (Optional, default 250)
+        Maximum number of words to return.
+    new_cutoff_args: Optional[Dict] (Optional, default None)
+        Temporarily change the cutoff_args of top2vec_model
+        when determining this cutoff index.
+    figure: Optional[str] (Optional, default None)
+        Provide a figure name for plotting heuristics.
+        Leave None to not plot anything.
+    print_first: Optaional[int] (Optional, default 20)
+        Will print out the top `print_first` cosine similarities to screen.
+
+    Notes
+    -----
+    The cosine similarity to the provided keywords (and keywords_neg) will
+    be ignored for purposes of determining a cutoff if `use_cutoff_heuristics`.
+
+    Returns
+    -------
+    SimilarItems
+        Tuple index 0 is the words in an NDArray, most similar first.
+        Tuple index 1 is the cosine similarity of the words and average
+        of keyword vectors as an NDArray.
+    """
+    if new_cutoff_args is not None:
+        old_cutoff_args = top2vec_model.cutoff_args
+        top2vec_model.cutoff_args = new_cutoff_args
+    similar_words, similar_scores = top2vec_model.similar_words(
+        keywords, max_returned, keywords_neg=keywords_neg, use_index=False
+    )
+    if figure is not None:
+        if keywords_neg is None:
+            _keywords_neg = []
+        else:
+            _keywords_neg = keywords_neg
+        combined_vector = top2vec_model._get_combined_vec(
+            vecs=top2vec_model._words2word_vectors(keywords),
+            vecs_neg=top2vec_model._words2word_vectors(_keywords_neg),
+        )
+        cosine_sims = (
+            1
+            - sklearn.metrics.pairwise.pairwise_distances(
+                [combined_vector],
+                top2vec_model.word_vectors,
+                metric="cosine",
+            )[0]
+        )
+        # Need to remove the ignored items
+        ignore_indices_array = np.hstack(
+            (
+                np.array([top2vec_model.word_indexes[word] for word in keywords]),
+                np.array([top2vec_model.word_indexes[word] for word in _keywords_neg]),
+            )
+        )
+        fancy_indices = np.setdiff1d(
+            np.arange(cosine_sims.shape[0]), ignore_indices_array
+        )
+        sorted_cosine_sims = -np.sort(-cosine_sims[fancy_indices])
+        if print_first:
+            print(
+                "Raw cosine similarities (minus ignore): ",
+                sorted_cosine_sims[:print_first],
+            )
+        plot_heuristic(
+            sorted_cosine_sims, figure_num=figure, cutoff_args=top2vec_model.cutoff_args
+        )
+    if new_cutoff_args is not None:
+        top2vec_model.cutoff_args = old_cutoff_args
+
+    return SimilarItems(similar_words, similar_scores)
+
+
+def get_and_plot_topic_description(
+    top2vec_model: Top2Vec,
+    topic_num: int,
+    reduced: bool = False,
+    max_returned: Optional[int] = 250,
+    new_cutoff_args: Optional[Dict] = None,
+    figure: Optional[str] = None,
+    print_first: Optional[int] = 20,
+) -> SimilarItems:
+    """Find descriptive words for a topic and optionally plot the
+    cutoff heuristics.
+
+    Parameters
+    ----------
+    top2vec_model: Top2Vec
+        A trained model to query.
+    topic_num: int
+        The topic number to query.
+    reduced: bool
+        Whether the topic number should be from the
+        hierarchically reduced models.
+    max_returned: Optional[int] (Optional, default 250)
+        Maximum number of words to return.
+    new_cutoff_args: Optional[Dict] (Optional, default None)
+        Temporarily change the cutoff_args of top2vec_model
+        when determining this cutoff index.
+    figure: Optional[str] (Optional, default None)
+        Provide a figure name for plotting heuristics.
+        Leave None to not plot anything.
+    print_first: Optaional[int] (Optional, default 20)
+        Will print out the top `print_first` cosine similarities to screen.
+
+    Returns
+    -------
+    SimilarItems
+        Tuple index 0 is the words in an NDArray, most similar first.
+        Tuple index 1 is the cosine similarity of the words and average
+        of keyword vectors as an NDArray.
+    """
+    if new_cutoff_args is not None:
+        old_cutoff_args = top2vec_model.cutoff_args
+        top2vec_model.cutoff_args = new_cutoff_args
+    if reduced:
+        t_vector = top2vec_model.topic_vectors_reduced[topic_num]
+    else:
+        t_vector = top2vec_model.topic_vectors[topic_num]
+    similar_words, similar_scores = top2vec_model.search_words_by_vector_heuristic(
+        t_vector, max_returned
+    )
+    if figure is not None:
+        cosine_sims = 1 - sklearn.metrics.pairwise.pairwise_distances(
+            [t_vector], top2vec_model.word_vectors, metric="cosine"
+        )
+        sorted_cosine_sims = -np.sort(-cosine_sims[0])
+        if print_first:
+            print("Raw cosine similarities: ", sorted_cosine_sims[:print_first])
+        plot_heuristic(
+            sorted_cosine_sims, figure_num=figure, cutoff_args=top2vec_model.cutoff_args
+        )
+    if new_cutoff_args is not None:
+        top2vec_model.cutoff_args = old_cutoff_args
+
+    return SimilarItems(similar_words, similar_scores)
+
+
+def get_and_plot_similar_documents(
+    top2vec_model: Top2Vec,
+    doc_ids: Sequence[DocumentId],
+    doc_ids_neg: Optional[Sequence[DocumentId]] = None,
+    max_returned: Optional[int] = 250,
+    new_cutoff_args: Optional[Dict] = None,
+    figure: Optional[str] = None,
+    print_first: Optional[int] = 20,
+) -> RetrievedDocuments:
+    """Find descriptive words for a topic and optionally plot the
+    cutoff heuristics.
+
+    Parameters
+    ----------
+    top2vec_model: Top2Vec
+        A trained model to query.
+    doc_ids: Sequence[DocumentId]
+        Unique ids of document. If ids were not given, the index of
+        document in the original corpus.
+
+    doc_ids_neg: Optional[Sequence[DocumentId]] (Optional default None)
+        Unique ids of document. If ids were not given, the index of
+        document in the original corpus.
+    max_returned: Optional[int] (Optional, default 250)
+        Maximum number of documents to return.
+    new_cutoff_args: Optional[Dict] (Optional, default None)
+        Temporarily change the cutoff_args of top2vec_model
+        when determining this cutoff index.
+    figure: Optional[str] (Optional, default None)
+        Provide a figure name for plotting heuristics.
+        Leave None to not plot anything.
+    print_first: Optaional[int] (Optional, default 20)
+        Will print out the top `print_first` cosine similarities to screen.
+
+    Returns
+    -------
+    RetrievedDocuments
+        The documents most similar to the average of the provided
+        document vectors.
+        (Documents, Cosine Similarities, Doc_Ids)
+        Tuple index 0 will be None if `return_documents` is False or
+        `Top2Vec.documents` is None.
+    """
+    if new_cutoff_args is not None:
+        old_cutoff_args = top2vec_model.cutoff_args
+        top2vec_model.cutoff_args = new_cutoff_args
+
+    retrieved_docs = top2vec_model.search_documents_by_documents(
+        doc_ids=doc_ids,
+        doc_ids_neg=doc_ids_neg,
+        num_docs=max_returned,
+        return_documents=True,
+    )
+
+    if figure is not None:
+        if doc_ids_neg is None:
+            _doc_ids_neg = []
+        else:
+            _doc_ids_neg = doc_ids_neg
+        doc_indexes = top2vec_model._get_document_indexes(doc_ids)
+        doc_indexes_neg = top2vec_model._get_document_indexes(_doc_ids_neg)
+        combined_vector = top2vec_model._get_combined_vec(
+            vecs=[top2vec_model.document_vectors[ind] for ind in doc_indexes],
+            vecs_neg=[top2vec_model.document_vectors[ind] for ind in doc_indexes_neg],
+        )
+
+        cosine_sims = (
+            1
+            - sklearn.metrics.pairwise.pairwise_distances(
+                [combined_vector], top2vec_model.document_vectors, metric="cosine"
+            )[0]
+        )
+        # Need to remove the ignored items
+        ignore_indices_array = np.hstack((doc_indexes, doc_indexes_neg))
+        fancy_indices = np.setdiff1d(
+            np.arange(cosine_sims.shape[0]), ignore_indices_array
+        )
+        sorted_cosine_sims = -np.sort(-cosine_sims[fancy_indices])
+        if print_first:
+            print(
+                "Raw cosine similarities (minus ignore): ",
+                sorted_cosine_sims[:print_first],
+            )
+        plot_heuristic(
+            sorted_cosine_sims, figure_num=figure, cutoff_args=top2vec_model.cutoff_args
+        )
+
+    if new_cutoff_args is not None:
+        top2vec_model.cutoff_args = old_cutoff_args
+    return retrieved_docs

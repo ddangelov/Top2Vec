@@ -325,6 +325,7 @@ def test_recursive_elbow_index():
         cutoff_heuristic=ELBOW_HEURISTIC_STR,
         first_elbow=True,
         below_line_exclusive=False,
+        min_for_elbow_recurse=4,
     )
     assert first_pass == 5
     second_pass = find_cutoff(
@@ -332,12 +333,14 @@ def test_recursive_elbow_index():
         cutoff_heuristic=ELBOW_HEURISTIC_STR,
         first_elbow=True,
         below_line_exclusive=False,
+        min_for_elbow_recurse=4,
     )
     assert second_pass == find_cutoff(
         test_data,
         cutoff_heuristic=RECURSIVE_ELBOW_HEURISTIC_STR,
         first_elbow=True,
         below_line_exclusive=False,
+        min_for_elbow_recurse=4,
     )
     assert second_pass == 4
 
@@ -346,6 +349,7 @@ def test_recursive_elbow_index():
         cutoff_heuristic=ELBOW_HEURISTIC_STR,
         first_elbow=True,
         below_line_exclusive=True,
+        min_for_elbow_recurse=4,
     )
     assert first_pass == 4
     second_pass = find_cutoff(
@@ -353,12 +357,14 @@ def test_recursive_elbow_index():
         cutoff_heuristic=ELBOW_HEURISTIC_STR,
         first_elbow=True,
         below_line_exclusive=True,
+        min_for_elbow_recurse=4,
     )
     assert second_pass == find_cutoff(
         test_data,
         cutoff_heuristic=RECURSIVE_ELBOW_HEURISTIC_STR,
         first_elbow=True,
         below_line_exclusive=True,
+        min_for_elbow_recurse=4,
     )
     assert second_pass == 1
 
@@ -369,6 +375,7 @@ def test_recursive_elbow_index():
         first_elbow=True,
         below_line_exclusive=False,
         max_first_delta=None,
+        min_for_elbow_recurse=2,
     )
     assert first_pass == 1
     assert 1 == find_cutoff(
@@ -377,6 +384,7 @@ def test_recursive_elbow_index():
         first_elbow=True,
         below_line_exclusive=False,
         max_first_delta=None,
+        min_for_elbow_recurse=2,
     )
 
 
