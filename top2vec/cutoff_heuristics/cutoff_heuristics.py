@@ -248,7 +248,7 @@ def find_cutoff(
         return -1
 
     # Make sure the provided values are a sorted numpy array
-    sorted_values = -np.sort(-np.array(values))
+    sorted_values = np.flip(np.sort(np.array(values)))
     edge_case_index = __edge_cases(
         sorted_values=sorted_values, max_first_delta=max_first_delta
     )
@@ -287,7 +287,7 @@ def find_cutoff(
         first_pass = __elbow_index(distances_tuple, below_line_exclusive)
         if first_pass > 1:
             return find_cutoff(
-                values[: first_pass + 1],
+                sorted_values[: first_pass + 1],
                 cutoff_heuristic=ELBOW_HEURISTIC_STR,
                 first_elbow=first_elbow,
                 max_first_delta=max_first_delta,

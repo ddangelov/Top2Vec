@@ -71,7 +71,7 @@ def plot_heuristic(
         below_line_exclusive = True
         max_first_delta = 0.33
 
-    sorted_values = -np.sort(-np.array(values))
+    sorted_values = np.flip(np.sort(np.array(values)))
     x = np.arange(sorted_values.size)
 
     m = (sorted_values[-1] - sorted_values[0]) / (sorted_values.size - 1)
