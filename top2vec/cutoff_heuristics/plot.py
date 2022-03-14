@@ -3,7 +3,7 @@
 Author: Shawn
 License: BSD 3 clause
 """
-from typing import Optional, Dict, Tuple, Sequence, List
+from typing import Optional, Dict, Tuple, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -357,8 +357,8 @@ def get_and_plot_topic_description(
         t_vector = top2vec_model.topic_vectors_reduced[topic_num]
     else:
         t_vector = top2vec_model.topic_vectors[topic_num]
-    similar_words, similar_scores = top2vec_model.search_words_by_vector_heuristic(
-        t_vector, max_returned
+    similar_words, similar_scores = top2vec_model.describe_topic(
+        topic_num, reduced=reduced, use_index=False
     )
     if figure is not None:
         cosine_sims = 1 - sklearn.metrics.pairwise.pairwise_distances(

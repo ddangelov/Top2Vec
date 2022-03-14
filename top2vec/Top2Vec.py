@@ -19,7 +19,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
 from scipy.special import softmax
 
-from typing import List, Dict, Optional, Tuple, Union, NamedTuple, Sequence
+from typing import List, Dict, Optional, Tuple, Sequence
 from top2vec.cutoff_heuristics.similarity import find_closest_items, find_closest_items_to_average
 from top2vec.types import RetrievedDocuments, DocumentId, SimilarItems
 
@@ -2052,6 +2052,74 @@ class Top2Vec:
         # Supports cutoff heuristics
         return self.search_topics_by_vector(query_vec, num_topics=num_topics, reduced=reduced)
 
+    def describe_topic(
+        self,
+        topic_num: int,
+        reduced: bool = False,
+        num_words: Optional[int] = None,
+        use_index: bool = False,
+        ef: Optional[int] = None,
+    ):
+        """
+        Find the closest words to a topic centroid vector.
+
+        These are the words closest to the vector. Words are ordered by
+        proximity to the vector. Successive words in the list are less
+        semantically similar to the vector.
+
+        Parameters
+        ----------
+        topic_num: int
+            The topic number to search for.
+
+        reduced: bool (Optional, default False)
+            Original topics are searched by default. If True the
+            reduced topics will be searched.
+
+        num_words: Optional[int] (Optional, default None)
+            Number of words to return, defaults to `max_topic_terms`.
+            If `use_cutoff_heuristics` is True this will be the max number
+            of words returned.
+
+        use_index: bool (Optional default False)
+            If index_documents method has been called, setting this to True
+            will speed up search for models with large number of documents.
+
+        ef: Optional[int] (Optional default None)
+            Higher ef leads to more accurate but slower search. This value
+            must be higher than num_docs.
+
+            For more information see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+
+        Notes
+        -----
+        Running with use_index will ignore model.use_cutoff_heuristics.
+
+        Returns
+        -------
+        SimilarItems
+            Tuple index 0 is the words as an NDArray, most similar first.
+            Tuple index 1 is the cosine similarity of the words and topic
+            vector as an NDArray.
+        """
+        self._validate_num_topics(topic_num, reduced)
+
+        if num_words is None:
+            _num_words = min(len(self.vocab), self.max_topic_terms)
+        else:
+            _num_words = min(len(self.vocab), num_words)
+
+        if reduced:
+            topic_vector = self.topic_vectors_reduced[topic_num]
+        else:
+            topic_vector = self.topic_vectors[topic_num]
+
+        # Handles if we are operating with cutoff heuristics
+        return self.search_words_by_vector(
+            topic_vector, _num_words, use_index=use_index, ef=ef
+        )
+
     def search_documents_by_vector(
         self,
         vector: NDArray[np.float64],
@@ -3037,7 +3105,12 @@ class Top2Vec:
             documents = None
         return RetrievedDocuments(documents, doc_scores, doc_ids)
 
-    def generate_topic_wordcloud(self, topic_num, background_color="black", reduced=False):
+    def generate_topic_wordcloud(
+        self,
+        topic_num: int,
+        background_color: str = "black",
+        reduced: bool = False
+    ):
         """
         Create a word cloud for a topic.
 
@@ -3051,7 +3124,7 @@ class Top2Vec:
         topic_num: int
             The topic number to search.
 
-        background_color : str (Optional, default='white')
+        background_color : str (Optional, default='black')
             Background color for the word cloud image. Suggested options are:
                 * white
                 * black
@@ -3066,15 +3139,20 @@ class Top2Vec:
         displayed.
 
         """
-
-        if reduced:
-            self._validate_hierarchical_reduction()
-            self._validate_topic_num(topic_num, reduced)
-            word_score_dict = dict(zip(self.topic_words_reduced[topic_num],
-                                       softmax(self.topic_word_scores_reduced[topic_num])))
+        # NOTE: This actually handles all cases but I wanted to not touch the
+        # existing code as much as possible
+        if self.use_cutoff_heuristics:
+            topic_words = self.describe_topic(topic_num, reduced=reduced)
+            word_score_dict = dict(zip(topic_words.items), softmax(topic_words.scores))
         else:
-            self._validate_topic_num(topic_num, reduced)
-            word_score_dict = dict(zip(self.topic_words[topic_num],
+            if reduced:
+                self._validate_hierarchical_reduction()
+                self._validate_topic_num(topic_num, reduced)
+                word_score_dict = dict(zip(self.topic_words_reduced[topic_num],
+                                       softmax(self.topic_word_scores_reduced[topic_num])))
+            else:
+                self._validate_topic_num(topic_num, reduced)
+                word_score_dict = dict(zip(self.topic_words[topic_num],
                                        softmax(self.topic_word_scores[topic_num])))
 
         plt.figure(figsize=(16, 4),

@@ -628,7 +628,7 @@ def test_search_document_by_documents_heuristics(top2vec_model: Top2Vec):
 
 
 @pytest.mark.parametrize("top2vec_model", models)
-def test_similar_words(top2vec_model):
+def test_similar_words(top2vec_model: Top2Vec):
     num_words = min(len(top2vec_model.vocab) - 1, 50)
     # This should return similar items that do NOT include the provided keywords
     for word_index in range(num_words):
@@ -741,3 +741,45 @@ def test_cutoff_args_passthrough():
 
     top2vec_model.cutoff_args = old_cutoff_args
     top2vec_model.use_cutoff_heuristics = old_use_cutoff_heuristics
+
+
+@pytest.mark.parametrize("top2vec_model", models)
+@pytest.mark.parametrize("reduced", [True, False])
+@pytest.mark.parametrize("index", [True, False])
+def test_describe_topic(top2vec_model: Top2Vec, reduced: bool, index: bool):
+    base_len = top2vec_model.max_topic_terms
+    new_len = base_len * 2
+    # Make sure we actually have a hierarchical reduction
+    if reduced and top2vec_model.hierarchy is None:
+        return
+    if index and top2vec_model.word_index is None:
+        return
+
+    # Ensure above and below raises errors
+    if reduced:
+        num_topics = len(top2vec_model.topic_vectors_reduced)
+    else:
+        num_topics = len(top2vec_model.topic_vectors)
+
+    with pytest.raises(ValueError):
+        top2vec_model.describe_topic(-1, new_len, reduced=reduced, index=index)
+
+    with pytest.raises(ValueError):
+        top2vec_model.describe_topic(num_topics, new_len, reduced=reduced, index=index)
+
+    for topic_num in range(num_topics):
+        similar_words = top2vec_model.describe_topic(
+            topic_num, num_words=new_len, reduced=reduced, index=index
+        )
+        if top2vec_model.use_cutoff_heuristics:
+            assert len(similar_words.items) <= new_len
+        else:
+            assert len(similar_words.items) == new_len
+
+        similar_words = top2vec_model.describe_topic(
+            topic_num, num_words=None, reduced=reduced, index=index
+        )
+        if top2vec_model.use_cutoff_heuristics:
+            assert len(similar_words.items) <= base_len
+        else:
+            assert len(similar_words.items) == base_len
