@@ -2059,7 +2059,7 @@ class Top2Vec:
         num_words: Optional[int] = None,
         use_index: bool = False,
         ef: Optional[int] = None,
-    ):
+    ) -> SimilarItems:
         """
         Find the closest words to a topic centroid vector.
 
@@ -2103,7 +2103,7 @@ class Top2Vec:
             Tuple index 1 is the cosine similarity of the words and topic
             vector as an NDArray.
         """
-        self._validate_num_topics(topic_num, reduced)
+        self._validate_topic_num(topic_num, reduced)
 
         if num_words is None:
             _num_words = min(len(self.vocab), self.max_topic_terms)
@@ -2320,11 +2320,11 @@ class Top2Vec:
                                                                        vector, num_words)
 
         words = np.array([self.vocab[index] for index in word_indexes])
-        return words, word_scores
+        return SimilarItems(words, word_scores)
 
     def search_words_by_vector_heuristic(
         self, vector: NDArray[np.float64], num_words: Optional[int]
-    ) -> Tuple[NDArray, NDArray[np.float64]]:
+    ) -> SimilarItems:
         """
         Semantic search of words using a vector.
 
@@ -2358,7 +2358,7 @@ class Top2Vec:
             self.word_vectors, vector, num_words, self.cutoff_args
         )
         words = np.array([self.vocab[index] for index in word_indexes])
-        return words, word_scores
+        return SimilarItems(words, word_scores)
 
     def search_topics_by_vector(
         self, vector: NDArray[np.float64], num_topics: int, reduced=False

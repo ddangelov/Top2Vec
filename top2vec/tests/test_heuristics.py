@@ -382,11 +382,6 @@ def document_return_helper(
 
 @pytest.mark.parametrize("top2vec_model", models)
 def test_search_document_by_topic_heuristics(top2vec_model: Top2Vec):
-    # As of now there is a different return type on the various search_documents
-    # functions. It may be best to change this to be a single named tuple
-    # which has None for documents if the function isn't asked to
-    # return them
-
     if top2vec_model.hierarchy is None:
         # perform reduction
         new_number_topics = int(len(top2vec_model.topic_vectors) / 2)
@@ -745,14 +740,14 @@ def test_cutoff_args_passthrough():
 
 @pytest.mark.parametrize("top2vec_model", models)
 @pytest.mark.parametrize("reduced", [True, False])
-@pytest.mark.parametrize("index", [True, False])
-def test_describe_topic(top2vec_model: Top2Vec, reduced: bool, index: bool):
+@pytest.mark.parametrize("use_index", [True, False])
+def test_describe_topic(top2vec_model: Top2Vec, reduced: bool, use_index: bool):
     base_len = top2vec_model.max_topic_terms
     new_len = base_len * 2
     # Make sure we actually have a hierarchical reduction
     if reduced and top2vec_model.hierarchy is None:
         return
-    if index and top2vec_model.word_index is None:
+    if use_index and top2vec_model.word_index is None:
         return
 
     # Ensure above and below raises errors
@@ -762,14 +757,18 @@ def test_describe_topic(top2vec_model: Top2Vec, reduced: bool, index: bool):
         num_topics = len(top2vec_model.topic_vectors)
 
     with pytest.raises(ValueError):
-        top2vec_model.describe_topic(-1, new_len, reduced=reduced, index=index)
+        top2vec_model.describe_topic(
+            -1, num_words=new_len, reduced=reduced, use_index=use_index
+        )
 
     with pytest.raises(ValueError):
-        top2vec_model.describe_topic(num_topics, new_len, reduced=reduced, index=index)
+        top2vec_model.describe_topic(
+            num_topics, num_words=new_len, reduced=reduced, use_index=use_index
+        )
 
     for topic_num in range(num_topics):
         similar_words = top2vec_model.describe_topic(
-            topic_num, num_words=new_len, reduced=reduced, index=index
+            topic_num, num_words=new_len, reduced=reduced, use_index=use_index
         )
         if top2vec_model.use_cutoff_heuristics:
             assert len(similar_words.items) <= new_len
@@ -777,7 +776,7 @@ def test_describe_topic(top2vec_model: Top2Vec, reduced: bool, index: bool):
             assert len(similar_words.items) == new_len
 
         similar_words = top2vec_model.describe_topic(
-            topic_num, num_words=None, reduced=reduced, index=index
+            topic_num, num_words=None, reduced=reduced, use_index=use_index
         )
         if top2vec_model.use_cutoff_heuristics:
             assert len(similar_words.items) <= base_len
