@@ -62,7 +62,7 @@ class SimilarItems(NamedTuple):
         original vector.
     """
 
-    indices: NDArray
+    items: NDArray
     scores: NDArray[np.float64]
 
 

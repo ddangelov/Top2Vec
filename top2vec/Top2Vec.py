@@ -2724,6 +2724,11 @@ class Top2Vec:
             For more information see:
             https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
 
+        Notes
+        -----
+        The cosine similarity to the provided keywords (and keywords_neg) will
+        be ignored for purposes of determining a cutoff if `use_cutoff_heuristics`.
+
         Returns
         -------
         SimilarItems
@@ -2740,28 +2745,43 @@ class Top2Vec:
         neg_word_vecs = self._words2word_vectors(keywords_neg)
         combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
 
-        num_res = min(
-            num_words + len(keywords) + len(keywords_neg), self.word_vectors.shape[0]
-        )
+        # Handle ignoring the provided keyword vectors on query if using
+        # heuristics
+        if self.use_cutoff_heuristics and not use_index:
+            word_indexes, word_scores = find_closest_items_to_average(
+                self.word_vectors,
+                positive=word_vecs,
+                ignore_positive_indices=[self.word_indexes[word] for word in keywords],
+                negative=neg_word_vecs,
+                ignore_negative_indices=[
+                    self.word_indexes[word] for word in keywords_neg
+                ],
+                topn=num_words,
+                cutoff_args=self.cutoff_args,
+            )
+            words = np.array([self.vocab[index] for index in word_indexes])
+            return SimilarItems(words, word_scores)
+        else:
 
-        # if use_index:
-        # Cutoff heuristic version is supported here
-        # This is causing different behavior than expected because
-        # we aren't ignoring the term itself when searching for close
-        # items
-        words, word_scores = self.search_words_by_vector(
-            vector=combined_vector, num_words=num_res, use_index=use_index, ef=ef
-        )
+            # Ensure that the num_res doesn't get cutoff by the provided query
+            num_res = min(
+                num_words + len(keywords) + len(keywords_neg),
+                self.word_vectors.shape[0],
+            )
 
-        res_indexes = [
-            index
-            for index, word in enumerate(words)
-            if word not in list(keywords) + list(keywords_neg)
-        ][:num_words]
-        words = words[res_indexes]
-        word_scores = word_scores[res_indexes]
+            words, word_scores = self.search_words_by_vector(
+                vector=combined_vector, num_words=num_res, use_index=use_index, ef=ef
+            )
 
-        return words, word_scores
+            res_indexes = [
+                index
+                for index, word in enumerate(words)
+                if word not in list(keywords) + list(keywords_neg)
+            ][:num_words]
+            words = words[res_indexes]
+            word_scores = word_scores[res_indexes]
+
+            return SimilarItems(words, word_scores)
 
     def search_topics(self, keywords, num_topics, keywords_neg=None, reduced=False):
         """

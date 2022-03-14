@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import sklearn.metrics
+from top2vec.cutoff_heuristics.cutoff_heuristics import ELBOW_HEURISTIC_STR
 from top2vec.cutoff_heuristics.similarity import (
     describe_closest_items,
     find_closest_items,
@@ -75,14 +76,27 @@ def test_find_closest_items():
     test_vectors = np.array(test_vectors_list)
     cosine0_3 = get_cosine_sim(test_vectors[0], test_embedding[3])
 
-    assert find_closest_items(None, test_embedding) == []
+    assert (
+        find_closest_items(
+            None, test_embedding, cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR}
+        )
+        == []
+    )
 
-    res = find_closest_items(test_vectors, test_embedding)
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
     for indices, scores in res:
         assert len(indices) == len(scores)
     assert compare_numpy_arrays(res[0][1], np.array([1.0, 1.0, cosine0_3]), round=True)
 
-    res = find_closest_items(test_vectors_list, test_embedding)
+    res = find_closest_items(
+        test_vectors_list,
+        test_embedding,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
     for indices, scores in res:
         assert len(indices) == len(scores)
     assert compare_numpy_arrays(res[0][1], np.array([1.0, 1.0, cosine0_3]), round=True)
@@ -106,7 +120,12 @@ def test_find_closest_items():
         ]
     )
 
-    res = find_closest_items(test_vectors, test_embedding, ignore_indices=None)
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=None,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
     for indices, scores in res:
         assert len(indices) == len(scores)
     assert compare_numpy_arrays(res[0][0], np.array([5, 4, 2, 1, 3]))
@@ -118,7 +137,7 @@ def test_find_closest_items():
         test_vectors,
         test_embedding,
         ignore_indices=None,
-        cutoff_args={"max_first_delta": 0},
+        cutoff_args={"max_first_delta": 0, "cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -148,7 +167,13 @@ def test_find_closest_items():
         ),
         round=True,
     )
-    res = find_closest_items(test_vectors, test_embedding, ignore_indices=None, topn=2)
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=None,
+        topn=2,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
     for indices, scores in res:
         assert len(indices) == len(scores)
     assert compare_numpy_arrays(
@@ -185,7 +210,10 @@ def test_find_closest_items():
     )
     # What about if we ignore everything?
     res = find_closest_items(
-        test_vectors, test_embedding, ignore_indices=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        test_vectors,
+        test_embedding,
+        ignore_indices=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     for indices, scores in res:
         assert len(indices) == 0
@@ -204,6 +232,7 @@ def test_find_closest_items():
             6,
         ],
         require_positive=True,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     # When we don't require positive
     assert len(res[0][0]) == len(res[0][1]) == 1
@@ -222,6 +251,7 @@ def test_find_closest_items():
             5,
         ],
         require_positive=False,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     # When we don't require positive
     assert len(res[0][0]) == len(res[0][1]) == 1
@@ -239,24 +269,40 @@ def test_find_closest_items():
             5,
         ],
         require_positive=True,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     # When we don't require positive
     assert len(res[0][0]) == len(res[0][1]) == 1
     assert len(res[1][0]) == len(res[1][1]) == 0
     assert len(res[2][0]) == len(res[2][1]) == 0
     # Now real tests
-    res = find_closest_items(test_vectors, test_embedding, ignore_indices=[4, 5])
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=[4, 5],
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
     for indices, scores in res:
         assert len(indices) == len(scores)
     assert compare_numpy_arrays(res[0][0], np.array([2, 1, 3]))
     assert compare_numpy_arrays(res[0][1], np.array([1.0, 1.0, cosine0_3]), round=True)
 
-    res = find_closest_items(test_vectors, test_embedding, ignore_indices=[1, 2])
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=[1, 2],
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
     for indices, scores in res:
         assert len(indices) == len(scores)
     assert compare_numpy_arrays(res[0][0], np.array([5, 4, 3]))
     assert compare_numpy_arrays(res[0][1], np.array([1.0, 1.0, cosine0_3]), round=True)
-    res = find_closest_items(test_vectors, test_embedding, ignore_indices=[1])
+    res = find_closest_items(
+        test_vectors,
+        test_embedding,
+        ignore_indices=[1],
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
     for indices, scores in res:
         assert len(indices) == len(scores)
     assert compare_numpy_arrays(res[0][0], np.array([5, 4, 2, 3]))
@@ -264,7 +310,10 @@ def test_find_closest_items():
         res[0][1], np.array([1.0, 1.0, 1.0, cosine0_3]), round=True
     )
     res = find_closest_items(
-        test_vectors, test_embedding, ignore_indices=np.array([1, 4])
+        test_vectors,
+        test_embedding,
+        ignore_indices=np.array([1, 4]),
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -282,9 +331,7 @@ def test_find_closest_items():
             2,
         ],
         require_positive=False,
-        cutoff_args={
-            "max_first_delta": None,
-        },
+        cutoff_args={"max_first_delta": None, "cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -299,6 +346,7 @@ def test_find_closest_items():
             2,
         ],
         require_positive=True,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -309,7 +357,11 @@ def test_find_closest_items():
         test_embedding,
         ignore_indices=[0, 1, 2, 4, 5],
         require_positive=False,
-        cutoff_args={"max_first_delta": None, "below_line_exclusive": False},
+        cutoff_args={
+            "max_first_delta": None,
+            "below_line_exclusive": False,
+            "cutoff_heuristic": ELBOW_HEURISTIC_STR,
+        },
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -322,7 +374,11 @@ def test_find_closest_items():
         test_embedding,
         ignore_indices=[0, 1, 2, 4, 5],
         require_positive=False,
-        cutoff_args={"max_first_delta": None, "below_line_exclusive": True},
+        cutoff_args={
+            "max_first_delta": None,
+            "below_line_exclusive": True,
+            "cutoff_heuristic": ELBOW_HEURISTIC_STR,
+        },
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -336,6 +392,7 @@ def test_find_closest_items():
         test_embedding,
         ignore_indices=[0, 1, 2, 4, 5],
         require_positive=True,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     for indices, scores in res:
         assert len(indices) == len(scores)
@@ -371,7 +428,10 @@ def test_find_closest_items_with_averages():
         result_tuples = []
         result_tuples.append(
             find_closest_items_to_average(
-                embedding, positive=pvecs, ignore_positive_indices=ignore_indices
+                embedding,
+                positive=pvecs,
+                ignore_positive_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
@@ -380,11 +440,15 @@ def test_find_closest_items_with_averages():
                 positive=pvecs,
                 negative=[],
                 ignore_positive_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
             find_closest_items_to_average(
-                embedding, positive=pvecs, ignore_negative_indices=ignore_indices
+                embedding,
+                positive=pvecs,
+                ignore_negative_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
@@ -393,6 +457,7 @@ def test_find_closest_items_with_averages():
                 positive=pvecs,
                 ignore_positive_indices=ignore_indices,
                 ignore_negative_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
@@ -401,16 +466,23 @@ def test_find_closest_items_with_averages():
                 positive=[],
                 negative=nvecs,
                 ignore_positive_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
             find_closest_items_to_average(
-                embedding, negative=nvecs, ignore_positive_indices=ignore_indices
+                embedding,
+                negative=nvecs,
+                ignore_positive_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
             find_closest_items_to_average(
-                embedding, negative=nvecs, ignore_negative_indices=ignore_indices
+                embedding,
+                negative=nvecs,
+                ignore_negative_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
@@ -420,6 +492,7 @@ def test_find_closest_items_with_averages():
                 negative=nvecs,
                 ignore_positive_indices=ignore_indices,
                 ignore_negative_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
@@ -428,6 +501,7 @@ def test_find_closest_items_with_averages():
                 positive=pvecs,
                 negative=nvecs,
                 ignore_positive_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
@@ -436,6 +510,7 @@ def test_find_closest_items_with_averages():
                 positive=pvecs,
                 negative=nvecs,
                 ignore_negative_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
         result_tuples.append(
@@ -445,6 +520,7 @@ def test_find_closest_items_with_averages():
                 negative=nvecs,
                 ignore_positive_indices=ignore_indices,
                 ignore_negative_indices=ignore_indices,
+                cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
             )
         )
 
@@ -510,6 +586,53 @@ def test_find_closest_items_with_averages():
         np.array([1.0, 1.0, get_cosine_sim([4, 2], test_embedding[3])]),
     )
 
+    # Different test: ensure that when we say return up to 5
+    # the vectors which are ignored are not considered part of that 5
+    other_embedding = np.array(
+        [
+            [2, 3.5],
+            [1, 2],
+            [2, 4],
+            [3, 6],
+            [4, 8],
+            [5, 10],
+            [-2, -3.5],
+            [-4, -7],
+        ]
+    )
+    res = find_closest_items_to_average(
+        other_embedding,
+        positive=np.array([2, 3.5]),
+        ignore_positive_indices=[],
+        topn=5,
+        require_positive=False,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
+    assert len(res.indices) == len(res.scores) == 5
+    assert 0 in set(res.indices)
+
+    res = find_closest_items_to_average(
+        other_embedding,
+        positive=np.array([2, 3.5]),
+        ignore_positive_indices=[0],
+        topn=5,
+        require_positive=False,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
+    assert len(res.indices) == len(res.scores) == 5
+    assert set(res.indices) == set([1, 2, 3, 4, 5])
+
+    res = find_closest_items_to_average(
+        other_embedding,
+        negative=np.array([-2, -3.5]),
+        ignore_negative_indices=[0],
+        topn=5,
+        require_positive=False,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
+    assert len(res.indices) == len(res.scores) == 5
+    assert set(res.indices) == set([1, 2, 3, 4, 5])
+
 
 def test_find_similar_in_embedding():
     # This is just a wrapper around find_closest_items_to_average
@@ -535,21 +658,30 @@ def test_find_similar_in_embedding():
     with pytest.raises(TypeError):
         find_similar_in_embedding(None, positive_indices=[1])
     scores, indices = find_similar_in_embedding(
-        test_embedding, positive_indices=[1], require_positive=True
+        test_embedding,
+        positive_indices=[1],
+        require_positive=True,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert len(scores) == len(indices) == 4
     compare_numpy_arrays(indices, np.array([5, 4, 2, 0]))
     compare_numpy_arrays(scores, np.array([1.0, 1.0, 1.0, cosines[1][0]]), round=True)
 
     scores, indices = find_similar_in_embedding(
-        test_embedding, positive_indices=[1], require_positive=False
+        test_embedding,
+        positive_indices=[1],
+        require_positive=False,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert len(scores) == len(indices) == 4
     compare_numpy_arrays(indices, np.array([5, 4, 2, 0]))
     compare_numpy_arrays(scores, np.array([1.0, 1.0, 1.0, cosines[1][0]]), round=True)
 
     scores, indices = find_similar_in_embedding(
-        test_embedding, positive_indices=[1], topn=2
+        test_embedding,
+        positive_indices=[1],
+        topn=2,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert len(scores) == len(indices) == 2
     compare_numpy_arrays(
@@ -563,20 +695,30 @@ def test_find_similar_in_embedding():
     )
     compare_numpy_arrays(scores, np.array([1.0, 1.0]), round=True)
 
-    scores, indices = find_similar_in_embedding(test_embedding, positive_indices=[4, 5])
-    assert len(scores) == len(indices) == 3
-    compare_numpy_arrays(indices, np.array([2, 1, 0]))
-    compare_numpy_arrays(scores, np.array([1.0, 1.0, cosines[1][0]]), round=True)
-
     scores, indices = find_similar_in_embedding(
-        test_embedding, positive_indices=[4, 5], negative_indices=[]
+        test_embedding,
+        positive_indices=[4, 5],
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert len(scores) == len(indices) == 3
     compare_numpy_arrays(indices, np.array([2, 1, 0]))
     compare_numpy_arrays(scores, np.array([1.0, 1.0, cosines[1][0]]), round=True)
 
     scores, indices = find_similar_in_embedding(
-        test_embedding, positive_indices=[], negative_indices=[7]
+        test_embedding,
+        positive_indices=[4, 5],
+        negative_indices=[],
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
+    assert len(scores) == len(indices) == 3
+    compare_numpy_arrays(indices, np.array([2, 1, 0]))
+    compare_numpy_arrays(scores, np.array([1.0, 1.0, cosines[1][0]]), round=True)
+
+    scores, indices = find_similar_in_embedding(
+        test_embedding,
+        positive_indices=[],
+        negative_indices=[7],
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert len(scores) == len(indices) == 5
     compare_numpy_arrays(indices, np.array([5, 4, 2, 1, 0]))
@@ -585,10 +727,17 @@ def test_find_similar_in_embedding():
     )
 
     scores0, indices0 = find_similar_in_embedding(
-        test_embedding, positive_indices=[1], topn=2
+        test_embedding,
+        positive_indices=[1],
+        topn=2,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     scores1, indices1 = find_closest_items(
-        test_embedding[1], test_embedding, topn=2, ignore_indices=[1]
+        test_embedding[1],
+        test_embedding,
+        topn=2,
+        ignore_indices=[1],
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )[0]
 
     # We should get an identical value when running find_similar
@@ -626,7 +775,12 @@ def test_describe_closest_items():
         describe_closest_items(test_vectors, test_embedding[:2], test_vocabulary)
     assert describe_closest_items([], test_embedding, test_vocabulary) == []
 
-    full_run = describe_closest_items(test_vectors, test_embedding, test_vocabulary)
+    full_run = describe_closest_items(
+        test_vectors,
+        test_embedding,
+        test_vocabulary,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
     assert len(full_run) == test_vectors.shape[0]
     # We are inclusive, so two with 1 and the other close item
     assert full_run[0][0].shape == (3,)
@@ -649,9 +803,27 @@ def test_describe_closest_items():
     assert full_run[2][0].shape == (0,)
     assert full_run[2][1].shape == (0,)
 
+    full_run = describe_closest_items(
+        test_vectors,
+        test_embedding,
+        test_vocabulary,
+        ignore_indices=[3],
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
+    assert len(full_run) == test_vectors.shape[0]
+    # We are inclusive, so two with 1 and the other close item
+    assert full_run[0][0].shape == (2,)
+    assert full_run[0][1].shape == (2,)
+    assert compare_numpy_arrays(full_run[0][1], np.array([1, 1]), round=True)
+    assert compare_numpy_arrays(full_run[0][0], np.array(["kitten", "cat"]))
+
     # But what if we give it a max value?
     full_run = describe_closest_items(
-        test_vectors, test_embedding, test_vocabulary, topn=1
+        test_vectors,
+        test_embedding,
+        test_vocabulary,
+        topn=1,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert len(full_run) == test_vectors.shape[0]
     # Two items with cosine similarity of 1
@@ -679,7 +851,11 @@ def test_describe_closest_items():
         test_embedding,
         test_vocabulary,
         require_positive=False,
-        cutoff_args={"below_line_exclusive": False, "max_first_delta": None},
+        cutoff_args={
+            "below_line_exclusive": False,
+            "max_first_delta": None,
+            "cutoff_heuristic": ELBOW_HEURISTIC_STR,
+        },
     )
     assert len(full_run) == test_vectors.shape[0]
     # Two items with cosine similarity of 1
@@ -704,8 +880,18 @@ def test_describe_closest_items():
     assert full_run[2][1].shape == (0,)
 
     # Should be identical
-    runA = describe_closest_items(test_vectors[0], test_embedding, test_vocabulary)
-    runB = describe_closest_items([2, 1], test_embedding, test_vocabulary)
+    runA = describe_closest_items(
+        test_vectors[0],
+        test_embedding,
+        test_vocabulary,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
+    runB = describe_closest_items(
+        [2, 1],
+        test_embedding,
+        test_vocabulary,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
 
     assert len(runA) == len(runB)
     for idx in range(len(runA)):
@@ -714,7 +900,12 @@ def test_describe_closest_items():
         assert compare_numpy_arrays(runA[idx][0], runB[idx][0])
         assert compare_numpy_arrays(runA[idx][1], runB[idx][1])
 
-    runB = describe_closest_items(test_vectors[0], test_embedding, test_vocabulary_list)
+    runB = describe_closest_items(
+        test_vectors[0],
+        test_embedding,
+        test_vocabulary_list,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
+    )
     assert len(runA) == len(runB)
     for idx in range(len(runA)):
         assert len(runA[idx]) == 2
@@ -753,7 +944,10 @@ def test_generate_similarity_matrix():
     )
     # The happy case
     res_matrix = generate_similarity_matrix(
-        test_topic_vectors_array, test_term_embedding_array, require_positive=False
+        test_topic_vectors_array,
+        test_term_embedding_array,
+        require_positive=False,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert compare_numpy_arrays(
         res_matrix,
@@ -764,7 +958,9 @@ def test_generate_similarity_matrix():
 
     # Weirder cases
     res_matrix = generate_similarity_matrix(
-        test_topic_vectors_list, test_term_embedding_array
+        test_topic_vectors_list,
+        test_term_embedding_array,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert compare_numpy_arrays(
         res_matrix,
@@ -775,7 +971,10 @@ def test_generate_similarity_matrix():
     rand_vecs = np.random.rand(12, 2)
     rand_embeddings = np.random.rand(128, 2)
     res_matrix = generate_similarity_matrix(
-        rand_vecs, rand_embeddings, require_positive=True
+        rand_vecs,
+        rand_embeddings,
+        require_positive=True,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     # We WILL have zero values, but no negative values
     assert res_matrix[res_matrix < 0].size == 0
@@ -814,7 +1013,10 @@ def test_generate_csr_similarity_matrix():
         ]
     )
     sparse = generate_csr_similarity_matrix(
-        test_topic_vectors_array, test_term_embedding_array, require_positive=False
+        test_topic_vectors_array,
+        test_term_embedding_array,
+        require_positive=False,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert compare_numpy_arrays(
         sparse.toarray(),
@@ -825,6 +1027,8 @@ def test_generate_csr_similarity_matrix():
 
     # Weirder cases
     sparse = generate_csr_similarity_matrix(
-        test_topic_vectors_list, test_term_embedding_array
+        test_topic_vectors_list,
+        test_term_embedding_array,
+        cutoff_args={"cutoff_heuristic": ELBOW_HEURISTIC_STR},
     )
     assert compare_numpy_arrays(sparse.toarray(), expected_array, round=True)

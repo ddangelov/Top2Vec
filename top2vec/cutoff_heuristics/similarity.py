@@ -9,7 +9,10 @@ import sklearn.metrics
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
 import scipy.sparse
-from top2vec.cutoff_heuristics.cutoff_heuristics import ELBOW_HEURISTIC_STR, find_cutoff
+from top2vec.cutoff_heuristics.cutoff_heuristics import (
+    RECURSIVE_ELBOW_HEURISTIC_STR,
+    find_cutoff,
+)
 from top2vec.types import SimilarItems, SimilarVectorIndices
 
 
@@ -82,7 +85,7 @@ def find_closest_items(
         See `top2vec.cutoff_heurstics.cutoff_heurstics.find_cutoff`
         for more information.
 
-        cutoff_heuristic: str (Optional, default `'elbow'`)
+        cutoff_heuristic: str (Optional, default `'recursive_elbow'`)
             Which cutoff heuristic to use.
             See `top2vec.cutoff_heuristics` for more.
         first_elbow: bool (Optional, default True)
@@ -120,11 +123,21 @@ def find_closest_items(
     relevant_indices = np.flip(np.argsort(similarity_scores), axis=1)
 
     if cutoff_args is None:
-        cutoff_args = {
-            "cutoff_heuristic": ELBOW_HEURISTIC_STR,
+        use_cutoff_args = {
+            "cutoff_heuristic": RECURSIVE_ELBOW_HEURISTIC_STR,
             "first_elbow": True,
             "max_first_delta": 0.33,
             "below_line_exclusive": True,
+        }
+    else:
+        # Only overwrite defaults with what we are actually given
+        use_cutoff_args = {
+            "cutoff_heuristic": cutoff_args.get(
+                "cutoff_heuristic", RECURSIVE_ELBOW_HEURISTIC_STR
+            ),
+            "first_elbow": cutoff_args.get("first_elbow", True),
+            "max_first_delta": cutoff_args.get("max_first_delta", 0.33),
+            "below_line_exclusive": cutoff_args.get("below_line_exclusive", True),
         }
     # Need to broadcast this for each if we are multiple vectors at once
     # TODO: Decide whether or not the values should be dropped for finding an elbow
@@ -138,14 +151,14 @@ def find_closest_items(
             find_cutoff,
             arr=similarity_scores[:, fancy_indices],
             axis=1,
-            **cutoff_args,
+            **use_cutoff_args,
         )
     else:
         elbow_indices = np.apply_along_axis(
             find_cutoff,
             arr=similarity_scores,
             axis=1,
-            **cutoff_args,
+            **use_cutoff_args,
         )
     # Now I reshape the individual vectors
     # NumPy doesn't support jagged arrays, so now is time to iterate
@@ -345,6 +358,7 @@ def describe_closest_items(
     embedding: NDArray[np.float64],
     embedding_vocabulary: ArrayLike,
     topn: int = 100,
+    ignore_indices: Optional[ArrayLike] = None,
     require_positive: bool = True,
     cutoff_args: Optional[Dict] = None,
 ) -> List[SimilarItems]:
@@ -374,6 +388,11 @@ def describe_closest_items(
         scores will be the minimum of the cutoff and topn
         if provided.
         Pass `None` to only use the cutoff value.
+    ignore_indices: Optional[ArrayLike]
+        An array-like structure of embedding indices to ignore when
+        computing the cutoff-threshold as well as for return values.
+        Prevents you from getting the same thing out that you put in
+        if vectors and embedding are the same data.
     require_positive: bool (Optional, default True)
         If True then only scores which are greater than 0 will be returned.
     cutoff_args: dict (Optional, default None)
@@ -407,6 +426,7 @@ def describe_closest_items(
         vectors,
         embedding,
         topn=topn,
+        ignore_indices=ignore_indices,
         require_positive=require_positive,
         cutoff_args=cutoff_args,
     )
