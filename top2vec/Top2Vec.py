@@ -3143,7 +3143,7 @@ class Top2Vec:
         # existing code as much as possible
         if self.use_cutoff_heuristics:
             topic_words = self.describe_topic(topic_num, reduced=reduced)
-            word_score_dict = dict(zip(topic_words.items), softmax(topic_words.scores))
+            word_score_dict = dict(zip(topic_words.items, softmax(topic_words.scores)))
         else:
             if reduced:
                 self._validate_hierarchical_reduction()
