@@ -16,7 +16,7 @@ BLACK_NB_ERRORS="Good"
 files=$(git diff --cached $against --name-only | sort | uniq | grep .ipynb)
 echo $files
 for file in $files; do
-	if [ "$file" = "" ]; then
+	if [ "$file" = "" -o ! -f "$file" ]; then
 		continue
 	fi
 	echo $file

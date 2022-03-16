@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Generated files from notebooks
+notebooks/local_files
+
 # C extensions
 *.so
 
