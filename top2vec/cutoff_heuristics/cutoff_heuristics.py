@@ -20,6 +20,8 @@ All heuristics go through the following algorithm first:
   then only the segment of the curve prior to the first crossing will
   be examined. This will not cause a re-calculation of the linear
   descent slope.
+  Note that data can behave strangely and have a very tight oscillation around
+  the curve which then diverges into a more traditional shape later.
 
 From here the individual heuristics are run
 
@@ -304,6 +306,9 @@ def find_cutoff(
         )
         return round((elbow + scores_index) / 2)
     elif cutoff_heuristic == RECURSIVE_ELBOW_HEURISTIC_STR:
+        # NOTE: It may be worth it to have a different switch that
+        # causes a recursive elbow finding heuristic to default to
+        # ignoring the first elbow in an S curve on the next run.
         first_pass = __elbow_index(distances_tuple, below_line_exclusive)
         if first_pass >= min_for_elbow_recurse:
             return find_cutoff(
