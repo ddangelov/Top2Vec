@@ -72,10 +72,13 @@ def get_distances_from_line(
     ----------
     values : ArrayLike
         A 1d array (or list) of y values such that index 0 is y(0).
+
     comparison_slope : float
         The slope of the line to compare values with.
+
     comparison_y_intercept : float
         The y intercept of the line to compare values with.
+
     first_elbow: bool (default True)
         If true: computation will stop if y values change sign
         relative to the provided line.
@@ -154,6 +157,8 @@ def __edge_cases(sorted_values: ArrayLike, max_first_delta: Optional[float] = 0.
     """Handle edge cases prior to finding cut-off index"""
     if len(sorted_values.shape) != 1:
         raise ValueError("Values must be a 1-D Array")
+    # The count_nonzero function is actually slow
+    # Converting to a set and checking for equal to 0 is much slower
     if sorted_values.size == 0 or np.count_nonzero(sorted_values) == 0:
         return -1
     elif sorted_values.size <= 2:
@@ -174,6 +179,7 @@ def find_cutoff(
     max_first_delta: Optional[float] = 0.33,
     below_line_exclusive: bool = True,
     min_for_elbow_recurse: int = 10,
+    already_sorted: bool = False,
 ):
     """Finds the cutoff index (inclusive) in a series of real values.
 
@@ -204,7 +210,7 @@ def find_cutoff(
         Cutoff finding can behave poorly compared to human intuition
         when values cross the comparison line in a sort of S-curve.
 
-    max_first_delta_percent: Optional[float] (Optional default .33)
+    max_first_delta_percent: Optional[float] (Optional, default .33)
         Max value allowed for `(y[1] - y[0]) / (y[0] - y[-1])`.
         Some data sets have a single close value and
         then lots of bad ones and return unintuitive results
@@ -214,17 +220,20 @@ def find_cutoff(
         index 0.
         Providing `None` causes this check to be skipped entirely.
 
-    below_line_exclusive: bool (Optional default True)
+    below_line_exclusive: bool (Optional, default True)
         If true then result indices which are from a cutoff below
         the linear descent line will be treated as exclusive.
         Therefore the final result will be index - 1.
 
-    min_for_elbow_recurse: int (Optional default 10)
+    min_for_elbow_recurse: int (Optional, default 10)
         The minimum index for recursing if using `recursive_elbow`.
         If the elbow index for the first pass is less than this
         value it will be returned.
         Generally allows for better results if the first elbow
         is a small value such as due to a sudden large drop.
+
+    already_sorted: bool (Optional, default False)
+        Don't re-sort the data in descending order.
 
     Returns
     -------
@@ -256,7 +265,10 @@ def find_cutoff(
         return -1
 
     # Make sure the provided values are a sorted numpy array
-    sorted_values = np.flip(np.sort(np.array(values)))
+    if already_sorted:
+        sorted_values = values
+    else:
+        sorted_values = np.flip(np.sort(np.array(values)))
     edge_case_index = __edge_cases(
         sorted_values=sorted_values, max_first_delta=max_first_delta
     )
@@ -300,6 +312,7 @@ def find_cutoff(
                 first_elbow=first_elbow,
                 max_first_delta=max_first_delta,
                 below_line_exclusive=below_line_exclusive,
+                already_sorted=True,
             )
         else:
             return first_pass
@@ -310,6 +323,7 @@ def find_elbow_index(
     first_elbow: bool = True,
     max_first_delta: Optional[float] = 0.33,
     below_line_exclusive: bool = True,
+    already_sorted: bool = False,
 ) -> int:
     """Finds the elbow index (inclusive) in a series of real values.
 
@@ -325,7 +339,8 @@ def find_elbow_index(
         graph.
         Cutoff finding can behave poorly compared to human intuition
         when values cross the comparison line in a sort of S-curve.
-    max_first_delta_percent: Optional[float] (Optional default .33)
+
+    max_first_delta_percent: Optional[float] (Optional, default .33)
         Max value allowed for `(y[1] - y[0]) / (y[0] - y[-1])`.
         Some data sets have a single close value and
         then lots of bad ones and return unintuitive results
@@ -334,10 +349,14 @@ def find_elbow_index(
         change happens between 0 and 1 we will say the elbow is
         index 0.
         Providing `None` causes this check to be skipped entirely.
-    below_line_exclusive: bool (Optional default True)
+
+    below_line_exclusive: bool (Optional, default True)
         If true then result indices which are from a cutoff below
         the linear descent line will be treated as exclusive.
         Therefore the final result will be index - 1.
+
+    already_sorted: bool (Optional, default False)
+        Don't re-sort the data in descending order.
 
     Returns
     -------
@@ -365,6 +384,7 @@ def find_elbow_index(
         first_elbow=first_elbow,
         max_first_delta=max_first_delta,
         below_line_exclusive=below_line_exclusive,
+        already_sorted=already_sorted,
     )
 
 
@@ -377,7 +397,8 @@ def __elbow_index(
     ----------
     distances_tuple: LineDistances
         The result of `get_distances_from_line`.
-    below_line_exclusive: bool (Optional default True)
+
+    below_line_exclusive: bool (Optional, default True)
         If true then result indices which are from below
         the linear descent line will be treated as exclusive.
         Therefore the final result will be index - 1.
@@ -410,9 +431,11 @@ def __shifted_derivative_index(
     sorted_values: NDArray[np.float64]
         A sorted (reverse order) array of real values to be used when
         computing the derivative.
+
     distances_tuple: LineDistances
         The result of `get_distances_from_line`.
-    below_line_exclusive: bool (Optional default True)
+
+    below_line_exclusive: bool (Optional, default True)
         If true then result indices which are from below
         the linear descent line will be treated as exclusive.
         Therefore the final result will be index - 1.
@@ -447,38 +470,15 @@ def _get_shifted_second_derivative(
 ):
     """Get the absolute value of the 2nd derivative slid one to the left so that it will have
     a high value at the point where things change a lot."""
-    if truncation_index > sorted_values.size:
+    if truncation_index >= sorted_values.size:
         raise ValueError("truncation_index must be less than sorted_values.size")
-    if is_truncated:
-        first_derivative = np.hstack(
-            (
-                [0],
-                sorted_values[1 : truncation_index + 2]
-                - sorted_values[: truncation_index + 1],
-            )
-        )
-        second_derivative = np.abs(
-            np.hstack(
-                (
-                    [0],
-                    first_derivative[1 : truncation_index + 2]
-                    - first_derivative[: truncation_index + 1],
-                )
-            )
-        )
-        # trim first and second derivative
-        first_derivative = first_derivative[:-1]
-        slid_second_derivative = second_derivative[1:]
+    if is_truncated and truncation_index < sorted_values.size - 1:
+        sub_array = sorted_values[: truncation_index + 2]
+        second_derivative = np.abs(np.diff(sub_array, n=2, prepend=[0, 0]))
+        return second_derivative[1:]
     else:
-        first_derivative = np.hstack(
-            (
-                [0],
-                sorted_values[1:] - sorted_values[:-1],
-            )
-        )
         second_derivative = np.abs(
-            np.hstack(([0], first_derivative[1:] - first_derivative[:-1]))
+            np.diff(sorted_values, n=2, prepend=[0, 0], append=0)
         )
-        # trim second derivative
-        slid_second_derivative = np.hstack((second_derivative[1:], [0]))
-    return slid_second_derivative
+        second_derivative[-1] = 0
+        return second_derivative[1:]

@@ -445,11 +445,13 @@ def test_find_elbow_index():
         perms = permutations(base_data)
         # In 2d spaces the end result of the different norms should be identical
         for instance in perms:
-            assert find_elbow_index(instance, below_line_exclusive=False) == expected
+            assert find_elbow_index(instance, below_line_exclusive=False, already_sorted=False) == expected
             assert (
-                find_elbow_index(np.array(instance), below_line_exclusive=False)
+                find_elbow_index(np.array(instance), below_line_exclusive=False, already_sorted=False)
                 == expected
             )
+        sorted_data = np.flip(np.sort(np.array(base_data)))
+        assert find_elbow_index(sorted_data, below_line_exclusive=False, already_sorted=True) == expected
 
     # Anything of size 1 or 2 will return the first
     elbow_index_helper([2], 0)
@@ -649,12 +651,12 @@ def test_slid_second_derivative():
         _get_shifted_second_derivative(test, False, test.size - 1), second_der
     )
     # Should get raw values one beyond truncation index
-    assert compare_numpy_arrays(
-        _get_shifted_second_derivative(test, True, 5), second_der[:6]
-    )
-    assert compare_numpy_arrays(
-        _get_shifted_second_derivative(test, True, 4), second_der[:5]
-    )
+    for to_truncate in range(1, test.size):
+        assert compare_numpy_arrays(
+            _get_shifted_second_derivative(test, True, test.size - to_truncate),
+            second_der[:(test.size - to_truncate + 1)]
+        )
+
     with pytest.raises(ValueError):
         assert compare_numpy_arrays(
             _get_shifted_second_derivative(test, True, 20), second_der
