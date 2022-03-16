@@ -108,8 +108,9 @@ def plot_heuristic(
         max_first_delta=max_first_delta,
         min_for_elbow_recurse=min_for_elbow_recurse,
     )
+    # For graphing we are going to show everything
     distances_tuple = get_distances_from_line(
-        sorted_values, m, sorted_values[0], first_elbow=first_elbow
+        sorted_values, m, sorted_values[0], first_elbow=False
     )
     y_distances = distances_tuple.y_deltas
 
@@ -231,7 +232,7 @@ def plot_heuristic(
         )
         recursive_line = recursive_x * recursive_m + recursive_values[0]
         recursive_distances_tuple = get_distances_from_line(
-            recursive_values, recursive_m, recursive_values[0], first_elbow=first_elbow
+            recursive_values, recursive_m, recursive_values[0], first_elbow=False
         )
         recursive_y_distances = recursive_distances_tuple.y_deltas
         recursive_axis.plot(recursive_values)
