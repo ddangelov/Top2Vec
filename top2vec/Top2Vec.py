@@ -21,7 +21,7 @@ from scipy.special import softmax
 
 from typing import List, Dict, Optional, Tuple, Sequence
 from top2vec.cutoff_heuristics.similarity import find_closest_items, find_closest_items_to_average
-from top2vec.types import RetrievedDocuments, DocumentId, SimilarItems
+from top2vec.types import RetrievedDocuments, DocumentId, SimilarItems, SimilarVectorIndices
 
 try:
     import hnswlib
@@ -1046,17 +1046,17 @@ class Top2Vec:
     @staticmethod
     def _search_vectors_by_vector(
         vectors, vector, num_res
-    ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
+    ) -> SimilarVectorIndices:
         ranks = np.inner(vectors, vector)
         indexes = np.flip(np.argsort(ranks)[-num_res:])
         scores = np.array([ranks[res] for res in indexes])
 
-        return indexes, scores
+        return SimilarVectorIndices(indexes, scores)
 
     @staticmethod
     def _search_vectors_by_vector_heuristic(
         vectors: NDArray, vector: ArrayLike, topn: int, cutoff_args=None
-    ) -> Tuple[NDArray[np.int64], NDArray[np.float64]]:
+    ) -> SimilarVectorIndices:
         """Use a cutoff heuristic to find the closest (up to) topn vectors to the provided
         vector."""
         return find_closest_items(vector, vectors, topn=topn, cutoff_args=cutoff_args)[
