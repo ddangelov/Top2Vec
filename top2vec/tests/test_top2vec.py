@@ -54,11 +54,6 @@ top2vec_transformer_model_embedding = Top2Vec(documents=newsgroups_documents,
 models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
           top2vec_use, top2vec_use_multilang, top2vec_use_chunked, top2vec_use_random_chunked,
           top2vec_transformer_multilang, top2vec_use_model_embedding, top2vec_transformer_model_embedding]
-"""
-models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
-          top2vec_use, top2vec_use_chunked, top2vec_use_random_chunked,
-          top2vec_use_multilang, top2vec_use_model_embedding]
-"""
 
 
 @pytest.mark.parametrize('top2vec_model', models)
