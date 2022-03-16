@@ -145,7 +145,7 @@ def find_closest_items(
             "first_elbow": cutoff_args.get("first_elbow", True),
             "max_first_delta": cutoff_args.get("max_first_delta", 0.33),
             "below_line_exclusive": cutoff_args.get("below_line_exclusive", True),
-            "min_for_elbow_recurse" : cutoff_args.get("min_for_elbow_recurse", 10)
+            "min_for_elbow_recurse": cutoff_args.get("min_for_elbow_recurse", 10),
         }
     # Need to broadcast this for each if we are multiple vectors at once
     # TODO: Decide whether or not the values should be dropped for finding an elbow
