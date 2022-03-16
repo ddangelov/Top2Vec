@@ -26,26 +26,34 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'numpy >= 1.20.0',
-        'pandas',
-        'gensim < 4.0.0',
-        'umap-learn >= 0.5.1',
-        'hdbscan >= 0.8.27',
-        'wordcloud',
+        "numpy >= 1.20.0, < 1.22",
+        "pandas",
+        "gensim >= 4.0.0",
+        "umap-learn >= 0.5.1",
+        "hdbscan >= 0.8.27",
+        "wordcloud",
     ],
     extras_require={
-        'sentence_encoders': [
-            'tensorflow',
-            'tensorflow_hub',
-            'tensorflow_text',
+        "sentence_encoders": [
+            "tensorflow",
+            "tensorflow_hub",
+            "tensorflow_text",
         ],
-        'sentence_transformers': [
-            'torch',
-            'sentence_transformers',
+        "sentence_transformers": [
+            "torch",
+            "sentence_transformers",
         ],
-        'indexing': [
-            'hnswlib',
+        "indexing": [
+            "hnswlib",
+        ],
+        "dev": [
+            "black",
+            "black-nb",
+            "flake8",
+            "ipython",
+            "pytest",
+            "wheel",
         ],
     },
-    python_requires='>=3.6',
+    python_requires=">=3.6",
 )
