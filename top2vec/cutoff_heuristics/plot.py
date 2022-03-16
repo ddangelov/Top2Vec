@@ -1,8 +1,3 @@
-"""Various methods to visualize various cutoff heuristics.
-
-Author: Shawn
-License: BSD 3 clause
-"""
 from typing import Optional, Dict, Tuple, Sequence
 
 import numpy as np
@@ -16,17 +11,24 @@ from top2vec.cutoff_heuristics.cutoff_heuristics import (
     AVERAGE_HEURISTIC_STR,
     RECURSIVE_ELBOW_HEURISTIC_STR,
 )
-from top2vec.types import DocumentId, RetrievedDocuments, SimilarItems
+from top2vec.types import (
+    DocumentId,
+    RetrievedDocuments,
+    SimilarItems,
+    SimilarVectorIndices,
+)
 from top2vec.Top2Vec import Top2Vec
 
 import sklearn.metrics
 import matplotlib.pyplot as plt
+from matplotlib.transforms import Bbox
 
 
 def plot_heuristic(
     values: NDArray,
     figure_num: str = "1",
     figsize: Tuple[int, int] = (16, 8),
+    hide_y_values: bool = True,
     cutoff_args: Optional[Dict] = None,
     print_elbows: bool = True,
 ):
@@ -41,8 +43,13 @@ def plot_heuristic(
     figure_num: str (Optional, default "1")
         Allow overwriting the same figure for matplotlib.
 
-    figsize: Tuple[int, int]
+    figsize: Tuple[int, int] (Optional, default (16, 8))
         Desired size of figure in inches
+
+    hide_y_values: bool (Optional, default True)
+        Whether to hide the Y values for all sub-plots.
+        Generally we care about the shape as opposed to values, so this
+        defaults to True.
 
     cutoff_args: dict (Optional, default None)
         Pass custom arguments to the cutoff heuristic.
@@ -154,15 +161,37 @@ def plot_heuristic(
 
     gs = fig.add_gridspec(nrows=3, ncols=3)
     ax = fig.add_subplot(gs[:2, 0])
-    ax.plot(line)
-    ax.scatter([elbow], [sorted_values[elbow]], color=ELBOW_COLOR)
-    ax.scatter([alt_elbow], [sorted_values[alt_elbow]], color=DERIVATIVE_COLOR)
-    ax.scatter([average_elbow], [sorted_values[average_elbow]], color=AVERGE_COLOR)
-    ax.scatter(
-        [recursive_elbow], [sorted_values[recursive_elbow]], color=RECURSIVE_COLOR
+    (values_line,) = ax.plot(sorted_values, label="Values")
+    (lienar_descent_line,) = ax.plot(line, label="Linear Descent")
+    elbow_scatter = ax.scatter(
+        [elbow], [sorted_values[elbow]], color=ELBOW_COLOR, label="Elbow Index"
     )
-    ax.plot(sorted_values)
-
+    derivative_scatter = ax.scatter(
+        [alt_elbow],
+        [sorted_values[alt_elbow]],
+        color=DERIVATIVE_COLOR,
+        label="Derivative Index",
+    )
+    average_scatter = ax.scatter(
+        [average_elbow],
+        [sorted_values[average_elbow]],
+        color=AVERGE_COLOR,
+        label="Average Index",
+    )
+    recursive_scatter = ax.scatter(
+        [recursive_elbow],
+        [sorted_values[recursive_elbow]],
+        color=RECURSIVE_COLOR,
+        label="Recursive Elbow Index",
+    )
+    artists = [
+        values_line,
+        lienar_descent_line,
+        elbow_scatter,
+        derivative_scatter,
+        average_scatter,
+        recursive_scatter,
+    ]
     ax_y = fig.add_subplot(gs[2, 0])
     ax_y.axhline(0, color="black")
     ax_y.plot(y_distances)
@@ -189,7 +218,9 @@ def plot_heuristic(
     ax_val_scores.scatter([alt_elbow], [scores[alt_elbow]], color=DERIVATIVE_COLOR)
     ax_val_scores.axhline(0, color="black")
 
-    if elbow > 1:
+    axes = [ax, ax_y, ax_d, ax_val_second_d, ax_val_scores]
+
+    if elbow >= min_for_elbow_recurse:
         recursive_axis = fig.add_subplot(gs[0, 2])
         recursive_axis.xaxis.set_ticklabels([])
         recursive_values = sorted_values[: elbow + 1]
@@ -203,19 +234,51 @@ def plot_heuristic(
             recursive_values, recursive_m, recursive_values[0], first_elbow=first_elbow
         )
         recursive_y_distances = recursive_distances_tuple.y_deltas
-        recursive_axis.plot(recursive_line)
         recursive_axis.plot(recursive_values)
+        recursive_axis.plot(recursive_line)
         recursive_axis.scatter(
             [recursive_elbow], recursive_values[recursive_elbow], color=RECURSIVE_COLOR
         )
 
         recursive_ax_y = fig.add_subplot(gs[1, 2])
+        recursive_ax_y.axhline(0, color="black")
         recursive_ax_y.plot(recursive_y_distances)
         recursive_ax_y.scatter(
             [recursive_elbow],
             recursive_y_distances[recursive_elbow],
             color=RECURSIVE_COLOR,
         )
+        recursive_axis.set_ylabel("Recursive Elbow Values")
+        recursive_ax_y.set_ylabel("Recursive Y")
+        axes.append(recursive_axis)
+        axes.append(recursive_ax_y)
+        bottoms, tops, lefts, rights = gs.get_grid_positions(fig)
+        bbox = Bbox.from_extents(lefts[2], bottoms[2], rights[2], tops[2])
+        fig.legend(
+            handles=[
+                values_line,
+                lienar_descent_line,
+                elbow_scatter,
+                derivative_scatter,
+                average_scatter,
+                recursive_scatter,
+            ],
+            bbox_to_anchor=bbox,
+            fontsize="x-large",
+        )
+    else:
+        ax.legend(handles=artists, loc="best")
+
+    ax.set_ylabel("Values and Detected Indices")
+    ax_y.set_ylabel("Y - Distance From Line")
+    ax_d.set_ylabel("abs(Y)")
+    ax_val_second_d.set_ylabel("Shifted abs(2nd_der(Y))")
+    ax_val_scores.set_ylabel("Derivative Score")
+
+    if hide_y_values:
+        for axis in axes:
+            axis.yaxis.set_ticklabels([])
+            axis.yaxis.set_ticks([])
 
 
 # Some wrapper functions to also show how the heuristic is making decisions
@@ -227,6 +290,8 @@ def get_and_plot_similar_words(
     new_cutoff_args: Optional[Dict] = None,
     figure: Optional[str] = None,
     print_first: Optional[int] = 20,
+    figsize: Tuple[int, int] = (16, 8),
+    hide_y_values: bool = True,
 ) -> SimilarItems:
     """Find similar words and optionally plot the cutoff heuristics.
 
@@ -234,22 +299,36 @@ def get_and_plot_similar_words(
     ----------
     top2vec_model: Top2Vec
         A trained model to query.
+
     keywords: Sequence[str]
         List of positive keywords being used for search of semantically
         similar words.
+
     keywords_neg: Optional[Sequence[str]] (Optional, default None)
         List of negative keywords being used for search of semantically
         dissimilar words.
+
     max_returned: Optional[int] (Optional, default 250)
         Maximum number of words to return.
+
     new_cutoff_args: Optional[Dict] (Optional, default None)
         Temporarily change the cutoff_args of top2vec_model
         when determining this cutoff index.
+
     figure: Optional[str] (Optional, default None)
         Provide a figure name for plotting heuristics.
         Leave None to not plot anything.
+
     print_first: Optaional[int] (Optional, default 20)
         Will print out the top `print_first` cosine similarities to screen.
+
+    figsize: Tuple[int, int] (Optional, default (16, 8))
+        Desired size of figure in inches
+
+    hide_y_values: bool (Optional, default True)
+        Whether to hide the Y values for all sub-plots.
+        Generally we care about the shape as opposed to values, so this
+        defaults to True.
 
     Notes
     -----
@@ -303,7 +382,11 @@ def get_and_plot_similar_words(
                 sorted_cosine_sims[:print_first],
             )
         plot_heuristic(
-            sorted_cosine_sims, figure_num=figure, cutoff_args=top2vec_model.cutoff_args
+            sorted_cosine_sims,
+            figure_num=figure,
+            cutoff_args=top2vec_model.cutoff_args,
+            figsize=figsize,
+            hide_y_values=hide_y_values,
         )
     if new_cutoff_args is not None:
         top2vec_model.cutoff_args = old_cutoff_args
@@ -319,6 +402,8 @@ def get_and_plot_topic_description(
     new_cutoff_args: Optional[Dict] = None,
     figure: Optional[str] = None,
     print_first: Optional[int] = 20,
+    figsize: Tuple[int, int] = (16, 8),
+    hide_y_values: bool = True,
 ) -> SimilarItems:
     """Find descriptive words for a topic and optionally plot the
     cutoff heuristics.
@@ -327,21 +412,35 @@ def get_and_plot_topic_description(
     ----------
     top2vec_model: Top2Vec
         A trained model to query.
+
     topic_num: int
         The topic number to query.
+
     reduced: bool
         Whether the topic number should be from the
         hierarchically reduced models.
+
     max_returned: Optional[int] (Optional, default 250)
         Maximum number of words to return.
+
     new_cutoff_args: Optional[Dict] (Optional, default None)
         Temporarily change the cutoff_args of top2vec_model
         when determining this cutoff index.
+
     figure: Optional[str] (Optional, default None)
         Provide a figure name for plotting heuristics.
         Leave None to not plot anything.
+
     print_first: Optaional[int] (Optional, default 20)
         Will print out the top `print_first` cosine similarities to screen.
+
+    figsize: Tuple[int, int] (Optional, default (16, 8))
+        Desired size of figure in inches
+
+    hide_y_values: bool (Optional, default True)
+        Whether to hide the Y values for all sub-plots.
+        Generally we care about the shape as opposed to values, so this
+        defaults to True.
 
     Returns
     -------
@@ -358,7 +457,7 @@ def get_and_plot_topic_description(
     else:
         t_vector = top2vec_model.topic_vectors[topic_num]
     similar_words, similar_scores = top2vec_model.describe_topic(
-        topic_num, reduced=reduced, use_index=False
+        topic_num, reduced=reduced, use_index=False, num_words=max_returned
     )
     if figure is not None:
         cosine_sims = 1 - sklearn.metrics.pairwise.pairwise_distances(
@@ -368,7 +467,11 @@ def get_and_plot_topic_description(
         if print_first:
             print("Raw cosine similarities: ", sorted_cosine_sims[:print_first])
         plot_heuristic(
-            sorted_cosine_sims, figure_num=figure, cutoff_args=top2vec_model.cutoff_args
+            sorted_cosine_sims,
+            figure_num=figure,
+            cutoff_args=top2vec_model.cutoff_args,
+            figsize=figsize,
+            hide_y_values=hide_y_values,
         )
     if new_cutoff_args is not None:
         top2vec_model.cutoff_args = old_cutoff_args
@@ -384,6 +487,8 @@ def get_and_plot_similar_documents(
     new_cutoff_args: Optional[Dict] = None,
     figure: Optional[str] = None,
     print_first: Optional[int] = 20,
+    figsize: Tuple[int, int] = (16, 8),
+    hide_y_values: bool = True,
 ) -> RetrievedDocuments:
     """Find descriptive words for a topic and optionally plot the
     cutoff heuristics.
@@ -392,6 +497,7 @@ def get_and_plot_similar_documents(
     ----------
     top2vec_model: Top2Vec
         A trained model to query.
+
     doc_ids: Sequence[DocumentId]
         Unique ids of document. If ids were not given, the index of
         document in the original corpus.
@@ -399,16 +505,28 @@ def get_and_plot_similar_documents(
     doc_ids_neg: Optional[Sequence[DocumentId]] (Optional default None)
         Unique ids of document. If ids were not given, the index of
         document in the original corpus.
+
     max_returned: Optional[int] (Optional, default 250)
         Maximum number of documents to return.
+
     new_cutoff_args: Optional[Dict] (Optional, default None)
         Temporarily change the cutoff_args of top2vec_model
         when determining this cutoff index.
+
     figure: Optional[str] (Optional, default None)
         Provide a figure name for plotting heuristics.
         Leave None to not plot anything.
+
     print_first: Optaional[int] (Optional, default 20)
         Will print out the top `print_first` cosine similarities to screen.
+
+    figsize: Tuple[int, int] (Optional, default (16, 8))
+        Desired size of figure in inches
+
+    hide_y_values: bool (Optional, default True)
+        Whether to hide the Y values for all sub-plots.
+        Generally we care about the shape as opposed to values, so this
+        defaults to True.
 
     Returns
     -------
@@ -460,9 +578,134 @@ def get_and_plot_similar_documents(
                 sorted_cosine_sims[:print_first],
             )
         plot_heuristic(
-            sorted_cosine_sims, figure_num=figure, cutoff_args=top2vec_model.cutoff_args
+            sorted_cosine_sims,
+            figure_num=figure,
+            cutoff_args=top2vec_model.cutoff_args,
+            figsize=figsize,
+            hide_y_values=hide_y_values,
         )
 
     if new_cutoff_args is not None:
         top2vec_model.cutoff_args = old_cutoff_args
     return retrieved_docs
+
+
+def get_and_plot_similar_vectors(
+    top2vec_model: Top2Vec,
+    embedding: NDArray[np.float64],
+    vectors: Optional[Sequence[str]] = None,
+    vectors_neg: Optional[Sequence[str]] = None,
+    ignore_indices: Optional[Sequence[int]] = None,
+    max_returned: Optional[int] = 250,
+    new_cutoff_args: Optional[Dict] = None,
+    figure: Optional[str] = None,
+    print_first: Optional[int] = 20,
+    figsize: Tuple[int, int] = (16, 8),
+    hide_y_values: bool = True,
+) -> SimilarVectorIndices:
+    """Find similar vectors and optionally plot the cutoff heuristics.
+
+    Parameters
+    ----------
+    top2vec_model: Top2Vec
+        A trained model to query.
+
+    embedding: NDArray[np.float64]
+        A sereis of vectors to compare against.
+        An example would be the word_vectors to find stop words.
+
+    vectors: Optional[Sequence[str]]
+        List of positive keywords being used for search of semantically
+        similar words.
+
+    vectors_neg: Optional[Sequence[str]] (Optional, default None)
+        List of negative keywords being used for search of semantically
+        dissimilar words.
+
+    ignore_indices: Optional[Sequence[int]] (Optional, default None)
+        List of indices from embedding to ignore when computing cutoff.
+
+    max_returned: Optional[int] (Optional, default 250)
+        Maximum number of words to return.
+
+    new_cutoff_args: Optional[Dict] (Optional, default None)
+        Temporarily change the cutoff_args of top2vec_model
+        when determining this cutoff index.
+
+    figure: Optional[str] (Optional, default None)
+        Provide a figure name for plotting heuristics.
+        Leave None to not plot anything.
+
+    print_first: Optaional[int] (Optional, default 20)
+        Will print out the top `print_first` cosine similarities to screen.
+
+    figsize: Tuple[int, int] (Optional, default (16, 8))
+        Desired size of figure in inches
+
+    hide_y_values: bool (Optional, default True)
+        Whether to hide the Y values for all sub-plots.
+        Generally we care about the shape as opposed to values, so this
+        defaults to True.
+
+    Notes
+    -----
+    The cosine similarity to the provided keywords (and keywords_neg) will
+    be ignored for purposes of determining a cutoff if `use_cutoff_heuristics`.
+
+    Returns
+    -------
+    SimilarVectorIndices
+        Tuple index 0 is the indices from embedding which are most similar to the
+        combined vector in an NDArray, most similar first.
+        Tuple index 1 is the cosine similarity of the embedding vector and
+        combined vector as an NDArray.
+    """
+    _vectors = vectors
+    _vectors_neg = vectors_neg
+
+    if vectors is None and vectors_neg is None:
+        raise ValueError("Must provide at least one of vectors and vectors_neg")
+    elif vectors is None:
+        _vectors = []
+    elif vectors_neg is None:
+        _vectors_neg = []
+    combined_vector = top2vec_model._get_combined_vec(_vectors, _vectors_neg)
+
+    if new_cutoff_args is not None:
+        _cutoff_args = new_cutoff_args
+    else:
+        _cutoff_args = top2vec_model.cutoff_args
+
+    similar_vectors = top2vec_model._search_vectors_by_vector_heuristic(
+        embedding, combined_vector, topn=max_returned, cutoff_args=_cutoff_args
+    )
+
+    if figure is not None:
+        cosine_sims = (
+            1
+            - sklearn.metrics.pairwise.pairwise_distances(
+                [combined_vector], embedding, metric="cosine"
+            )[0]
+        )
+        if ignore_indices is not None:
+            fancy_indices = np.setdiff1d(
+                np.arange(embedding.shape[0]), np.array(ignore_indices)
+            )
+            sorted_cosine_sims = -np.sort(-cosine_sims[fancy_indices])
+        else:
+            sorted_cosine_sims = -np.sort(-cosine_sims)
+
+        if print_first:
+            print(
+                "Raw cosine similarities (minus ignore): ",
+                sorted_cosine_sims[:print_first],
+            )
+        plot_heuristic(
+            sorted_cosine_sims,
+            figure_num=figure,
+            cutoff_args=top2vec_model.cutoff_args,
+            figsize=figsize,
+            hide_y_values=hide_y_values,
+        )
+
+    return similar_vectors
