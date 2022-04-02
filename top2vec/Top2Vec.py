@@ -18,6 +18,16 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
 from scipy.special import softmax
 
+#importing gpu libs
+try:
+    import cuml
+    import cudf
+    from cuml.cluster import HDBSCAN as cuml_hdbscan
+    _HAVE_CUML = True
+except ImportError:
+    _HAVE_CUML = False
+
+
 try:
     import hnswlib
 
@@ -324,6 +334,11 @@ class Top2Vec:
         functions only document ids will be returned, not the actual
         documents.
 
+    use_gpu: bool (Optional, default False)
+        If set to True documents will be using the Rapids.ai hdbscan library for 
+        clustering. Rapids.ai converts dataframes into Cudf that are optimized 
+        for GPU based parallelization.
+
     workers: int (Optional)
         The amount of worker threads to be used in training the model. Larger
         amount will lead to faster training.
@@ -372,7 +387,8 @@ class Top2Vec:
                  use_embedding_model_tokenizer=False,
                  umap_args=None,
                  hdbscan_args=None,
-                 verbose=True
+                 verbose=True,
+                 use_gpu=False
                  ):
 
         if verbose:
@@ -603,18 +619,32 @@ class Top2Vec:
             umap_args = {'n_neighbors': 15,
                          'n_components': 5,
                          'metric': 'cosine'}
+        if use_gpu:
+            try:
+                umap_args.pop('metric')
+            except:
+                None
+            docvecs_cudf = cudf.DataFrame(self._get_document_vectors(norm=False))
+            umap_model = cuml.UMAP(**umap_args).fit(docvecs_cudf)
+        else:
+            umap_model = umap.UMAP(**umap_args).fit(self._get_document_vectors(norm=False))
 
-        umap_model = umap.UMAP(**umap_args).fit(self.document_vectors)
 
         # find dense areas of document vectors
         logger.info('Finding dense areas of documents')
 
         if hdbscan_args is None:
-            hdbscan_args = {'min_cluster_size': 15,
+            hdbscan_args = {'min_cluster_size': 5,
                             'metric': 'euclidean',
                             'cluster_selection_method': 'eom'}
 
-        cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
+        
+        logger.info('custom')
+        print(umap_model.embedding_.shape)
+        cluster = cuml_hdbscan(**hdbscan_args).fit(umap_model.embedding_)
+#         cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_.to_numpy())
+
+
 
         # calculate topic vectors from dense areas of documents
         logger.info('Finding topics')
@@ -790,13 +820,35 @@ class Top2Vec:
 
         return self._l2_normalize(np.array(self.embed([query])[0]))
 
+
+    def _set_document_vectors(self, document_vectors):
+        if self.embedding_model == 'doc2vec':
+            self.model.docvecs.vectors_docs = document_vectors
+        else:
+            self.document_vectors = document_vectors
+
+    def _get_document_vectors(self, norm=True):
+
+        if self.embedding_model == 'doc2vec':
+
+            if norm:
+                self.model.docvecs.init_sims()
+                return self.model.docvecs.vectors_docs_norm
+            else:
+                return self.model.docvecs.vectors_docs
+        else:
+            return self.document_vectors
+
     def _create_topic_vectors(self, cluster_labels):
+        
+        cluster_labels = cluster_labels.to_pandas()
         unique_labels = set(cluster_labels)
         if -1 in unique_labels:
             unique_labels.remove(-1)
+        
         self.topic_vectors = self._l2_normalize(
-            np.vstack([self.document_vectors[np.where(cluster_labels == label)[0]]
-                      .mean(axis=0) for label in unique_labels]))
+        np.vstack([self._get_document_vectors(norm=False)[np.where(cluster_labels == label)[0]]
+                  .mean(axis=0) for label in unique_labels]))
 
     def _deduplicate_topics(self):
         core_samples, labels = dbscan(X=self.topic_vectors,
