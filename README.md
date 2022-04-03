@@ -4,7 +4,11 @@
 [![](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
 
 
-**Update: Pre-trained Universal Sentence Encoders and BERT Sentence Transformer now available for embedding. Read [more](#pretrained).**
+**Updates:**
+* New pre-trained transformer models available
+* Ability to use any embedding model by passing callable to `embedding_model`
+* Document chunking options for long documents
+* Phrases in topics by setting `ngram_vocab=True`
 
 Top2Vec
 ======= 
