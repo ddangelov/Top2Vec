@@ -4,7 +4,7 @@
 [![](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
 
 
-**Updates:**
+Updates:
 * New pre-trained transformer models available
 * Ability to use any embedding model by passing callable to `embedding_model`
 * Document chunking options for long documents
