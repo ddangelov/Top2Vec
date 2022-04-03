@@ -3,6 +3,7 @@ from top2vec.Top2Vec import Top2Vec
 from sklearn.datasets import fetch_20newsgroups
 import numpy as np
 import tempfile
+import tensorflow_hub as hub
 
 # get 20 newsgroups data
 newsgroups_train = fetch_20newsgroups(subset='all', remove=('headers', 'footers', 'quotes'))
@@ -37,14 +38,62 @@ top2vec_use_multilang = Top2Vec(documents=newsgroups_documents,
 top2vec_transformer_multilang = Top2Vec(documents=newsgroups_documents,
                                         embedding_model='distiluse-base-multilingual-cased')
 
-# test Sentence Transformer with model emebdding
+# test Sentence Transformer with model embedding
 top2vec_transformer_model_embedding = Top2Vec(documents=newsgroups_documents,
                                               embedding_model='distiluse-base-multilingual-cased',
                                               use_embedding_model_tokenizer=True)
 
+top2vec_transformer_use_large = Top2Vec(documents=newsgroups_documents,
+                                        embedding_model='universal-sentence-encoder-large',
+                                        use_embedding_model_tokenizer=True,
+                                        split_documents=True)
+
+top2vec_transformer_use_multilang_large = Top2Vec(documents=newsgroups_documents,
+                                                  embedding_model='universal-sentence-encoder-multilingual-large',
+                                                  use_embedding_model_tokenizer=True,
+                                                  split_documents=True,
+                                                  document_chunker='random')
+
+top2vec_transformer_sbert_l6 = Top2Vec(documents=newsgroups_documents,
+                                       embedding_model='all-MiniLM-L6-v2',
+                                       use_embedding_model_tokenizer=True,
+                                       split_documents=True,
+                                       document_chunker='sequential')
+
+top2vec_transformer_sbert_l12 = Top2Vec(documents=newsgroups_documents,
+                                        embedding_model='paraphrase-multilingual-MiniLM-L12-v2',
+                                        use_embedding_model_tokenizer=True,
+                                        split_documents=True,
+                                        document_chunker='random'
+                                        )
+
+model = hub.load('https://tfhub.dev/google/universal-sentence-encoder/4')
+top2vec_model_callable = Top2Vec(documents=newsgroups_documents,
+                                 embedding_model=model,
+                                 use_embedding_model_tokenizer=True,
+                                 split_documents=True,
+                                 document_chunker='random'
+                                 )
+
+top2vec_ngrams = Top2Vec(documents=newsgroups_documents,
+                         speed="fast-learn",
+                         ngram_vocab=True,
+                         workers=8)
+
+top2vec_use_ngrams = Top2Vec(documents=newsgroups_documents,
+                             embedding_model='universal-sentence-encoder',
+                             ngram_vocab=True)
+
 models = [top2vec, top2vec_docids, top2vec_no_docs, top2vec_corpus_file,
           top2vec_use, top2vec_use_multilang, top2vec_transformer_multilang,
-          top2vec_use_model_embedding, top2vec_transformer_model_embedding]
+          top2vec_use_model_embedding, top2vec_transformer_model_embedding,
+          top2vec_transformer_use_large,
+          top2vec_transformer_use_multilang_large,
+          top2vec_transformer_sbert_l6,
+          top2vec_transformer_sbert_l12,
+          top2vec_model_callable,
+          top2vec_ngrams,
+          top2vec_use_ngrams]
 
 
 @pytest.mark.parametrize('top2vec_model', models)
@@ -492,11 +541,20 @@ def test_similar_words_index(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
-def test_similar_words_index(top2vec_model):
-    temp = tempfile.NamedTemporaryFile(mode='w+b')
-    top2vec_model.save(temp.name)
-    Top2Vec.load(temp.name)
-    temp.close()
+def test_save_load(top2vec_model):
+    if top2vec_model.embedding_model == "custom":
+        model = top2vec_model.embed
+        temp = tempfile.NamedTemporaryFile(mode='w+b')
+        top2vec_model.save(temp.name)
+        Top2Vec.load(temp.name)
+        temp.close()
+        top2vec_model.set_embedding_model(model)
+
+    else:
+        temp = tempfile.NamedTemporaryFile(mode='w+b')
+        top2vec_model.save(temp.name)
+        Top2Vec.load(temp.name)
+        temp.close()
 
 
 @pytest.mark.parametrize('top2vec_model', models)

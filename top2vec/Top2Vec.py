@@ -7,6 +7,7 @@ import pandas as pd
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.utils import simple_preprocess
 from gensim.parsing.preprocessing import strip_tags
+from gensim.models.phrases import Phrases
 import umap
 import hdbscan
 from wordcloud import WordCloud
@@ -173,6 +174,21 @@ class Top2Vec:
     min_count: int (Optional, default 50)
         Ignores all words with total frequency lower than this. For smaller
         corpora a smaller min_count will be necessary.
+
+    ngram_vocab: bool (Optional, default False)
+        Add phrases to topic descriptions.
+
+        Uses gensim phrases to find common phrases in the corpus and adds them
+        to the vocabulary.
+
+        For more information visit:
+        https://radimrehurek.com/gensim/models/phrases.html
+
+    ngram_vocab_args: dict (Optional, default None)
+        Pass custom arguments to gensim phrases.
+
+        For more information visit:
+        https://radimrehurek.com/gensim/models/phrases.html
 
     embedding_model: string or callable
         This will determine which model is used to generate the document and
@@ -353,6 +369,8 @@ class Top2Vec:
     def __init__(self,
                  documents,
                  min_count=50,
+                 ngram_vocab=False,
+                 ngram_vocab_args=None,
                  embedding_model='doc2vec',
                  embedding_model_path=None,
                  embedding_batch_size=32,
@@ -512,6 +530,33 @@ class Top2Vec:
             self.vocab = list(self.model.wv.key_to_index.keys())
             self.document_vectors = self.model.dv.get_normed_vectors()
 
+            if ngram_vocab:
+                tokenized_corpus = [tokenizer(doc) for doc in documents]
+
+                if ngram_vocab_args is None:
+                    ngram_vocab_args = {'sentences': tokenized_corpus,
+                                        'min_count': 5,
+                                        'threshold': 10.0,
+                                        'delimiter': ' '}
+                else:
+                    ngram_vocab_args['sentences'] = tokenized_corpus
+                    ngram_vocab_args['delimiter'] = ' '
+
+                phrase_model = Phrases(**ngram_vocab_args)
+                phrase_results = phrase_model.find_phrases(tokenized_corpus)
+                phrases = list(phrase_results.keys())
+
+                phrases_processed = [tokenizer(phrase) for phrase in phrases]
+                phrase_vectors = np.vstack([self.model.infer_vector(doc_words=phrase,
+                                                                    alpha=0.025,
+                                                                    min_alpha=0.01,
+                                                                    epochs=100) for phrase in phrases_processed])
+                phrase_vectors = self._l2_normalize(phrase_vectors)
+
+                self.word_vectors = np.vstack([self.word_vectors, phrase_vectors])
+                self.vocab = self.vocab + phrases
+                self.word_indexes = dict(zip(self.vocab, range(len(self.vocab))))
+
             if use_corpus_file:
                 temp.close()
 
@@ -541,6 +586,22 @@ class Top2Vec:
                 raise ValueError(f"A min_count of {min_count} results in "
                                  f"all words being ignored, choose a lower value.")
             self.vocab = [words[ind] for ind in vocab_inds]
+
+            if ngram_vocab:
+                if ngram_vocab_args is None:
+                    ngram_vocab_args = {'sentences': tokenized_corpus,
+                                        'min_count': 5,
+                                        'threshold': 10.0,
+                                        'delimiter': ' '}
+                else:
+                    ngram_vocab_args['sentences'] = tokenized_corpus
+                    ngram_vocab_args['delimiter'] = ' '
+
+                phrase_model = Phrases(**ngram_vocab_args)
+                phrase_results = phrase_model.find_phrases(tokenized_corpus)
+                phrases = list(phrase_results.keys())
+
+                self.vocab = self.vocab + phrases
 
             self._check_model_status()
 
