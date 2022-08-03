@@ -8,7 +8,7 @@ from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.utils import simple_preprocess
 from gensim.parsing.preprocessing import strip_tags
 from gensim.models.phrases import Phrases
-import umap
+import umap.umap_ as umap
 import hdbscan
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
