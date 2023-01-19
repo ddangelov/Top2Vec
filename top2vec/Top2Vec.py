@@ -578,7 +578,7 @@ class Top2Vec:
             # preprocess vocabulary
             vectorizer = CountVectorizer(tokenizer=return_doc, preprocessor=return_doc)
             doc_word_counts = vectorizer.fit_transform(tokenized_corpus)
-            words = vectorizer.get_feature_names()
+            words = vectorizer.get_feature_names_out()
             word_counts = np.array(np.sum(doc_word_counts, axis=0).tolist()[0])
             vocab_inds = np.where(word_counts > min_count)[0]
 
