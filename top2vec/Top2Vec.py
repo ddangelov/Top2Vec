@@ -1596,7 +1596,7 @@ class Top2Vec:
         # update index
         if self.documents_indexed:
             # delete doc_ids from index
-            index_ids = [self.doc_id2index_id(doc_id) for doc_id in doc_ids]
+            index_ids = [self.doc_id2index_id[doc_id] for doc_id in doc_ids]
             for index_id in index_ids:
                 self.document_index.mark_deleted(index_id)
             # update index_id and doc_ids
