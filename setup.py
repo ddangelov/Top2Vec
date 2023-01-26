@@ -48,5 +48,5 @@ setuptools.setup(
             'hnswlib',
         ],
     },
-    python_requires='>=3.6',
+    python_requires='>=3.8',
 )
