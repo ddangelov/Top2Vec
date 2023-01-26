@@ -247,6 +247,9 @@ class Top2Vec:
 
     embedding_batch_size: int (default=32)
         Batch size for documents being embedded.
+    
+    show_progress_bar: bool (default False)
+        Output a progress bar when encode sentences
 
     split_documents: bool (default False)
         If set to True, documents will be split into parts before embedding.
@@ -374,6 +377,7 @@ class Top2Vec:
                  embedding_model='doc2vec',
                  embedding_model_path=None,
                  embedding_batch_size=32,
+                 show_progress_bar=False,
                  split_documents=False,
                  document_chunker='sequential',
                  chunk_length=100,
@@ -564,6 +568,7 @@ class Top2Vec:
 
             self.embed = None
             self.embedding_model = embedding_model
+            self.show_progress_bar = show_progress_bar
 
             self._check_import_status()
 
@@ -609,7 +614,7 @@ class Top2Vec:
 
             # embed words
             self.word_indexes = dict(zip(self.vocab, range(len(self.vocab))))
-            self.word_vectors = self._l2_normalize(np.array(self.embed(self.vocab)))
+            self.word_vectors = self._l2_normalize(np.array(self.embed(self.vocab, show_progress_bar=self.show_progress_bar)))
 
             # embed documents
 
@@ -832,16 +837,16 @@ class Top2Vec:
             extra = len(train_corpus) % batch_size
 
             for ind in range(0, batches):
-                document_vectors.append(self.embed(train_corpus[current:current + batch_size]))
+                document_vectors.append(self.embed(train_corpus[current:current + batch_size], show_progress_bar=self.show_progress_bar))
                 current += batch_size
 
             if extra > 0:
-                document_vectors.append(self.embed(train_corpus[current:current + extra]))
+                document_vectors.append(self.embed(train_corpus[current:current + extra], show_progress_bar=self.show_progress_bar))
 
             document_vectors = self._l2_normalize(np.array(np.vstack(document_vectors)))
 
         else:
-            document_vectors = self.embed(train_corpus, batch_size=batch_size)
+            document_vectors = self.embed(train_corpus, batch_size=batch_size, show_progress_bar=self.show_progress_bar)
 
         return document_vectors
 
@@ -849,7 +854,7 @@ class Top2Vec:
         self._check_import_status()
         self._check_model_status()
 
-        return self._l2_normalize(np.array(self.embed([query])[0]))
+        return self._l2_normalize(np.array(self.embed([query], show_progress_bar=self.show_progress_bar)[0]))
 
     def _create_topic_vectors(self, cluster_labels):
         unique_labels = set(cluster_labels)
@@ -1547,7 +1552,7 @@ class Top2Vec:
             else:
                 docs_processed = [tokenizer(doc) for doc in documents]
                 docs_training = [' '.join(doc) for doc in docs_processed]
-            document_vectors = self._embed_documents(docs_training, embedding_batch_size)
+            document_vectors = self._embed_documents(docs_training, embedding_batch_size, show_progress_bar)
             self.document_vectors = np.vstack([self.document_vectors, document_vectors])
 
         # update index
