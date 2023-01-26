@@ -1,11 +1,11 @@
 version: 2
 
 sphinx:
-configuration: docs/conf.py
+    configuration: docs/conf.py
 
 formats: []
 
 python:
-version: 3.8
-install:
-- requirements: requirements.txt
+    version: 3.8
+    install:
+        - requirements: requirements.txt
