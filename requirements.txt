@@ -11,3 +11,4 @@ tensorflow_text
 torch
 sentence_transformers
 hnswlib
+conda create -n rapids-22.02 -c rapidsai -c nvidia -c conda-forge rapids=22.02 python=3.8 cudatoolkit=11.4 dask-sql

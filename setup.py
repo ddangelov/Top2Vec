@@ -44,6 +44,10 @@ setuptools.setup(
             'torch',
             'sentence_transformers',
         ],
+        'gpu_support':  [
+            'cuml',
+            'cudf',
+        ],
         'indexing': [
             'hnswlib',
         ],
