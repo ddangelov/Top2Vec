@@ -175,6 +175,11 @@ class Top2Vec:
         Ignores all words with total frequency lower than this. For smaller
         corpora a smaller min_count will be necessary.
 
+    topic_merge_delta: float (default 0.1)
+        Merges topic vectors which have a cosine distance smaller than
+        topic_merge_delta using dbscan. The epsilon parameter of dbscan is
+        set to the topic_merge_delta.
+
     ngram_vocab: bool (Optional, default False)
         Add phrases to topic descriptions.
 
@@ -369,6 +374,7 @@ class Top2Vec:
     def __init__(self,
                  documents,
                  min_count=50,
+                 topic_merge_delta=0.1,
                  ngram_vocab=False,
                  ngram_vocab_args=None,
                  embedding_model='doc2vec',
@@ -609,7 +615,7 @@ class Top2Vec:
 
             # embed words
             self.word_indexes = dict(zip(self.vocab, range(len(self.vocab))))
-            self.word_vectors = self._l2_normalize(np.array(self.embed(self.vocab)))
+            self.word_vectors = self._embed_documents(self.vocab, embedding_batch_size)
 
             # embed documents
 
@@ -657,56 +663,7 @@ class Top2Vec:
         else:
             raise ValueError(f"{embedding_model} is an invalid embedding model.")
 
-        # create 5D embeddings of documents
-        logger.info('Creating lower dimension embedding of documents')
-
-        if umap_args is None:
-            umap_args = {'n_neighbors': 15,
-                         'n_components': 5,
-                         'metric': 'cosine'}
-
-        umap_model = umap.UMAP(**umap_args).fit(self.document_vectors)
-
-        # find dense areas of document vectors
-        logger.info('Finding dense areas of documents')
-
-        if hdbscan_args is None:
-            hdbscan_args = {'min_cluster_size': 15,
-                            'metric': 'euclidean',
-                            'cluster_selection_method': 'eom'}
-
-        cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
-
-        # calculate topic vectors from dense areas of documents
-        logger.info('Finding topics')
-
-        # create topic vectors
-        self._create_topic_vectors(cluster.labels_)
-
-        # deduplicate topics
-        self._deduplicate_topics()
-
-        # find topic words and scores
-        self.topic_words, self.topic_word_scores = self._find_topic_words_and_scores(topic_vectors=self.topic_vectors)
-
-        # assign documents to topic
-        self.doc_top, self.doc_dist = self._calculate_documents_topic(self.topic_vectors,
-                                                                      self.document_vectors)
-
-        # calculate topic sizes
-        self.topic_sizes = self._calculate_topic_sizes(hierarchy=False)
-
-        # re-order topics
-        self._reorder_topics(hierarchy=False)
-
-        # initialize variables for hierarchical topic reduction
-        self.topic_vectors_reduced = None
-        self.doc_top_reduced = None
-        self.doc_dist_reduced = None
-        self.topic_sizes_reduced = None
-        self.topic_words_reduced = None
-        self.topic_word_scores_reduced = None
-        self.hierarchy = None
+        self.compute_topics(umap_args=umap_args, hdbscan_args=hdbscan_args, topic_merge_delta=topic_merge_delta)
 
         # initialize document indexing variables
         self.document_index = None
@@ -841,7 +798,7 @@ class Top2Vec:
             document_vectors = self._l2_normalize(np.array(np.vstack(document_vectors)))
 
         else:
-            document_vectors = self.embed(train_corpus, batch_size=batch_size)
+            document_vectors = self._l2_normalize(self.embed(train_corpus, batch_size=batch_size))
 
         return document_vectors
 
@@ -859,9 +816,9 @@ class Top2Vec:
             np.vstack([self.document_vectors[np.where(cluster_labels == label)[0]]
                       .mean(axis=0) for label in unique_labels]))
 
-    def _deduplicate_topics(self):
+    def _deduplicate_topics(self, topic_merge_delta):
         core_samples, labels = dbscan(X=self.topic_vectors,
-                                      eps=0.1,
+                                      eps=topic_merge_delta,
                                       min_samples=2,
                                       metric="cosine")
 
@@ -1261,6 +1218,84 @@ class Top2Vec:
         if not vector.shape[0] == vec_size:
             raise ValueError(f"Vector needs to be of {vec_size} dimensions.")
 
+    def compute_topics(self, umap_args=None, hdbscan_args=None, topic_merge_delta=0.1):
+        """
+        Computes topics from current document vectors.
+
+        New topic vectors will be computed along with new topic descriptions.
+        Documents will be reassigned to new topics. If topics were previously
+        reduced they will be removed. You will need to call
+        hierarchical_topic_reduction to recompute them.
+
+        This is useful for experimenting with different umap and hdbscan
+        parameters and also if many new documents were added since
+        training the initial model.
+
+        Parameters
+        ----------
+        umap_args: dict (Optional, default None)
+            Pass custom arguments to UMAP.
+
+        hdbscan_args: dict (Optional, default None)
+            Pass custom arguments to HDBSCAN.
+
+        topic_merge_delta: float (default 0.1)
+            Merges topic vectors which have a cosine distance smaller than
+            topic_merge_delta using dbscan. The epsilon parameter of dbscan is
+            set to the topic_merge_delta.
+        """
+
+        # create 5D embeddings of documents
+        logger.info('Creating lower dimension embedding of documents')
+
+        if umap_args is None:
+            umap_args = {'n_neighbors': 15,
+                         'n_components': 5,
+                         'metric': 'cosine'}
+
+        umap_model = umap.UMAP(**umap_args).fit(self.document_vectors)
+
+        # find dense areas of document vectors
+        logger.info('Finding dense areas of documents')
+
+        if hdbscan_args is None:
+            hdbscan_args = {'min_cluster_size': 15,
+                            'metric': 'euclidean',
+                            'cluster_selection_method': 'eom'}
+
+        cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
+
+        # calculate topic vectors from dense areas of documents
+        logger.info('Finding topics')
+
+        # create topic vectors
+        self._create_topic_vectors(cluster.labels_)
+
+        # deduplicate topics
+        self._deduplicate_topics(topic_merge_delta)
+
+        # find topic words and scores
+        self.topic_words, self.topic_word_scores = self._find_topic_words_and_scores(topic_vectors=self.topic_vectors)
+
+        # assign documents to topic
+        self.doc_top, self.doc_dist = self._calculate_documents_topic(self.topic_vectors,
+                                                                      self.document_vectors)
+
+        # calculate topic sizes
+        self.topic_sizes = self._calculate_topic_sizes(hierarchy=False)
+
+        # re-order topics
+        self._reorder_topics(hierarchy=False)
+
+        # initialize variables for hierarchical topic reduction
+        self.topic_vectors_reduced = None
+        self.doc_top_reduced = None
+        self.doc_dist_reduced = None
+        self.topic_sizes_reduced = None
+        self.topic_words_reduced = None
+        self.topic_word_scores_reduced = None
+        self.hierarchy = None
+
     def index_document_vectors(self, ef_construction=200, M=64):
         """
         Creates an index of the document vectors using hnswlib. This will
@@ -1596,7 +1631,7 @@ class Top2Vec:
         # update index
         if self.documents_indexed:
             # delete doc_ids from index
-            index_ids = [self.doc_id2index_id(doc_id) for doc_id in doc_ids]
+            index_ids = [self.doc_id2index_id[doc_id] for doc_id in doc_ids]
             for index_id in index_ids:
                 self.document_index.mark_deleted(index_id)
             # update index_id and doc_ids

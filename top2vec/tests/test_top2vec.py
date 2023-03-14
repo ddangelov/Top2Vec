@@ -121,6 +121,24 @@ def test_add_documents_original(top2vec_model):
 
 
 @pytest.mark.parametrize('top2vec_model', models)
+def test_compute_topics(top2vec_model):
+    top2vec_model.compute_topics()
+
+    num_topics = top2vec_model.get_num_topics()
+    words, word_scores, topic_nums = top2vec_model.get_topics()
+
+    # check that for each topic there are words, word_scores and topic_nums
+    assert len(words) == len(word_scores) == len(topic_nums) == num_topics
+
+    # check that for each word there is a score
+    assert len(words[0]) == len(word_scores[0])
+
+    # check that topics words are returned in decreasing order
+    topic_words_scores = word_scores[0]
+    assert all(topic_words_scores[i] >= topic_words_scores[i + 1] for i in range(len(topic_words_scores) - 1))
+
+
+@pytest.mark.parametrize('top2vec_model', models)
 def test_hierarchical_topic_reduction(top2vec_model):
     num_topics = top2vec_model.get_num_topics()
 
