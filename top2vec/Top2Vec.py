@@ -1503,6 +1503,58 @@ class Top2Vec:
 
         return doc_topics, doc_dist, topic_words, topic_word_scores
 
+    def get_document_vectors(self,
+                             documents,
+                             tokenizer=None,
+                             use_embedding_model_tokenizer=False,
+                             embedding_batch_size=32):
+        """
+        Returns document vectors
+
+        The documents will be added to the current model without changing
+        existing document, word and topic vectors. Topic sizes will be updated.
+
+        If adding a large quantity of documents relative to the current model
+        size, or documents containing a largely new vocabulary, a new model
+        should be trained for best results.
+
+        Parameters
+        ----------
+        documents: List of str
+
+        tokenizer: callable (Optional, default None)
+            Override the default tokenization method. If None then
+            gensim.utils.simple_preprocess will be used.
+
+        use_embedding_model_tokenizer: bool (Optional, default False)
+            If using an embedding model other than doc2vec, use the model's
+            tokenizer for document embedding.
+
+        embedding_batch_size: int (default=32)
+            Batch size for documents being embedded.
+        """
+
+        # if tokenizer is not passed use default
+        if tokenizer is None:
+            tokenizer = default_tokenizer
+
+        if self.embedding_model == "doc2vec":
+            docs_processed = [tokenizer(doc) for doc in documents]
+            document_vectors = np.vstack([self.model.infer_vector(doc_words=doc,
+                                                                  alpha=0.025,
+                                                                  min_alpha=0.01,
+                                                                  epochs=100) for doc in docs_processed])
+            document_vectors = self._l2_normalize(document_vectors)
+
+        else:
+            if use_embedding_model_tokenizer:
+                docs_training = documents
+            else:
+                docs_processed = [tokenizer(doc) for doc in documents]
+                docs_training = [' '.join(doc) for doc in docs_processed]
+            document_vectors = self._embed_documents(docs_training, embedding_batch_size)
+        return document_vectors
+
     def add_documents(self,
                       documents,
                       doc_ids=None,
@@ -1540,9 +1592,6 @@ class Top2Vec:
         embedding_batch_size: int (default=32)
             Batch size for documents being embedded.
         """
-        # if tokenizer is not passed use default
-        if tokenizer is None:
-            tokenizer = default_tokenizer
 
         # add documents
         self._validate_documents(documents)
@@ -1566,24 +1615,11 @@ class Top2Vec:
         else:
             raise ValueError("doc_ids cannot be used because they were not provided to model during training.")
 
-        if self.embedding_model == "doc2vec":
-            docs_processed = [tokenizer(doc) for doc in documents]
-            document_vectors = np.vstack([self.model.infer_vector(doc_words=doc,
-                                                                  alpha=0.025,
-                                                                  min_alpha=0.01,
-                                                                  epochs=100) for doc in docs_processed])
-
-            document_vectors = self._l2_normalize(document_vectors)
-            self.document_vectors = np.vstack([self.document_vectors, document_vectors])
-
-        else:
-            if use_embedding_model_tokenizer:
-                docs_training = documents
-            else:
-                docs_processed = [tokenizer(doc) for doc in documents]
-                docs_training = [' '.join(doc) for doc in docs_processed]
-            document_vectors = self._embed_documents(docs_training, embedding_batch_size)
-            self.document_vectors = np.vstack([self.document_vectors, document_vectors])
+        # get document vectors
+        document_vectors = self.get_document_vectors(
+            documents, tokenizer, use_embedding_model_tokenizer, embedding_batch_size
+        )
+        self.document_vectors = np.vstack([self.document_vectors, document_vectors])
 
         # update index
         if self.documents_indexed:
