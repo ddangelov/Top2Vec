@@ -7,13 +7,12 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.8"
+  jobs:
+    post_build:
+      - python -m pip install sphinx_rtd_theme
 
 formats: []
 
 python:
     install:
         - requirements: requirements.txt
-
-jobs:
-    post_create_environment:
-      - python -m pip install sphinx_rtd_theme
