@@ -13,3 +13,7 @@ formats: []
 python:
     install:
         - requirements: requirements.txt
+
+jobs:
+    post_create_environment:
+      - python -m pip install sphinx_rtd_theme
