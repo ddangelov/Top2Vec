@@ -1276,10 +1276,12 @@ class Top2Vec:
                          'n_components': 5,
                          'metric': 'cosine'}
 
-        if gpu_umap:
-            pass
+        if gpu_umap and _HAVE_CUMAP:
+            umap_model = cuUMAP(**umap_args).fit(self.document_vectors)
+            umap_embedding = umap_model.transform(self.document_vectors)
         else:
             umap_model = umap.UMAP(**umap_args).fit(self.document_vectors)
+            umap_embedding = umap_model.embedding_
 
         # find dense areas of document vectors
         logger.info('Finding dense areas of documents')
@@ -1289,7 +1291,7 @@ class Top2Vec:
                             'metric': 'euclidean',
                             'cluster_selection_method': 'eom'}
 
-        cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
+        cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_embedding)
 
         # calculate topic vectors from dense areas of documents
         logger.info('Finding topics')
