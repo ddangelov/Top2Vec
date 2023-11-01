@@ -20,6 +20,13 @@ from sklearn.preprocessing import normalize
 from scipy.special import softmax
 
 try:
+    from cuml.manifold.umap import UMAP as cuUMAP
+
+    _HAVE_CUMAP = True
+except ImportError:
+    _HAVE_CUMAP = False
+
+try:
     import hnswlib
 
     _HAVE_HNSWLIB = True
@@ -364,6 +371,12 @@ class Top2Vec:
     umap_args: dict (Optional, default None)
         Pass custom arguments to UMAP.
 
+    gpu_umap: bool (default False)
+            If True umap will use the rapidsai cuml library to perform the
+            dimensionality reduction. This will lead to a significant speedup
+            in the computation time. To install rapidsai cuml follow the
+            instructions here: https://docs.rapids.ai/install
+
     hdbscan_args: dict (Optional, default None)
         Pass custom arguments to HDBSCAN.
     
@@ -377,7 +390,7 @@ class Top2Vec:
                  topic_merge_delta=0.1,
                  ngram_vocab=False,
                  ngram_vocab_args=None,
-                 embedding_model='doc2vec',
+                 embedding_model='universal-sentence-encoder-multilingual',
                  embedding_model_path=None,
                  embedding_batch_size=32,
                  split_documents=False,
@@ -395,6 +408,7 @@ class Top2Vec:
                  tokenizer=None,
                  use_embedding_model_tokenizer=False,
                  umap_args=None,
+                 gpu_umap=False,
                  hdbscan_args=None,
                  verbose=True
                  ):
@@ -663,7 +677,10 @@ class Top2Vec:
         else:
             raise ValueError(f"{embedding_model} is an invalid embedding model.")
 
-        self.compute_topics(umap_args=umap_args, hdbscan_args=hdbscan_args, topic_merge_delta=topic_merge_delta)
+        self.compute_topics(umap_args=umap_args,
+                            hdbscan_args=hdbscan_args,
+                            topic_merge_delta=topic_merge_delta,
+                            gpu_umap=gpu_umap)
 
         # initialize document indexing variables
         self.document_index = None
@@ -1218,7 +1235,7 @@ class Top2Vec:
         if not vector.shape[0] == vec_size:
             raise ValueError(f"Vector needs to be of {vec_size} dimensions.")
 
-    def compute_topics(self, umap_args=None, hdbscan_args=None, topic_merge_delta=0.1):
+    def compute_topics(self, umap_args=None, hdbscan_args=None, topic_merge_delta=0.1, gpu_umap=False):
         """
         Computes topics from current document vectors.
 
@@ -1243,6 +1260,12 @@ class Top2Vec:
             Merges topic vectors which have a cosine distance smaller than
             topic_merge_delta using dbscan. The epsilon parameter of dbscan is
             set to the topic_merge_delta.
+
+        gpu_umap: bool (default False)
+            If True umap will use the rapidsai cuml library to perform the
+            dimensionality reduction. This will lead to a significant speedup
+            in the computation time. To install rapidsai cuml follow the
+            instructions here: https://docs.rapids.ai/install
         """
 
         # create 5D embeddings of documents
@@ -1253,7 +1276,10 @@ class Top2Vec:
                          'n_components': 5,
                          'metric': 'cosine'}
 
-        umap_model = umap.UMAP(**umap_args).fit(self.document_vectors)
+        if gpu_umap:
+            pass
+        else:
+            umap_model = umap.UMAP(**umap_args).fit(self.document_vectors)
 
         # find dense areas of document vectors
         logger.info('Finding dense areas of documents')
