@@ -362,7 +362,7 @@ class Top2Vec:
 
         Tokenizer must take a document and return a list of tokens.
 
-    use_embedding_model_tokenizer: bool (Optional, default False)
+    use_embedding_model_tokenizer: bool (Optional, default True)
         If using an embedding model other than doc2vec, use the model's
         tokenizer for document embedding. If set to True the tokenizer, either
         default or passed callable will be used to tokenize the text to
@@ -372,13 +372,24 @@ class Top2Vec:
         Pass custom arguments to UMAP.
 
     gpu_umap: bool (default False)
-            If True umap will use the rapidsai cuml library to perform the
-            dimensionality reduction. This will lead to a significant speedup
-            in the computation time. To install rapidsai cuml follow the
-            instructions here: https://docs.rapids.ai/install
+        If True umap will use the rapidsai cuml library to perform the
+        dimensionality reduction. This will lead to a significant speedup
+        in the computation time during model createion. To install rapidsai
+        cuml follow the instructions here: https://docs.rapids.ai/install
 
     hdbscan_args: dict (Optional, default None)
         Pass custom arguments to HDBSCAN.
+
+    gpu_hdbscan: bool (default False)
+        If True hdbscan will use the rapidsai cuml library to perform the
+        clustering. This will lead to a significant speedup in the computation
+        time during model creation. To install rapidsai cuml follow the
+        instructions here: https://docs.rapids.ai/install
+
+    index_topics: bool (Optional, default False)
+        If True, the topic vectors will be indexed using hnswlib. This will
+        significantly speed up finding topics during model creation for
+        very large datasets.
     
     verbose: bool (Optional, default True)
         Whether to print status data during training.
@@ -406,10 +417,12 @@ class Top2Vec:
                  keep_documents=True,
                  workers=None,
                  tokenizer=None,
-                 use_embedding_model_tokenizer=False,
+                 use_embedding_model_tokenizer=True,
                  umap_args=None,
                  gpu_umap=False,
                  hdbscan_args=None,
+                 gpu_hdbscan=False,
+                 index_topics=False,
                  verbose=True
                  ):
 
@@ -680,7 +693,9 @@ class Top2Vec:
         self.compute_topics(umap_args=umap_args,
                             hdbscan_args=hdbscan_args,
                             topic_merge_delta=topic_merge_delta,
-                            gpu_umap=gpu_umap)
+                            gpu_umap=gpu_umap,
+                            gpu_hdbscan=gpu_hdbscan,
+                            index_topics=index_topics)
 
         # initialize document indexing variables
         self.document_index = None
@@ -694,6 +709,11 @@ class Top2Vec:
         self.serialized_word_index = None
         self.words_indexed = False
 
+        # initialize topic indexing variables
+        self.topic_index = None
+        self.serialized_topic_index = None
+        self.topic_indexed = False
+
     def save(self, file):
         """
         Saves the current model to the specified file.
@@ -706,6 +726,7 @@ class Top2Vec:
 
         document_index_temp = None
         word_index_temp = None
+        topic_index_temp = None
 
         # do not save sentence encoders, sentence transformers and custom embedding
         if self.embedding_model not in ["doc2vec"]:
@@ -729,10 +750,20 @@ class Top2Vec:
             word_index_temp = self.word_index
             self.word_index = None
 
+        # serialize word index so that it can be saved
+        if self.topics_indexed:
+            temp = tempfile.NamedTemporaryFile(mode='w+b')
+            self.topic_index.save_index(temp.name)
+            self.serialized_topic_index = temp.read()
+            temp.close()
+            topic_index_temp = self.topic_index
+            self.topic_index = None
+
         dump(self, file)
 
         self.document_index = document_index_temp
         self.word_index = word_index_temp
+        self.topic_index = topic_index_temp
 
     @classmethod
     def load(cls, file):
@@ -780,6 +811,23 @@ class Top2Vec:
             top2vec_model.word_index.load_index(temp.name, max_elements=word_vectors.shape[0])
             temp.close()
             top2vec_model.serialized_word_index = None
+
+        # load topic index
+        if top2vec_model.words_indexed:
+
+            if not _HAVE_HNSWLIB:
+                raise ImportError(f"Cannot load word index.\n\n"
+                                  "Try: pip install top2vec[indexing]\n\n"
+                                  "Alternatively try: pip install hnswlib")
+
+            temp = tempfile.NamedTemporaryFile(mode='w+b')
+            temp.write(top2vec_model.serialized_topic_index)
+            topic_vectors = top2vec_model.topic_vectors
+            top2vec_model.topic_index = hnswlib.Index(space='ip',
+                                                      dim=topic_vectors.shape[1])
+            top2vec_model.topic_index.load_index(temp.name, max_elements=topic_vectors.shape[0])
+            temp.close()
+            top2vec_model.serialized_topic_index = None
 
         return top2vec_model
 
@@ -884,55 +932,68 @@ class Top2Vec:
             self.topic_sizes.reset_index(drop=True, inplace=True)
 
     @staticmethod
-    def _calculate_documents_topic(topic_vectors, document_vectors, dist=True, num_topics=None):
-        batch_size = 10000
-        doc_top = []
-        if dist:
+    def _calculate_documents_topic(topic_vectors,
+                                   document_vectors,
+                                   dist=True,
+                                   num_topics=None,
+                                   topic_index=None):
+
+        if topic_index is not None:
+            doc_top = []
             doc_dist = []
-
-        if document_vectors.shape[0] > batch_size:
-            current = 0
-            batches = int(document_vectors.shape[0] / batch_size)
-            extra = document_vectors.shape[0] % batch_size
-
-            for ind in range(0, batches):
-                res = np.inner(document_vectors[current:current + batch_size], topic_vectors)
-
-                if num_topics is None:
-                    doc_top.extend(np.argmax(res, axis=1))
-                    if dist:
-                        doc_dist.extend(np.max(res, axis=1))
-                else:
-                    doc_top.extend(np.flip(np.argsort(res), axis=1)[:, :num_topics])
-                    if dist:
-                        doc_dist.extend(np.flip(np.sort(res), axis=1)[:, :num_topics])
-
-                current += batch_size
-
-            if extra > 0:
-                res = np.inner(document_vectors[current:current + extra], topic_vectors)
-
-                if num_topics is None:
-                    doc_top.extend(np.argmax(res, axis=1))
-                    if dist:
-                        doc_dist.extend(np.max(res, axis=1))
-                else:
-                    doc_top.extend(np.flip(np.argsort(res), axis=1)[:, :num_topics])
-                    if dist:
-                        doc_dist.extend(np.flip(np.sort(res), axis=1)[:, :num_topics])
-            if dist:
-                doc_dist = np.array(doc_dist)
+            for vector in document_vectors:
+                ids, scores = topic_index.knn_query(vector, k=1)
+                doc_top.append(ids[0][0])
+                doc_dist.append(1 - scores[0][0])
         else:
-            res = np.inner(document_vectors, topic_vectors)
+            batch_size = 10000
+            doc_top = []
+            if dist:
+                doc_dist = []
 
-            if num_topics is None:
-                doc_top = np.argmax(res, axis=1)
+            if document_vectors.shape[0] > batch_size:
+                current = 0
+                batches = int(document_vectors.shape[0] / batch_size)
+                extra = document_vectors.shape[0] % batch_size
+
+                for ind in range(0, batches):
+                    res = np.inner(document_vectors[current:current + batch_size], topic_vectors)
+
+                    if num_topics is None:
+                        doc_top.extend(np.argmax(res, axis=1))
+                        if dist:
+                            doc_dist.extend(np.max(res, axis=1))
+                    else:
+                        doc_top.extend(np.flip(np.argsort(res), axis=1)[:, :num_topics])
+                        if dist:
+                            doc_dist.extend(np.flip(np.sort(res), axis=1)[:, :num_topics])
+
+                    current += batch_size
+
+                if extra > 0:
+                    res = np.inner(document_vectors[current:current + extra], topic_vectors)
+
+                    if num_topics is None:
+                        doc_top.extend(np.argmax(res, axis=1))
+                        if dist:
+                            doc_dist.extend(np.max(res, axis=1))
+                    else:
+                        doc_top.extend(np.flip(np.argsort(res), axis=1)[:, :num_topics])
+                        if dist:
+                            doc_dist.extend(np.flip(np.sort(res), axis=1)[:, :num_topics])
                 if dist:
-                    doc_dist = np.max(res, axis=1)
+                    doc_dist = np.array(doc_dist)
             else:
-                doc_top.extend(np.flip(np.argsort(res), axis=1)[:, :num_topics])
-                if dist:
-                    doc_dist.extend(np.flip(np.sort(res), axis=1)[:, :num_topics])
+                res = np.inner(document_vectors, topic_vectors)
+
+                if num_topics is None:
+                    doc_top = np.argmax(res, axis=1)
+                    if dist:
+                        doc_dist = np.max(res, axis=1)
+                else:
+                    doc_top.extend(np.flip(np.argsort(res), axis=1)[:, :num_topics])
+                    if dist:
+                        doc_dist.extend(np.flip(np.sort(res), axis=1)[:, :num_topics])
 
         if num_topics is not None:
             doc_top = np.array(doc_top)
@@ -1235,7 +1296,13 @@ class Top2Vec:
         if not vector.shape[0] == vec_size:
             raise ValueError(f"Vector needs to be of {vec_size} dimensions.")
 
-    def compute_topics(self, umap_args=None, hdbscan_args=None, topic_merge_delta=0.1, gpu_umap=False):
+    def compute_topics(self,
+                       umap_args=None,
+                       hdbscan_args=None,
+                       topic_merge_delta=0.1,
+                       gpu_umap=False,
+                       gpu_hdbscan=False,
+                       index_topics=False):
         """
         Computes topics from current document vectors.
 
@@ -1266,6 +1333,17 @@ class Top2Vec:
             dimensionality reduction. This will lead to a significant speedup
             in the computation time. To install rapidsai cuml follow the
             instructions here: https://docs.rapids.ai/install
+
+        gpu_hdbscan: bool (default False)
+            If True hdbscan will use the rapidsai cuml library to perform the
+            clustering. This will lead to a significant speedup
+            in the computation time. To install rapidsai cuml follow the
+            instructions here: https://docs.rapids.ai/install
+
+        index_topics: bool (default False)
+            If True the topic vectors will be indexed using hnswlib. This will
+            lead to faster search times for models with a large number of
+            topics.
         """
 
         # create 5D embeddings of documents
@@ -1305,9 +1383,16 @@ class Top2Vec:
         # find topic words and scores
         self.topic_words, self.topic_word_scores = self._find_topic_words_and_scores(topic_vectors=self.topic_vectors)
 
+        if index_topics:
+            self.index_topic_vectors()
+            topic_index = self.topic_index
+        else:
+            topic_index = None
+
         # assign documents to topic
         self.doc_top, self.doc_dist = self._calculate_documents_topic(self.topic_vectors,
-                                                                      self.document_vectors)
+                                                                      self.document_vectors,
+                                                                      topic_index=topic_index)
 
         # calculate topic sizes
         self.topic_sizes = self._calculate_topic_sizes(hierarchy=False)
@@ -1401,6 +1486,43 @@ class Top2Vec:
         self.word_index.init_index(max_elements=num_vecs, ef_construction=ef_construction, M=M)
         self.word_index.add_items(word_vectors, index_ids)
         self.words_indexed = True
+
+    def index_topic_vectors(self, ef_construction=200, M=64):
+        """
+        Creates an index of the topic vectors using hnswlib. This will
+        lead to faster search times for models with a large number of
+        topics.
+
+        For more information on hnswlib see: https://github.com/nmslib/hnswlib
+
+        Parameters
+        ----------
+        ef_construction: int (Optional default 200)
+            This parameter controls the trade-off between index construction
+            time and index accuracy. Larger values will lead to greater
+            accuracy but will take longer to construct.
+
+        M: int (Optional default 64)
+            This parameter controls the trade-off between both index size as
+            well as construction time and accuracy. Larger values will lead to
+            greater accuracy but will result in a larger index as well as
+            longer construction time.
+
+            For more information on the parameters see:
+            https://github.com/nmslib/hnswlib/blob/master/ALGO_PARAMS.md
+        """
+        self._check_hnswlib_status()
+
+        topic_vectors = self.topic_vectors
+        vec_dim = topic_vectors.shape[1]
+        num_vecs = topic_vectors.shape[0]
+
+        index_ids = list(range(0, num_vecs))
+
+        self.topic_index = hnswlib.Index(space='ip', dim=vec_dim)
+        self.topic_index.init_index(max_elements=num_vecs, ef_construction=ef_construction, M=M)
+        self.topic_index.add_items(topic_vectors, index_ids)
+        self.topics_indexed = True
 
     def set_embedding_model(self, embedding_model):
         """
