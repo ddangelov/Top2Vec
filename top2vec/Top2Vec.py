@@ -697,6 +697,11 @@ class Top2Vec:
         else:
             raise ValueError(f"{embedding_model} is an invalid embedding model.")
 
+        # initialize topic indexing variables
+        self.topic_index = None
+        self.serialized_topic_index = None
+        self.topic_indexed = False
+
         self.compute_topics(umap_args=umap_args,
                             hdbscan_args=hdbscan_args,
                             topic_merge_delta=topic_merge_delta,
@@ -715,11 +720,6 @@ class Top2Vec:
         self.word_index = None
         self.serialized_word_index = None
         self.words_indexed = False
-
-        # initialize topic indexing variables
-        self.topic_index = None
-        self.serialized_topic_index = None
-        self.topic_indexed = False
 
     def save(self, file):
         """
