@@ -820,7 +820,7 @@ class Top2Vec:
             top2vec_model.serialized_word_index = None
 
         # load topic index
-        if top2vec_model.words_indexed:
+        if top2vec_model.topics_indexed:
 
             if not _HAVE_HNSWLIB:
                 raise ImportError(f"Cannot load word index.\n\n"
