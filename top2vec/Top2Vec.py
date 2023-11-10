@@ -700,7 +700,7 @@ class Top2Vec:
         # initialize topic indexing variables
         self.topic_index = None
         self.serialized_topic_index = None
-        self.topic_indexed = False
+        self.topics_indexed = False
 
         self.compute_topics(umap_args=umap_args,
                             hdbscan_args=hdbscan_args,
@@ -819,22 +819,25 @@ class Top2Vec:
             temp.close()
             top2vec_model.serialized_word_index = None
 
-        # load topic index
-        if top2vec_model.topics_indexed:
+        try:
+            # load topic index
+            if top2vec_model.topics_indexed:
 
-            if not _HAVE_HNSWLIB:
-                raise ImportError(f"Cannot load word index.\n\n"
-                                  "Try: pip install top2vec[indexing]\n\n"
-                                  "Alternatively try: pip install hnswlib")
+                if not _HAVE_HNSWLIB:
+                    raise ImportError(f"Cannot load word index.\n\n"
+                                      "Try: pip install top2vec[indexing]\n\n"
+                                      "Alternatively try: pip install hnswlib")
 
-            temp = tempfile.NamedTemporaryFile(mode='w+b')
-            temp.write(top2vec_model.serialized_topic_index)
-            topic_vectors = top2vec_model.topic_vectors
-            top2vec_model.topic_index = hnswlib.Index(space='ip',
-                                                      dim=topic_vectors.shape[1])
-            top2vec_model.topic_index.load_index(temp.name, max_elements=topic_vectors.shape[0])
-            temp.close()
-            top2vec_model.serialized_topic_index = None
+                temp = tempfile.NamedTemporaryFile(mode='w+b')
+                temp.write(top2vec_model.serialized_topic_index)
+                topic_vectors = top2vec_model.topic_vectors
+                top2vec_model.topic_index = hnswlib.Index(space='ip',
+                                                          dim=topic_vectors.shape[1])
+                top2vec_model.topic_index.load_index(temp.name, max_elements=topic_vectors.shape[0])
+                temp.close()
+                top2vec_model.serialized_topic_index = None
+        except AttributeError:
+            pass
 
         return top2vec_model
 
@@ -1972,7 +1975,7 @@ class Top2Vec:
 
         return self.hierarchy
 
-    def hierarchical_topic_reduction(self, num_topics):
+    def hierarchical_topic_reduction(self, num_topics, interval=None):
         """
         Reduce the number of topics discovered by Top2Vec.
 
@@ -1984,6 +1987,9 @@ class Top2Vec:
         ----------
         num_topics: int
             The number of topics to reduce to.
+        interval: int (Optional, default None)
+            The interval at which to recalculate topic sizes. Larger values
+            will lead to faster computation but less accurate results.
 
         Returns
         -------
@@ -2006,7 +2012,8 @@ class Top2Vec:
         hierarchy = [[i] for i in range(self.topic_vectors.shape[0])]
 
         count = 0
-        interval = max(int(self.document_vectors.shape[0] / 50000), 1)
+        if interval is None:
+            interval = max(int(self.document_vectors.shape[0] / 50000), 1)
 
         while num_topics_current > num_topics:
 
@@ -2042,7 +2049,7 @@ class Top2Vec:
                                                           document_vectors=self.document_vectors,
                                                           dist=False)
                 topic_sizes = pd.Series(doc_top).value_counts()
-                top_sizes = [topic_sizes[i] for i in range(0, len(topic_sizes))]
+                top_sizes = [topic_sizes[i] if i in topic_sizes else 1 for i in range(0, top_vecs.shape[0])]
 
             else:
                 smallest_size = top_sizes.pop(smallest)
