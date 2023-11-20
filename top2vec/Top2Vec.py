@@ -2907,3 +2907,4 @@ class Top2Vec:
                       height=400,
                       background_color=background_color).generate_from_frequencies(word_score_dict))
         plt.title("Topic " + str(topic_num), loc='left', fontsize=25, pad=20)
+        return plt
