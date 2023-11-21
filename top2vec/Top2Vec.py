@@ -1607,10 +1607,10 @@ class Top2Vec:
 
         Returns
         -------
-        topic_nums: array of int, shape(len(doc_ids), num_topics)
+        doc_topics: array of int, shape(len(doc_ids), num_topics)
             The topic number(s) of the document corresponding to each doc_id.
 
-        topic_score: array of float, shape(len(doc_ids), num_topics)
+        doc_dist: array of float, shape(len(doc_ids), num_topics)
             Semantic similarity of document to topic(s). The cosine similarity
             of the document and topic vector.
 
@@ -1623,7 +1623,7 @@ class Top2Vec:
             ['environment', 'warming', 'climate ... 'temperature']  <Topic 21>
             ...]
 
-        word_scores: array of shape(num_topics, 50)
+        topic_word_scores: array of shape(len(doc_ids),num_topics, 50)
             For each topic the cosine similarity scores of the
             top 50 words to the topic are returned.
 
