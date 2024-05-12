@@ -9,11 +9,10 @@ from gensim.utils import simple_preprocess
 from gensim.parsing.preprocessing import strip_tags
 from gensim.models.phrases import Phrases
 import umap
-from sklearn.cluster import HDBSCAN
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from joblib import dump, load
-from sklearn.cluster import dbscan
+from sklearn.cluster import dbscan, HDBSCAN
 import tempfile
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
