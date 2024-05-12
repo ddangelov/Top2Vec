@@ -9,7 +9,7 @@ from gensim.utils import simple_preprocess
 from gensim.parsing.preprocessing import strip_tags
 from gensim.models.phrases import Phrases
 import umap
-import hdbscan
+from sklearn.cluster import HDBSCAN
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from joblib import dump, load
@@ -1384,7 +1384,7 @@ class Top2Vec:
             labels = cluster.fit_predict(umap_embedding)
 
         else:
-            cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_embedding)
+            cluster = HDBSCAN(**hdbscan_args).fit(umap_embedding)
             labels = cluster.labels_
 
         # calculate topic vectors from dense areas of documents

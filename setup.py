@@ -31,7 +31,6 @@ setuptools.setup(
         'scikit-learn >= 1.2.0',
         'gensim >= 4.0.0',
         'umap-learn >= 0.5.1',
-        'hdbscan >= 0.8.27',
         'wordcloud',
     ],
     extras_require={
