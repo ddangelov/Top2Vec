@@ -72,7 +72,7 @@ get_document_tokens() -> List[List[str]]
 
 The **contextual version** of Top2Vec requires specific embedding models, and the new methods provide insights into the distribution, relevance, and assignment of topics at both the document and token levels, allowing for a richer understanding of the data.
 
-> Warning: Contextual Top2Vec is still in **beta**. Users may encounter issues or unexpected behavior, and the functionality may change in future updates.
+> Warning: Contextual Top2Vec is still in **beta**. You may encounter issues or unexpected behavior, and the functionality may change in future updates.
 
 
 
