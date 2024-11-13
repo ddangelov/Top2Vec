@@ -4,15 +4,101 @@
 [![](https://img.shields.io/badge/arXiv-2008.09470-00ff00.svg)](http://arxiv.org/abs/2008.09470)
 
 
-**Updates:**
+<!--![](https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/top2vec_logo.png?sanitize=true)-->
+<p align="center">
+    <img src="https://raw.githubusercontent.com/ddangelov/Top2Vec/master/images/top2vec_logo.svg" alt="" width=600 height="whatever">
+</p>
 
-* New pre-trained transformer models available
-* Ability to use any embedding model by passing callable to `embedding_model`
-* Document chunking options for long documents
-* Phrases in topics by setting `ngram_vocab=True`
+# Contextual Top2Vec Overview
+Paper: [Topic Modeling: Contextual Token Embeddings Are All You Need](https://aclanthology.org/2024.findings-emnlp.790.pdf)
 
-Top2Vec
-======= 
+The Top2Vec library now supports a new contextual version, allowing for deeper topic modeling capabilities. **Contextual Top2Vec**, enables the model to generate **contextual token embeddings** for each document, identifying multiple topics per document and even detecting topic segments within a document. This enhancement is useful for capturing a nuanced understanding of topics, especially in documents that cover multiple themes.
+
+### Key Features of Contextual Top2Vec
+
+- **`contextual_top2vec` flag**: A new parameter, `contextual_top2vec`, is added to the Top2Vec class. When set to `True`, the model uses contextual token embeddings. Only the following embedding models are supported:
+  - `all-MiniLM-L6-v2`
+  - `all-mpnet-base-v2`
+- **Topic Spans**: C-Top2Vec automatically determines the number of topics and finds topic segments within documents, allowing for a more granular topic discovery.
+
+### Simple Usage Example
+
+Here is a simple example of how to use Contextual Top2Vec:
+
+```python
+from top2vec import Top2Vec
+
+# Create a Contextual Top2Vec model
+top2vec_model = Top2Vec(documents=documents,
+                        ngram_vocab=True,
+                        contextual_top2vec=True)
+```
+
+### New Methods for Contextual Top2Vec
+
+#### `get_document_topic_distribution()`
+
+```python
+get_document_topic_distribution() -> np.ndarray
+```
+- **Description**: Retrieves the topic distribution for each document.
+- **Returns**: A `numpy.ndarray` of shape `(num_documents, num_topics)`. Each row represents the **probability distribution of topics** for a document.
+
+#### `get_document_topic_relevance()`
+
+```python
+get_document_topic_relevance() -> np.ndarray
+```
+- **Description**: Provides the relevance of each topic for each document.
+- **Returns**: A `numpy.ndarray` of shape `(num_documents, num_topics)`. Each row indicates the **relevance scores of topics** for a document.
+
+#### `get_document_token_topic_assignment()`
+
+```python
+get_document_token_topic_assignment() -> List[Document]
+```
+- **Description**: Retrieves token-level topic assignments for each document.
+- **Returns**: A list of `Document` objects, each containing topics with **token assignments and scores** for each token.
+
+#### `get_document_tokens()`
+
+```python
+get_document_tokens() -> List[List[str]]
+```
+- **Description**: Returns the tokens for each document.
+- **Returns**: A list of lists where each sublist contains the **tokens for a given document**.
+
+### Usage Note
+
+The **contextual version** of Top2Vec requires specific embedding models, and the new methods provide insights into the distribution, relevance, and assignment of topics at both the document and token levels, allowing for a richer understanding of the data.
+
+> Warning: Contextual Top2Vec is still in **beta**. Users may encounter issues or unexpected behavior, and the functionality may change in future updates.
+
+
+
+Citation
+--------
+```
+@inproceedings{angelov-inkpen-2024-topic,
+    title = "Topic Modeling: Contextual Token Embeddings Are All You Need",
+    author = "Angelov, Dimo  and
+      Inkpen, Diana",
+    editor = "Al-Onaizan, Yaser  and
+      Bansal, Mohit  and
+      Chen, Yun-Nung",
+    booktitle = "Findings of the Association for Computational Linguistics: EMNLP 2024",
+    month = nov,
+    year = "2024",
+    address = "Miami, Florida, USA",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2024.findings-emnlp.790",
+    pages = "13528--13539",
+    abstract = "The goal of topic modeling is to find meaningful topics that capture the information present in a collection of documents. The main challenges of topic modeling are finding the optimal number of topics, labeling the topics, segmenting documents by topic, and evaluating topic model performance. Current neural approaches have tackled some of these problems but none have been able to solve all of them. We introduce a novel topic modeling approach, Contextual-Top2Vec, which uses document contextual token embeddings, it creates hierarchical topics, finds topic spans within documents and labels topics with phrases rather than just words. We propose the use of BERTScore to evaluate topic coherence and to evaluate how informative topics are of the underlying documents. Our model outperforms the current state-of-the-art models on a comprehensive set of topic model evaluation metrics.",
+}
+```
+
+Classic Top2Vec
+===============
 
 Top2Vec is an algorithm for **topic modeling** and **semantic search**. It automatically detects topics present in text
 and generates jointly embedded topic, document and word vectors. Once you train the Top2Vec model 
