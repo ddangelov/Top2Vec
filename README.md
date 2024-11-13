@@ -116,7 +116,7 @@ Usage
 
 ```python
 
-from top2vec import Top2Vec
+from top2vec import top2vec
 
 model = Top2Vec(documents)
 ```
@@ -149,9 +149,9 @@ Doc2Vec will be used by default to generate the joint word and document embeddin
   * `universal-sentence-encoder`
   * `universal-sentence-encoder-multilingual`
   * `distiluse-base-multilingual-cased`
-  
+
 ```python
-from top2vec import Top2Vec
+from top2vec import top2vec
 
 model = Top2Vec(documents, embedding_model='universal-sentence-encoder')
 ```
@@ -195,9 +195,10 @@ Example
 
 ### Train Model
 Train a Top2Vec model on the 20newsgroups dataset.
+
 ```python
 
-from top2vec import Top2Vec
+from top2vec import top2vec
 from sklearn.datasets import fetch_20newsgroups
 
 newsgroups = fetch_20newsgroups(subset='all', remove=('headers', 'footers', 'quotes'))

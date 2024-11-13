@@ -11,3 +11,5 @@ tensorflow_text
 torch
 sentence_transformers
 hnswlib
+transformers
+tqdm

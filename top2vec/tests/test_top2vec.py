@@ -1,5 +1,5 @@
 import pytest
-from top2vec.Top2Vec import Top2Vec
+from top2vec.top2vec import Top2Vec
 from sklearn.datasets import fetch_20newsgroups
 import numpy as np
 import tempfile
