@@ -530,6 +530,8 @@ class Top2Vec:
 
         self.embedding_model_path = embedding_model_path
 
+        self.contextual_top2vec = contextual_top2vec
+
         # validate document splitting
         use_sentencizer = False
         custom_chunker = False
