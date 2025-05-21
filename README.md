@@ -284,7 +284,7 @@ Train a Top2Vec model on the 20newsgroups dataset.
 
 ```python
 
-from top2vec import top2vec
+from top2vec import Top2Vec
 from sklearn.datasets import fetch_20newsgroups
 
 newsgroups = fetch_20newsgroups(subset='all', remove=('headers', 'footers', 'quotes'))
